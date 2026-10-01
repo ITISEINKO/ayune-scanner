@@ -18,7 +18,18 @@ export type ProductionItem = {
 	step: string | null;
 	progress: number | null;
 	qc_result: string | null;
-	kendala: string | null;
+	productType: string | null;
+	bisaLanjut: boolean;
+	kendala: Array<{
+		id: string;
+		nama: string | null;
+		status: string | null;
+		jenis: string | null;
+		tahap: string | null;
+		detail: string | null;
+		dibuat: number | null;
+		selesai: number | null;
+	}>;
 	last_scan: unknown;
 };
 
@@ -32,7 +43,7 @@ export function ProductionSheet({ production, onClose, onAdvanced }: Props) {
 	const [file, setFile] = useState<File | null>(null);
 	const [error, setError] = useState("");
 	const [saving, setSaving] = useState(false);
-	const canAdvance = Boolean(production.step && production.step !== "Pengiriman");
+	const canAdvance = production.bisaLanjut && Boolean(production.step && production.step !== "Pengiriman");
 
 	const submit = async (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
@@ -70,13 +81,13 @@ export function ProductionSheet({ production, onClose, onAdvanced }: Props) {
 						<div className="rounded-xl bg-secondary p-3"><dt className="text-muted-foreground">Progress</dt><dd className="mt-1 text-lg font-bold">{production.progress === null ? "-" : `${production.progress}%`}</dd></div>
 						<div className="rounded-xl bg-secondary p-3"><dt className="text-muted-foreground">QC Result</dt><dd className="mt-1 text-lg font-bold">{production.qc_result ?? "-"}</dd></div>
 					</dl>
-					{production.kendala && (
-						<Alert variant="destructive" className="mt-3">
+					{production.kendala.map((kendala) => (
+						<Alert key={kendala.id} variant="destructive" className="mt-3">
 							<TriangleAlert />
-							<AlertTitle>Kendala produksi</AlertTitle>
-							<AlertDescription>{production.kendala}</AlertDescription>
+							<AlertTitle>{kendala.nama ?? "Kendala produksi"}{kendala.status && ` (${kendala.status})`}</AlertTitle>
+							<AlertDescription>{[kendala.jenis, kendala.tahap, kendala.detail].filter(Boolean).join(" • ")}</AlertDescription>
 						</Alert>
-					)}
+					))}
 					{canAdvance && (
 						<form className="mt-5 space-y-3" onSubmit={submit}>
 							<label className="block text-sm font-semibold">

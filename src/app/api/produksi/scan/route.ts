@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
 	if (action === "qc" && body.qc_result !== "Pass" && body.qc_result !== "Fail") return error(400, "MISSING_FIELD");
 
 	const token = process.env.CLICKUP_TOKEN || process.env.CLICKUP_API_TOKEN;
-	const listId = process.env.LIST_PRODUKSI_ID || PRODUKSI_LIST_ID;
+	const listId = process.env.CLICKUP_PRODUKSI_LIST_ID || PRODUKSI_LIST_ID;
 	if (!token) return error(500, "CLICKUP_NOT_CONFIGURED");
 
 	const query = new URLSearchParams({

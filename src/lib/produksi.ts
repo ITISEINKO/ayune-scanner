@@ -1,4 +1,5 @@
 export const PRODUKSI_LIST_ID = "1009328161956091194";
+export const KENDALA_LIST_ID = "1009343515876540437";
 
 export const CF = {
 	TAHAP_PRODUKSI: "ef76056a-61db-4af0-a81c-34983b198d3b",
@@ -14,6 +15,7 @@ export const CF = {
 	KENDALA: "4c59d4e9-7163-4e4a-9c6e-41cbf2e911ff",
 	DETAIL_KENDALA: "55f122d2-ebdb-4a9f-9b3a-62c0c4ab2390",
 	QC_RESULT: "6f23f219-18fd-4362-a426-311eb8175e9d",
+	PRODUCT_TYPE: "73db8b30-dbd7-40a7-b06c-34ad0ad96e40",
 } as const;
 
 export const TAHAP_FLOW = [

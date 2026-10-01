@@ -29,3 +29,8 @@ export const optionId = (field: ClickUpField, value: unknown) =>
 
 export const optionName = (field: ClickUpField, value: unknown) =>
   field.type_config?.options?.find((option) => option.id === optionId(field, value))?.name ?? null;
+
+export const hasTaskRelation = (value: unknown, taskId: string) =>
+  Array.isArray(value) && value.some((item) =>
+    typeof item === "object" && item !== null && "id" in item && item.id === taskId,
+  );

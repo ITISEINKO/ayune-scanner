@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { optionId, optionName, type ClickUpField } from "./clickup.ts";
+import { hasTaskRelation, optionId, optionName, type ClickUpField } from "./clickup.ts";
 import { TAHAP_FLOW, TAHAP_KOMPLAIN, moveProduction, nextTahap, tahapById } from "./produksi.ts";
 
 const dropdown: ClickUpField = {
@@ -12,6 +12,8 @@ const dropdown: ClickUpField = {
 assert.equal(optionName(dropdown, 0), "Pending");
 assert.equal(optionName(dropdown, "pending-id"), "Pending");
 assert.equal(optionId(dropdown, 0), "pending-id");
+assert.equal(hasTaskRelation([{ id: "produksi-1" }], "produksi-1"), true);
+assert.equal(hasTaskRelation([{ id: "produksi-1" }], "produksi-2"), false);
 assert.equal(tahapById(TAHAP_FLOW[0].id)?.name, "Handover Produksi");
 assert.equal(nextTahap(TAHAP_FLOW[0].id)?.name, "Persiapan Material");
 assert.equal(nextTahap(TAHAP_FLOW.at(-1)?.id), null);
