@@ -16,7 +16,8 @@ type Payload = {
 type TaskField = { id: string; value?: unknown };
 type ClickUpTask = { id: string; custom_fields?: TaskField[] };
 
-const fieldNames = ["Tahap Produksi", "Barcode", "Start Production", "Last Scan", "Progress", "QC Result", "Kendala", "Detail Kendala"] as const;
+const fieldNames = ["Tahap Produksi", "Start Production", "Last Scan", "Progress", "QC Result", "Kendala", "Detail Kendala"] as const;
+const barcodeFieldId = "213fe4c2-0d5f-449f-a14b-4697d57dbfea";
 const actions = new Set<ScanAction>(["advance", "qc", "release_komplain"]);
 const fieldValue = (task: ClickUpTask, id: string) => task.custom_fields?.find((field) => field.id === id)?.value;
 const option = (field: ClickUpField | undefined, name: string) => field?.type_config?.options?.find((item) => item.name === name);
@@ -46,14 +47,13 @@ export async function POST(request: NextRequest) {
   const missing = fieldNames.find((name) => !fields?.[name]);
   if (!fields || missing) return error(500, "CLICKUP_FIELD_MISSING");
   const tahap = fields["Tahap Produksi"]!;
-  const barcodeField = fields.Barcode!;
   const qcField = fields["QC Result"]!;
   const kendalaField = fields.Kendala!;
   const detailKendalaField = fields["Detail Kendala"]!;
 
   const query = new URLSearchParams({
     include_closed: "true",
-    custom_fields: JSON.stringify([{ field_id: barcodeField.id, operator: "=", value: barcode }]),
+    custom_fields: JSON.stringify([{ field_id: barcodeFieldId, operator: "=", value: barcode }]),
   });
   const taskResponse = await fetch(`https://api.clickup.com/api/v2/list/${listId}/task?${query}`, {
     headers: { Authorization: token }, cache: "no-store",
