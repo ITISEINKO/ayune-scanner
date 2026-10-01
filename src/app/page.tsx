@@ -159,6 +159,7 @@ export default function ScannerPage() {
 			<Button
 				className="mt-5 w-full"
 				variant="secondary"
+				nativeButton={false}
 				render={<a href="/autoscan" />}
 			>
 				Scan Auto Mengubah Status
