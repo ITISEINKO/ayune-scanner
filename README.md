@@ -64,6 +64,8 @@ Copy `.env.example` to `.env` and fill in the values:
 CLICKUP_API_TOKEN=pk_your_clickup_token
 CLICKUP_MASTER_LIST_ID=your_product_list_id
 CLICKUP_LOG_LIST_ID=your_transaction_log_list_id
+LIST_PRODUKSI_ID=your_produksi_list_id
+CLICKUP_SPV_OPERATOR_IDS=OPR-001,OPR-002
 FIELD_ID_SKU=your_sku_field_id
 FIELD_ID_STOK=your_stock_field_id
 FIELD_ID_RAK=your_rack_field_id
@@ -77,6 +79,10 @@ API implementation resolves ClickUp fields by their exact names at request
 time, so these values are not read by the application.
 
 Restart the dev server after changing `.env`.
+
+## Production workshop API
+
+The scanner backend is available at `POST /api/produksi/scan` and `GET /api/produksi/{barcode}`. It uses the ClickUp custom-field names from the production guideline, enforces its step/QC transitions, and only permits operators listed in `CLICKUP_SPV_OPERATOR_IDS` to release `Komplain`.
 
 ## ClickUp list setup
 

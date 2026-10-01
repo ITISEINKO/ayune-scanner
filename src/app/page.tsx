@@ -105,12 +105,12 @@ export default function ScannerPage() {
 	return (
 		<main className="mx-auto min-h-dvh max-w-lg p-4 pb-8">
 			<header className="mb-7  pt-3">
-				<div className="flex items-center gap-3">
-					<div className="size-14 shrink-0 overflow-hidden">
-						<img src="/icon.svg" alt="" className="size-full scale-[1.2]" />
+				<div className="flex items-center gap-4">
+					<div className="size-10 shrink-0 overflow-hidden">
+						<img src="/icon.svg" alt="" className="size-full " />
 					</div>
 					<div>
-						<p className="text-xs font-bold tracking-[0.1em] text-muted-foreground uppercase">
+						<p className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
 							Warehouse scanner
 						</p>
 						<h1 className="text-3xl font-black tracking-tight uppercase">
