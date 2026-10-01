@@ -1,22 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import { CloudOff } from "lucide-react";
-import Link from "next/link";
 import { Scanner } from "@/components/scanner";
-import { NewProductSheet } from "@/components/new-product-sheet";
-import { ProductSheet, type Product } from "@/components/product-sheet";
+import {
+	ProductionSheet,
+	type ProductionItem,
+} from "@/components/productionSheet";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import type { TransactionType } from "@/lib/stock";
 
 export default function ScannerPage() {
-	const [product, setProduct] = useState<Product | null>(null);
-	const [missingSku, setMissingSku] = useState<string | null>(null);
+	const [production, setProduction] = useState<ProductionItem | null>(null);
 	const [online, setOnline] = useState(true);
 	const [scannerCycle, setScannerCycle] = useState(0);
+	const [manualBarcode, setManualBarcode] = useState("");
 	const restartScanner = () => {
-		setProduct(null);
-		setMissingSku(null);
+		setProduction(null);
 		setScannerCycle((value) => value + 1);
 	};
 	const notify = (message: string, error = false) => {
@@ -39,7 +40,7 @@ export default function ScannerPage() {
 		};
 	}, []);
 
-	const findProduct = async (sku: string) => {
+	const findProduction = async (barcode: string) => {
 		if (!navigator.onLine) {
 			notify("Tidak ada koneksi internet.", true);
 			restartScanner();
@@ -47,59 +48,34 @@ export default function ScannerPage() {
 		}
 		try {
 			const response = await fetch(
-				`/api/product/search?sku=${encodeURIComponent(sku)}`,
+				`/api/produksi/${encodeURIComponent(barcode)}`,
 			);
-			const data = (await response.json()) as Product & { error?: string };
+			const data = (await response.json()) as ProductionItem & {
+				error?: string;
+			};
 			if (response.status === 404) {
-				setMissingSku(sku);
+				notify("Barcode tidak ditemukan di Produksi.", true);
+				restartScanner();
 				return;
 			}
 			if (!response.ok) throw new Error(data.error);
-			setProduct(data);
+			setProduction(data);
 		} catch (error) {
 			notify(
-				error instanceof Error ? error.message : "Produk tidak dapat dicari.",
+				error instanceof Error
+					? error.message
+					: "Data produksi tidak dapat dicari.",
 				true,
 			);
 			restartScanner();
 		}
 	};
-
-	const saveTransaction = async ({
-		type,
-		qty,
-		operator,
-		notes,
-	}: {
-		type: TransactionType;
-		qty: number;
-		operator: string;
-		notes: string;
-	}) => {
-		if (!product) return;
-		const response = await fetch("/api/stock/transaction", {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({
-				taskId: product.id,
-				sku: product.sku,
-				type,
-				qty,
-				operator,
-				notes,
-				currentStock: product.currentStock,
-			}),
-		});
-		const data = (await response.json()) as {
-			newStock?: number;
-			error?: string;
-		};
-		if (!response.ok) {
-			notify(data.error ?? "Transaksi gagal disimpan.", true);
-			return;
-		}
-		notify(`Stok berhasil diperbarui menjadi ${data.newStock}`);
-		restartScanner();
+	const submitManualBarcode = (event: FormEvent<HTMLFormElement>) => {
+		event.preventDefault();
+		const barcode = manualBarcode.trim();
+		if (!barcode) return;
+		setManualBarcode("");
+		void findProduction(barcode);
 	};
 
 	return (
@@ -111,7 +87,7 @@ export default function ScannerPage() {
 					</div>
 					<div>
 						<p className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
-							Warehouse scanner
+							Production scanner
 						</p>
 						<h1 className="text-3xl font-black tracking-tight uppercase">
 							scannow
@@ -129,38 +105,40 @@ export default function ScannerPage() {
 				</div>
 			)}
 			<Scanner
-				onDetected={findProduct}
+				onDetected={findProduction}
 				autoStart={scannerCycle > 0}
-				disabled={!online || Boolean(product || missingSku)}
+				disabled={!online || Boolean(production)}
 			/>
+			<form className="mt-4" onSubmit={submitManualBarcode}>
+				<label
+					htmlFor="manual-barcode"
+					className="mb-2 block text-sm font-semibold"
+				>
+					Input barcode manual
+				</label>
+				<div className="flex gap-2">
+					<Input
+						id="manual-barcode"
+						value={manualBarcode}
+						onChange={(event) => setManualBarcode(event.target.value)}
+						placeholder="Masukkan barcode"
+						autoComplete="off"
+						disabled={!online || Boolean(production)}
+					/>
+					<Button
+						type="submit"
+						disabled={!online || Boolean(production) || !manualBarcode.trim()}
+					>
+						Cari
+					</Button>
+				</div>
+			</form>
 			<p className="mt-5 text-center text-xs text-muted-foreground">
 				Arahkan kamera ke barcode produk. Kamera otomatis berhenti setelah kode
 				terbaca.
 			</p>
-			{process.env.NODE_ENV === "development" && (
-				<Link
-					href="/preview"
-					className="mt-3 w-full text-center text-xs text-muted-foreground underline"
-				>
-					Preview hasil scan
-				</Link>
-			)}
-			{product && (
-				<ProductSheet
-					product={product}
-					onClose={restartScanner}
-					onSubmit={saveTransaction}
-				/>
-			)}
-			{missingSku && (
-				<NewProductSheet
-					sku={missingSku}
-					onClose={restartScanner}
-					onCreated={(createdProduct) => {
-						setMissingSku(null);
-						setProduct(createdProduct);
-					}}
-				/>
+			{production && (
+				<ProductionSheet production={production} onClose={restartScanner} />
 			)}
 		</main>
 	);

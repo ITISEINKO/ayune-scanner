@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { Camera, Flashlight, FlashlightOff, ScanBarcode } from "lucide-react";
 import { useBarcodeScanner } from "@/hooks/use-barcode-scanner";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 
 type Props = {
@@ -16,15 +17,8 @@ export function Scanner({
 	autoStart = false,
 	disabled = false,
 }: Props) {
-	const {
-		start,
-		stop,
-		toggleTorch,
-		refocus,
-		isScanning,
-		torchOn,
-		error,
-	} = useBarcodeScanner("barcode-reader", onDetected);
+	const { start, stop, toggleTorch, refocus, isScanning, torchOn, error } =
+		useBarcodeScanner("barcode-reader", onDetected);
 	useEffect(() => {
 		if (disabled) {
 			void stop();
@@ -58,12 +52,9 @@ export function Scanner({
 				)}
 			</div>
 			{error && (
-				<p
-					role="alert"
-					className="mt-3 rounded-xl bg-destructive p-3 text-sm text-destructive-foreground"
-				>
-					{error}
-				</p>
+				<Alert variant="destructive" className="mt-3">
+					<AlertDescription>{error}</AlertDescription>
+				</Alert>
 			)}
 			<div className="mt-4 grid grid-cols-2 gap-3">
 				<Button
