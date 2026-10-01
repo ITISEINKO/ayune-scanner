@@ -3,10 +3,7 @@
 import { type FormEvent, useEffect, useState } from "react";
 import { CloudOff } from "lucide-react";
 import { Scanner } from "@/components/scanner";
-import {
-	StatusChange,
-	type ProductionItem,
-} from "@/components/StatusChange";
+import { StatusChange, type ProductionItem } from "@/components/StatusChange";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -63,7 +60,9 @@ export default function ScannerPage() {
 				return;
 			}
 			if (!response.ok || !result.ok || !result.data)
-				throw new Error(result.message ?? result.error ?? "Data produksi tidak dapat dicari.");
+				throw new Error(
+					result.message ?? result.error ?? "Data produksi tidak dapat dicari.",
+				);
 			setProduction(result.data);
 		} catch (error) {
 			const message =
@@ -149,7 +148,21 @@ export default function ScannerPage() {
 				/>
 			)}
 
-			<a href="/scan">Scan Langsung Ke ClickUp</a>
+			<Button
+				className="mt-5 w-full"
+				variant="secondary"
+				nativeButton={false}
+				render={<a href="/scan" />}
+			>
+				Scan Langsung Ke ClickUp
+			</Button>
+			<Button
+				className="mt-5 w-full"
+				variant="secondary"
+				render={<a href="/autoscan" />}
+			>
+				Scan Auto Mengubah Status
+			</Button>
 		</main>
 	);
 }
