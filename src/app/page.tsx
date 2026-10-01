@@ -50,17 +50,15 @@ export default function ScannerPage() {
 			const response = await fetch(
 				`/api/produksi/${encodeURIComponent(barcode)}`,
 			);
-			const data = (await response.json()) as ProductionItem & {
-				error?: string;
-			};
+			const result = (await response.json()) as { ok?: boolean; data?: ProductionItem; error?: string };
 			if (response.status === 404) {
 				const message = `Barcode ${barcode} tidak ditemukan di Produksi.`;
 				notify(message, true);
 				restartScanner();
 				return;
 			}
-			if (!response.ok) throw new Error(data.error);
-			setProduction(data);
+			if (!response.ok || !result.ok || !result.data) throw new Error(result.error ?? "Data produksi tidak dapat dicari.");
+			setProduction(result.data);
 		} catch (error) {
 			const message =
 				error instanceof Error
@@ -138,14 +136,7 @@ export default function ScannerPage() {
 				terbaca.
 			</p>
 			{production && (
-				<ProductionSheet
-					production={production}
-					onClose={restartScanner}
-					onAdvanced={(next) => {
-						setProduction((current) => current && { ...current, step: next, last_scan: Date.now() });
-						notify(`Dilanjutkan ke ${next}.`);
-					}}
-				/>
+				<ProductionSheet production={production} onClose={restartScanner} onUpdated={() => void findProduction(production.barcode)} />
 			)}
 		</main>
 	);

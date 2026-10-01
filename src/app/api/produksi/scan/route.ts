@@ -4,6 +4,7 @@ import {
 	CF,
 	PRODUKSI_LIST_ID,
 	QC,
+	isQcStage,
 	isProductionStage,
 	isReworkStep,
 	moveProduction,
@@ -26,7 +27,7 @@ type Payload = {
 };
 
 const actions = new Set<ScanAction>(["advance", "qc", "release_komplain"]);
-const error = (status: number, code: string) => NextResponse.json({ error: code, code }, { status });
+const error = (status: number, code: string) => NextResponse.json({ ok: false, error: code }, { status });
 const clickUpError = (response: Response) =>
 	error(response.status === 429 ? 429 : 502, response.status === 429 ? "RATE_LIMITED" : "CLICKUP_ERROR");
 
@@ -46,6 +47,7 @@ export async function POST(request: NextRequest) {
 	if (!barcode || !operatorId || !deviceId || !action || !actions.has(action) || Number.isNaN(scannedAt.valueOf()))
 		return error(400, "MISSING_FIELD");
 	if (action === "qc" && body.qc_result !== "Pass" && body.qc_result !== "Fail") return error(400, "MISSING_FIELD");
+	if (action === "qc") return error(409, "PHOTO_REQUIRED");
 
 	const token = process.env.CLICKUP_TOKEN || process.env.CLICKUP_API_TOKEN;
 	const listId = process.env.CLICKUP_PRODUKSI_LIST_ID || PRODUKSI_LIST_ID;
@@ -76,8 +78,6 @@ export async function POST(request: NextRequest) {
 	const current = tahapById(optionId(tahap, task.custom_fields?.find((field) => field.id === CF.TAHAP_PRODUKSI)?.value))?.name;
 	if (!current || !isProductionStage(current)) return error(409, "INVALID_TRANSITION");
 
-	if (action === "qc" && body.qc_result === "Fail" && (!body.kendala?.trim() || !body.detail_kendala?.trim()))
-		return error(400, "MISSING_FIELD");
 	if (action === "release_komplain") {
 		const spvIds = new Set((process.env.CLICKUP_SPV_OPERATOR_IDS ?? "").split(",").map((id) => id.trim()).filter(Boolean));
 		if (!spvIds.has(operatorId)) return error(403, "ROLE_NOT_ALLOWED");
@@ -90,19 +90,15 @@ export async function POST(request: NextRequest) {
 	const headers = { Authorization: token, "Content-Type": "application/json" };
 	const writes: Promise<Response>[] = [
 		fetch(`https://api.clickup.com/api/v2/task/${task.id}/field/${CF.TAHAP_PRODUKSI}`, { method: "POST", headers, body: JSON.stringify({ value: tahapById(movement.to)?.id }) }),
-		fetch(`https://api.clickup.com/api/v2/task/${task.id}/field/${CF.LAST_SCAN}`, { method: "POST", headers, body: JSON.stringify({ value: scannedAt.valueOf() }) }),
+		fetch(`https://api.clickup.com/api/v2/task/${task.id}/field/${CF.LAST_SCAN}`, { method: "POST", headers, body: JSON.stringify({ value: scannedAt.valueOf(), value_options: { time: true } }) }),
 		fetch(`https://api.clickup.com/api/v2/task/${task.id}/field/${CF.PROGRESS}`, { method: "POST", headers, body: JSON.stringify({ value: { current: movement.progress } }) }),
 	];
 	if (movement.qcResult) {
-		const value = movement.qcResult === "Pass" ? QC.PASS : movement.qcResult === "Fail" ? QC.FAIL : QC.PENDING;
+		const value = movement.qcResult === "Pass" ? QC.PASS : QC.PENDING;
 		writes.push(fetch(`https://api.clickup.com/api/v2/task/${task.id}/field/${CF.QC_RESULT}`, { method: "POST", headers, body: JSON.stringify({ value }) }));
 	}
-	if (body.qc_result === "Fail") {
-		writes.push(
-			fetch(`https://api.clickup.com/api/v2/task/${task.id}/field/${CF.KENDALA}`, { method: "POST", headers, body: JSON.stringify({ value: body.kendala!.trim() }) }),
-			fetch(`https://api.clickup.com/api/v2/task/${task.id}/field/${CF.DETAIL_KENDALA}`, { method: "POST", headers, body: JSON.stringify({ value: body.detail_kendala!.trim() }) }),
-		);
-	}
+	if (isQcStage(movement.to))
+		writes.push(fetch(`https://api.clickup.com/api/v2/task/${task.id}/field/${CF.QC_RESULT}`, { method: "POST", headers, body: JSON.stringify({ value: QC.PENDING }) }));
 	if (current === "Handover Produksi" && !task.custom_fields?.find((field) => field.id === CF.START_PRODUCTION)?.value)
 		writes.push(fetch(`https://api.clickup.com/api/v2/task/${task.id}/field/${CF.START_PRODUCTION}`, { method: "POST", headers, body: JSON.stringify({ value: scannedAt.valueOf() }) }));
 	if (movement.to === "Pengiriman") writes.push(fetch(`https://api.clickup.com/api/v2/task/${task.id}`, { method: "PUT", headers, body: JSON.stringify({ status: "complete" }) }));

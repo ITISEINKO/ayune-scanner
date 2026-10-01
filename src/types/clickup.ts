@@ -17,6 +17,7 @@ export type ClickUpTask = {
 export type ClickUpDropdownOption = {
 	id: string;
 	name: string;
+	label?: string;
 	orderindex?: number | string;
 };
 
