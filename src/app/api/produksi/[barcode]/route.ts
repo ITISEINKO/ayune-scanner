@@ -43,8 +43,10 @@ export async function GET(_request: NextRequest, { params }: RouteContext<"/api/
     fieldsByName(token, listId, fieldNames),
     fieldsByName(token, kendalaListId, kendalaFieldNames),
   ]);
-  if (!fields || !kendalaFields || fieldNames.some((name) => !fields[name]) || kendalaFieldNames.some((name) => !kendalaFields[name]))
-    return error(500, "CLICKUP_FIELD_MISSING");
+  if (!fields || !kendalaFields) return error(502, "CLICKUP_FIELD_REQUEST_FAILED", "Tidak dapat mengambil konfigurasi field dari ClickUp.");
+  const missingFields = [...fieldNames.filter((name) => !fields[name]), ...kendalaFieldNames.filter((name) => !kendalaFields[name])];
+  if (missingFields.length)
+    return NextResponse.json({ ok: false, error: "CLICKUP_FIELD_MISSING", message: `Field ClickUp belum ada: ${missingFields.join(", ")}.`, fields: missingFields }, { status: 500 });
 
   const query = new URLSearchParams({ include_closed: "true", custom_fields: JSON.stringify([{ field_id: CF.BARCODE, operator: "==", value: barcode }]) });
   const searchResponse = await fetch(`https://api.clickup.com/api/v2/list/${listId}/task?${query}`, { headers, cache: "no-store" });
