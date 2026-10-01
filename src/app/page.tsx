@@ -54,19 +54,19 @@ export default function ScannerPage() {
 				error?: string;
 			};
 			if (response.status === 404) {
-				notify("Barcode tidak ditemukan di Produksi.", true);
+				const message = `Barcode ${barcode} tidak ditemukan di Produksi.`;
+				notify(message, true);
 				restartScanner();
 				return;
 			}
 			if (!response.ok) throw new Error(data.error);
 			setProduction(data);
 		} catch (error) {
-			notify(
+			const message =
 				error instanceof Error
 					? error.message
-					: "Data produksi tidak dapat dicari.",
-				true,
-			);
+					: "Data produksi tidak dapat dicari.";
+			notify(message, true);
 			restartScanner();
 		}
 	};
@@ -138,7 +138,14 @@ export default function ScannerPage() {
 				terbaca.
 			</p>
 			{production && (
-				<ProductionSheet production={production} onClose={restartScanner} />
+				<ProductionSheet
+					production={production}
+					onClose={restartScanner}
+					onAdvanced={(next) => {
+						setProduction((current) => current && { ...current, step: next, last_scan: Date.now() });
+						notify(`Dilanjutkan ke ${next}.`);
+					}}
+				/>
 			)}
 		</main>
 	);

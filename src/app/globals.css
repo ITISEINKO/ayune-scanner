@@ -41,10 +41,7 @@
 	--radius-sm: calc(var(--radius) - 4px);
 	--radius-md: calc(var(--radius) - 2px);
 	--radius-lg: var(--radius);
-	--radius-xl: calc(var(--radius) + 4px);
-	--radius-2xl: calc(var(--radius) + 8px);
-	--radius-3xl: calc(var(--radius) + 12px);
-	--radius-4xl: calc(var(--radius) + 16px);
+	--radius-xl: calc(var(--radius));
 }
 
 :root {
@@ -62,19 +59,20 @@
 
 	--secondary: oklch(0.97 0 0);
 	--secondary-foreground: oklch(0.205 0 0);
-	--muted: oklch(0.97 0 0);
-	--muted-foreground: oklch(0.556 0 0);
+	--muted: oklch(0.9842 0.0034 247.8575);
+	--muted-foreground: oklch(0.5544 0.0407 257.4166);
 
 	/* Accent also green-tinted */
 	--accent: oklch(0.95 0.03 162.5);
 	--accent-foreground: oklch(0.627 0.165 162.5);
 
-	--destructive: oklch(0.577 0.245 27.325);
+	--destructive: oklch(0.6368 0.2078 25.3313);
+	--destructive-foreground: oklch(1 0 0);
 	--border: oklch(0.922 0 0);
 	--input: oklch(0.922 0 0);
 
 	/* Ring uses brand green */
-	--ring: oklch(0.627 0.165 162.5);
+	--ring: var(--primary);
 
 	/* Charts: brand green, yellow, grey variants */
 	--chart-1: oklch(0.627 0.165 162.5); /* brand green */
@@ -101,7 +99,6 @@
 	--popover: oklch(0.205 0 0);
 	--popover-foreground: oklch(0.985 0 0);
 
-	/* Brand green stays vibrant in dark mode */
 	--primary: oklch(0.627 0.165 162.5);
 	--primary-foreground: oklch(1 0 0);
 
@@ -113,10 +110,11 @@
 	--accent: oklch(0.25 0.04 162.5);
 	--accent-foreground: oklch(0.75 0.12 162.5);
 
-	--destructive: oklch(0.704 0.191 22.216);
+	--destructive: oklch(0.67 0.1489 21.8872);
+	--destructive-foreground: oklch(1 0 0);
 	--border: oklch(1 0 0 / 10%);
 	--input: oklch(1 0 0 / 15%);
-	--ring: oklch(0.627 0.165 162.5);
+	--ring: var(--primary);
 
 	/* Charts in dark mode */
 	--chart-1: oklch(0.7 0.165 162.5); /* brighter green for dark bg */
@@ -256,15 +254,5 @@
 		background-color: #1a1b1e;
 		background-image: radial-gradient(circle, #3a3d42 1px, transparent 0.5px);
 		background-size: 14px 14px;
-	}
-
-	.pending-payment-hover:hover {
-		border-color: color-mix(in oklch, var(--chart-2) 55%, var(--border));
-		background-color: color-mix(in oklch, var(--chart-2) 14%, transparent);
-	}
-
-	.dark .pending-payment-hover:hover {
-		border-color: color-mix(in oklch, var(--chart-2) 45%, var(--border));
-		background-color: color-mix(in oklch, var(--chart-2) 18%, transparent);
 	}
 }

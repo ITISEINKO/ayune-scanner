@@ -1,6 +1,7 @@
 "use client";
 
-import { TriangleAlert } from "lucide-react";
+import { type FormEvent, useState } from "react";
+import { Send, TriangleAlert } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,8 +10,10 @@ import {
 	DrawerDescription,
 	DrawerTitle,
 } from "@/components/ui/drawer";
+import { Input } from "@/components/ui/input";
 
 export type ProductionItem = {
+	task_id: string;
 	barcode: string;
 	step: string | null;
 	progress: number | null;
@@ -19,7 +22,39 @@ export type ProductionItem = {
 	last_scan: unknown;
 };
 
-export function ProductionSheet({ production, onClose }: { production: ProductionItem; onClose: () => void }) {
+type Props = {
+	production: ProductionItem;
+	onClose: () => void;
+	onAdvanced: (next: string) => void;
+};
+
+export function ProductionSheet({ production, onClose, onAdvanced }: Props) {
+	const [file, setFile] = useState<File | null>(null);
+	const [error, setError] = useState("");
+	const [saving, setSaving] = useState(false);
+	const canAdvance = Boolean(production.step && production.step !== "Pengiriman");
+
+	const submit = async (event: FormEvent<HTMLFormElement>) => {
+		event.preventDefault();
+		if (!file) return;
+		setSaving(true);
+		setError("");
+		try {
+			const form = new FormData();
+			form.append("task_id", production.task_id);
+			form.append("attachment", file, file.name);
+			const response = await fetch("/api/produksi/advance", { method: "POST", body: form });
+			const data = (await response.json()) as { to?: string; error?: string };
+			if (!response.ok || !data.to) throw new Error(data.error ?? "Foto tidak dapat dikirim.");
+			setFile(null);
+			onAdvanced(data.to);
+		} catch (error) {
+			setError(error instanceof Error ? error.message : "Foto tidak dapat dikirim.");
+		} finally {
+			setSaving(false);
+		}
+	};
+
 	return (
 		<Drawer open onOpenChange={(open) => !open && onClose()} snapPoints={["32rem", 1]} showSwipeHandle>
 			<DrawerContent className="max-h-[calc(100dvh-1rem)] rounded-t-3xl border-t border-border bg-background shadow-2xl">
@@ -42,7 +77,20 @@ export function ProductionSheet({ production, onClose }: { production: Productio
 							<AlertDescription>{production.kendala}</AlertDescription>
 						</Alert>
 					)}
-					<Button className="mt-5 w-full text-base" onClick={onClose}>SCAN BARCODE LAIN</Button>
+					{canAdvance && (
+						<form className="mt-5 space-y-3" onSubmit={submit}>
+							<label className="block text-sm font-semibold">
+								Foto bukti
+								<Input key={production.step} className="mt-2" type="file" accept="image/*" capture="environment" onChange={(event) => setFile(event.target.files?.[0] ?? null)} required />
+							</label>
+							{error && <Alert variant="destructive"><AlertTitle>Gagal melanjutkan</AlertTitle><AlertDescription>{error}</AlertDescription></Alert>}
+							<Button type="submit" className="w-full text-base" disabled={!file || saving}>
+								<Send className="mr-2 size-5" />
+								{saving ? "Mengirim..." : "Kirim foto & lanjutkan"}
+							</Button>
+						</form>
+					)}
+					<Button className="mt-5 w-full text-base" variant="secondary" onClick={onClose}>SCAN BARCODE LAIN</Button>
 				</div>
 			</DrawerContent>
 		</Drawer>

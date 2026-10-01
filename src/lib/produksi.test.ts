@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { optionId, optionName, type ClickUpField } from "./clickup.ts";
-import { TAHAP_FLOW, TAHAP_KOMPLAIN, moveProduction, tahapById } from "./produksi.ts";
+import { TAHAP_FLOW, TAHAP_KOMPLAIN, moveProduction, nextTahap, tahapById } from "./produksi.ts";
 
 const dropdown: ClickUpField = {
 	id: "qc",
@@ -13,6 +13,8 @@ assert.equal(optionName(dropdown, 0), "Pending");
 assert.equal(optionName(dropdown, "pending-id"), "Pending");
 assert.equal(optionId(dropdown, 0), "pending-id");
 assert.equal(tahapById(TAHAP_FLOW[0].id)?.name, "Handover Produksi");
+assert.equal(nextTahap(TAHAP_FLOW[0].id)?.name, "Persiapan Material");
+assert.equal(nextTahap(TAHAP_FLOW.at(-1)?.id), null);
 assert.deepEqual(moveProduction("QC Material", "qc", "Fail"), {
 	to: "Komplain",
 	progress: 15,

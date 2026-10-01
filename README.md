@@ -99,7 +99,7 @@ The reusable source of truth is [`src/lib/produksi.ts`](src/lib/produksi.ts): `P
 
 The scan route first reads `GET /task/{id}` and uses the list field metadata only to map ClickUp's returned dropdown `orderindex` to an option ID. It then determines the next value from `TAHAP_FLOW`; `Komplain` remains a side branch, not part of that linear flow.
 
-For a proof photo, upload `multipart/form-data` to `POST /task/{id}/attachment` using the `attachment` field name. Wait for that request to succeed before advancing the stage, then add a comment such as `Lanjut ke Edging`. Do not write files directly to `CF.BUKTI`; ClickUp task attachments are more reliable.
+The app posts `task_id` and an image as `multipart/form-data` to `POST /api/produksi/advance`. The server reads the current stage, uploads the file to ClickUp, and only then advances the task and records `Last Scan`; it also adds a history comment. Do not write files directly to `CF.BUKTI`; ClickUp task attachments are more reliable.
 
 For a failed QC request, `kendala` must be the ClickUp dropdown option ID (not its display name), and `detail_kendala` is required.
 

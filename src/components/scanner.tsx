@@ -31,7 +31,10 @@ export function Scanner({
 		<section className="rounded-3xl border border-border bg-card p-4 text-card-foreground shadow-2xl">
 			<div className="mb-3 flex items-center justify-between">
 				<div>
-					<p className="text-sm font-semibold text-primary">SCANNER AKTIF</p>
+					<p className="mb-1.75 mt-0 text-[10px] font-extrabold tracking-[1.1px] text-muted-foreground">
+						<span className="mr-1 inline-block size-1.75 rounded-full bg-emerald-400 align-[1px]" />{" "}
+						SIAP MEMINDAI
+					</p>
 					<h2 className="text-xl font-bold">Scan barcode barang</h2>
 				</div>
 				<ScanBarcode

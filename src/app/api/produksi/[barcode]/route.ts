@@ -32,6 +32,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext<"/api/
 
   const task = tasks[0];
   return NextResponse.json({
+    task_id: task.id,
     barcode,
     step: optionName(fields["Tahap Produksi"]!, valueOf(task, fields["Tahap Produksi"]!.id)),
     progress: progressValue(valueOf(task, CF.PROGRESS)),

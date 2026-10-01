@@ -70,6 +70,10 @@ export const isReworkStep = (value: string): value is ProductionStep =>
 	isProductionStage(value) && value !== TAHAP_KOMPLAIN.name && value !== "Pengiriman";
 export const tahapById = (id: unknown) =>
 	[...TAHAP_FLOW, TAHAP_KOMPLAIN].find((tahap) => tahap.id === id);
+export const nextTahap = (id: unknown) => {
+	const index = TAHAP_FLOW.findIndex((tahap) => tahap.id === id);
+	return index < 0 ? null : TAHAP_FLOW[index + 1] ?? null;
+};
 
 export function moveProduction(
 	current: ProductionStage,
