@@ -1,8 +1,6 @@
-export type ClickUpField = {
-  id: string;
-  name: string;
-  type_config?: { options?: { id: string; name: string }[] };
-};
+import type { ClickUpField } from "@/types/clickup";
+
+export type { ClickUpField } from "@/types/clickup";
 
 const fieldCache = new Map<string, { expires: number; fields: ClickUpField[] }>();
 
@@ -23,3 +21,16 @@ export async function fieldsByName(token: string, listId: string, names: readonl
 }
 
 export const clearFieldsCache = (listId: string) => fieldCache.delete(listId);
+
+export const optionId = (field: ClickUpField, value: unknown) =>
+  field.type_config?.options?.find((option) =>
+    option.id === value || (option.orderindex !== undefined && String(option.orderindex) === String(value)),
+  )?.id ?? null;
+
+export const optionName = (field: ClickUpField, value: unknown) =>
+  field.type_config?.options?.find((option) => option.id === optionId(field, value))?.name ?? null;
+
+export const hasTaskRelation = (value: unknown, taskId: string) =>
+  Array.isArray(value) && value.some((item) =>
+    typeof item === "object" && item !== null && "id" in item && item.id === taskId,
+  );

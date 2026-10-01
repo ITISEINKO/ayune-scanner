@@ -82,7 +82,26 @@ Restart the dev server after changing `.env`.
 
 ## Production workshop API
 
-The scanner backend is available at `POST /api/produksi/scan` and `GET /api/produksi/{barcode}`. It uses the ClickUp custom-field names from the production guideline, enforces its step/QC transitions, and only permits operators listed in `CLICKUP_SPV_OPERATOR_IDS` to release `Komplain`.
+The scanner backend is available at `POST /api/produksi/scan` and `GET /api/produksi/{barcode}`. It enforces step/QC transitions and only permits operators listed in `CLICKUP_SPV_OPERATOR_IDS` to release `Komplain`.
+
+### Produksi3 ClickUp configuration
+
+The reusable source of truth is [`src/lib/produksi.ts`](src/lib/produksi.ts): `PRODUKSI_LIST_ID`, `CF`, `TAHAP_FLOW`, `TAHAP_KOMPLAIN`, and `QC` contain the OMI → Produksi → Produksi3 IDs. Reuse these constants; do not duplicate IDs in a route or component. Shared ClickUp response types are in [`src/types/clickup.ts`](src/types/clickup.ts).
+
+`LIST_PRODUKSI_ID` may override the configured list ID for another environment. The configured default is `1009328161956091194`.
+
+| Field type                          | ClickUp payload                                    |
+| ----------------------------------- | -------------------------------------------------- |
+| Dropdown (`Tahap`, `Kendala`, `QC`) | `{ "value": "<option-id>" }`                       |
+| Date                                | `{ "value": 1760000000000 }` (Unix milliseconds)   |
+| Manual progress                     | `{ "value": { "current": 50 } }`                   |
+| PIC Workshop                        | `{ "value": { "add": ["<user-id>"], "rem": [] } }` |
+
+The scan route first reads `GET /task/{id}` and uses the list field metadata only to map ClickUp's returned dropdown `orderindex` to an option ID. It then determines the next value from `TAHAP_FLOW`; `Komplain` remains a side branch, not part of that linear flow.
+
+The app posts `task_id` and an image as `multipart/form-data` to `POST /api/produksi/advance`. The server reads the current stage, uploads the file to ClickUp, and only then advances the task and records `Last Scan`; it also adds a history comment. Do not write files directly to `CF.BUKTI`; ClickUp task attachments are more reliable.
+
+For a failed QC request, `kendala` must be the ClickUp dropdown option ID (not its display name), and `detail_kendala` is required.
 
 ## ClickUp list setup
 

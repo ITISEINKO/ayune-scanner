@@ -10,7 +10,7 @@ import {
 	DrawerTitle,
 } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
-import type { Product } from "@/components/product-sheet";
+import type { Product } from "@/components/productInfo";
 
 type Props = {
 	sku: string;

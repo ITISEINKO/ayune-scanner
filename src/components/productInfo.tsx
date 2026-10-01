@@ -94,14 +94,14 @@ export function ProductSheet({ product, onClose, onSubmit }: Props) {
 					</div>
 					<div className="grid grid-cols-2 gap-3">
 						<Button
-							variant={type === "IN" ? "primary" : "secondary"}
+							variant={type === "IN" ? "default" : "secondary"}
 							onClick={() => setType("IN")}
 						>
 							<PackagePlus className="mr-1 inline size-5" />
 							Barang Masuk
 						</Button>
 						<Button
-							variant={type === "OUT" ? "danger" : "secondary"}
+							variant={type === "OUT" ? "destructive" : "secondary"}
 							onClick={() => setType("OUT")}
 						>
 							<SquareArrowRightExit className="mr-1 inline size-5" />

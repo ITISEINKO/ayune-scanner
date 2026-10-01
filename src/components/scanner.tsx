@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { Camera, Flashlight, FlashlightOff, ScanBarcode } from "lucide-react";
 import { useBarcodeScanner } from "@/hooks/use-barcode-scanner";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 
 type Props = {
@@ -16,15 +17,8 @@ export function Scanner({
 	autoStart = false,
 	disabled = false,
 }: Props) {
-	const {
-		start,
-		stop,
-		toggleTorch,
-		refocus,
-		isScanning,
-		torchOn,
-		error,
-	} = useBarcodeScanner("barcode-reader", onDetected);
+	const { start, stop, toggleTorch, refocus, isScanning, torchOn, error } =
+		useBarcodeScanner("barcode-reader", onDetected);
 	useEffect(() => {
 		if (disabled) {
 			void stop();
@@ -37,7 +31,10 @@ export function Scanner({
 		<section className="rounded-3xl border border-border bg-card p-4 text-card-foreground shadow-2xl">
 			<div className="mb-3 flex items-center justify-between">
 				<div>
-					<p className="text-sm font-semibold text-primary">SCANNER AKTIF</p>
+					<p className="mb-1.75 mt-0 text-[10px] font-extrabold tracking-[1.1px] text-muted-foreground">
+						<span className="mr-1 inline-block size-1.75 rounded-full bg-emerald-400 align-[1px]" />{" "}
+						SIAP MEMINDAI
+					</p>
 					<h2 className="text-xl font-bold">Scan barcode barang</h2>
 				</div>
 				<ScanBarcode
@@ -58,12 +55,9 @@ export function Scanner({
 				)}
 			</div>
 			{error && (
-				<p
-					role="alert"
-					className="mt-3 rounded-xl bg-destructive p-3 text-sm text-destructive-foreground"
-				>
-					{error}
-				</p>
+				<Alert variant="destructive" className="mt-3">
+					<AlertDescription>{error}</AlertDescription>
+				</Alert>
 			)}
 			<div className="mt-4 grid grid-cols-2 gap-3">
 				<Button
