@@ -27,7 +27,7 @@ export async function GET(request: Request) {
 		return error(502, "CLICKUP_ERROR");
 	}
 	if (!response.ok)
-		return error(response.status === 429 ? 429 : 502, response.status === 429 ? "RATE_LIMITED" : "CLICKUP_ERROR");
+		return error(response.status === 429 ? 429 : 502, response.status === 429 ? "RATE_LIMITED" : `CLICKUP_ERROR_${response.status}`);
 
 	let tasks: ClickUpTask[];
 	try {

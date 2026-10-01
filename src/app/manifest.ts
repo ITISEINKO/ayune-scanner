@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Warehouse Scanner",
     short_name: "Scanner",
-    description: "Mobile warehouse inventory scanner",
+	description: "Mobile production task scanner",
     start_url: "/",
     display: "standalone",
     background_color: "#fdfcff",

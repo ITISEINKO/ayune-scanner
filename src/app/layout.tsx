@@ -7,8 +7,8 @@ import { cn } from "@/lib/utils";
 const jakartaSans = Plus_Jakarta_Sans({ subsets: ["latin"], variable: "--font-plus-jakarta-sans" });
 
 export const metadata: Metadata = {
-	title: "Warehouse Scanner",
-	description: "Scan inventory and record stock transactions.",
+	title: "Production Scanner",
+	description: "Open production tasks in ClickUp by barcode.",
 	manifest: "/manifest.webmanifest",
 	icons: {
 		icon: [
