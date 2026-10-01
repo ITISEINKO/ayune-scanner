@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fieldsByName, hasTaskRelation, optionId } from "@/lib/clickup";
-import { CF, KENDALA_LIST_ID, PRODUKSI_LIST_ID, QC, isQcStage, nextTahap, tahapById } from "@/lib/produksi";
+import { CF, KENDALA_LIST_ID, PRODUKSI_LIST_ID, QC, STAGE_TO_STATUS, isQcStage, nextTahap, tahapById } from "@/lib/produksi";
 import type { ClickUpTask } from "@/types/clickup";
 
 const error = (status: number, code: string) => NextResponse.json({ ok: false, error: code }, { status });
@@ -16,9 +16,9 @@ export async function POST(request: NextRequest) {
 	}
 	const rawTaskId = data.get("task_id");
 	const attachment = data.get("attachment");
-	if (typeof rawTaskId !== "string" || !rawTaskId.trim() || !(attachment instanceof File)) return error(400, "MISSING_FIELD");
+	if (typeof rawTaskId !== "string" || !rawTaskId.trim()) return error(400, "MISSING_FIELD");
 	const taskId = rawTaskId.trim();
-	if (!attachment.type.startsWith("image/") || attachment.size > 10 * 1024 * 1024) return error(400, "INVALID_ATTACHMENT");
+	if (attachment instanceof File && (!attachment.type.startsWith("image/") || attachment.size > 10 * 1024 * 1024)) return error(400, "INVALID_ATTACHMENT");
 
 	const token = process.env.CLICKUP_TOKEN || process.env.CLICKUP_API_TOKEN;
 	const listId = process.env.CLICKUP_PRODUKSI_LIST_ID || PRODUKSI_LIST_ID;
@@ -48,22 +48,29 @@ export async function POST(request: NextRequest) {
 	if (!current || !next) return error(409, "INVALID_TRANSITION");
 	if (isQcStage(current.name) && data.get("qc_pass") !== "true") return error(409, "QC_ACTION_REQUIRED");
 
-	const upload = new FormData();
-	upload.append("attachment", attachment, attachment.name);
-	const uploadResponse = await fetch(`https://api.clickup.com/api/v2/task/${encodeURIComponent(taskId)}/attachment`, {
-		method: "POST",
-		headers,
-		body: upload,
-	});
-	if (!uploadResponse.ok) return clickUpError(uploadResponse);
+	if (attachment instanceof File) {
+		const upload = new FormData();
+		upload.append("attachment", attachment, attachment.name);
+		const uploadResponse = await fetch(`https://api.clickup.com/api/v2/task/${encodeURIComponent(taskId)}/attachment`, {
+			method: "POST",
+			headers,
+			body: upload,
+		});
+		if (!uploadResponse.ok) return clickUpError(uploadResponse);
+	}
 
 	const writeHeaders = { ...headers, "Content-Type": "application/json" };
-	const [stepResponse, scanResponse] = await Promise.all([
+	const [stepResponse, scanResponse, statusResponse] = await Promise.all([
 		fetch(`https://api.clickup.com/api/v2/task/${encodeURIComponent(taskId)}/field/${CF.TAHAP_PRODUKSI}`, { method: "POST", headers: writeHeaders, body: JSON.stringify({ value: next.id }) }),
 		fetch(`https://api.clickup.com/api/v2/task/${encodeURIComponent(taskId)}/field/${CF.LAST_SCAN}`, { method: "POST", headers: writeHeaders, body: JSON.stringify({ value: Date.now(), value_options: { time: true } }) }),
+		fetch(`https://api.clickup.com/api/v2/task/${encodeURIComponent(taskId)}`, { method: "PUT", headers: writeHeaders, body: JSON.stringify({ status: STAGE_TO_STATUS[next.name] }) }),
 	]);
-	if (!stepResponse.ok) return clickUpError(stepResponse);
+	if (!stepResponse.ok) {
+		console.error("ClickUp Tahap Produksi update failed", { status: stepResponse.status, body: await stepResponse.text() });
+		return error(stepResponse.status === 429 ? 429 : 502, stepResponse.status === 429 ? "RATE_LIMITED" : "CLICKUP_STAGE_UPDATE_FAILED");
+	}
 	if (!scanResponse.ok) return clickUpError(scanResponse);
+	if (!statusResponse.ok) return clickUpError(statusResponse);
 	if (isQcStage(current.name) || isQcStage(next.name)) {
 		const qcResponse = await fetch(`https://api.clickup.com/api/v2/task/${encodeURIComponent(taskId)}/field/${CF.QC_RESULT}`, {
 			method: "POST", headers: writeHeaders, body: JSON.stringify({ value: QC.PENDING }),
@@ -74,7 +81,7 @@ export async function POST(request: NextRequest) {
 	await fetch(`https://api.clickup.com/api/v2/task/${encodeURIComponent(taskId)}/comment`, {
 		method: "POST",
 		headers: writeHeaders,
-		body: JSON.stringify({ comment_text: `✅ ${current.name} → ${next.name}\nFoto: ${attachment.name}`, notify_all: false }),
+		body: JSON.stringify({ comment_text: `[STATUS] ${current.name} → ${next.name}`, notify_all: false }),
 	});
 	return NextResponse.json({ from: current.name, to: next.name, last_scan: new Date().toISOString() });
 }

@@ -57,6 +57,24 @@ export type ProductionStage = ProductionStep | typeof TAHAP_KOMPLAIN.name;
 export type ScanAction = "advance" | "qc" | "release_komplain";
 export type QcResult = "Pass" | "Fail";
 
+export const STAGE_TO_STATUS = {
+	"Handover Produksi": "waiting",
+	"Persiapan Material": "waiting",
+	"QC Material": "waiting",
+	"Pelapisan Bahan": "cutting",
+	"Marking & Cutting": "cutting",
+	"QC Hasil Potong": "cutting",
+	Edging: "sanding",
+	Drilling: "sanding",
+	"Finishing Pelapisan": "finishing",
+	"QC3 - QC WS": "qc",
+	Komplain: "qc",
+	"QC4 - QC Assembly": "qc",
+	"Dis-assembling": "final assembly",
+	Packing: "packing",
+	Pengiriman: "completed",
+} as const satisfies Record<ProductionStage, string>;
+
 const progress: Record<ProductionStep, number> = {
 	"Handover Produksi": 5,
 	"Persiapan Material": 10,
@@ -84,6 +102,8 @@ export const isQcStage = (value: string | null | undefined): value is (typeof QC
 	qcSteps.has(value as ProductionStep);
 export const tahapById = (id: unknown) =>
 	[...TAHAP_FLOW, TAHAP_KOMPLAIN].find((tahap) => tahap.id === id);
+export const tahapByName = (name: unknown) =>
+	[...TAHAP_FLOW, TAHAP_KOMPLAIN].find((tahap) => tahap.name === name);
 export const nextTahap = (id: unknown) => {
 	const index = TAHAP_FLOW.findIndex((tahap) => tahap.id === id);
 	return index < 0 ? null : TAHAP_FLOW[index + 1] ?? null;

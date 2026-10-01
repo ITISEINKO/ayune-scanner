@@ -4,11 +4,13 @@ import {
 	CF,
 	PRODUKSI_LIST_ID,
 	QC,
+	STAGE_TO_STATUS,
 	isQcStage,
 	isProductionStage,
 	isReworkStep,
 	moveProduction,
 	tahapById,
+	tahapByName,
 	type QcResult,
 	type ScanAction,
 } from "@/lib/produksi";
@@ -41,10 +43,9 @@ export async function POST(request: NextRequest) {
 
 	const barcode = body.barcode?.trim();
 	const operatorId = body.operator_id?.trim();
-	const deviceId = body.device_id?.trim();
 	const action = body.action;
 	const scannedAt = body.scanned_at ? new Date(body.scanned_at) : new Date();
-	if (!barcode || !operatorId || !deviceId || !action || !actions.has(action) || Number.isNaN(scannedAt.valueOf()))
+	if (!barcode || !action || !actions.has(action) || Number.isNaN(scannedAt.valueOf()))
 		return error(400, "MISSING_FIELD");
 	if (action === "qc" && body.qc_result !== "Pass" && body.qc_result !== "Fail") return error(400, "MISSING_FIELD");
 	if (action === "qc") return error(409, "PHOTO_REQUIRED");
@@ -77,21 +78,25 @@ export async function POST(request: NextRequest) {
 	if (!tahap || tahap.id !== CF.TAHAP_PRODUKSI) return error(500, "CLICKUP_FIELD_MISSING");
 	const current = tahapById(optionId(tahap, task.custom_fields?.find((field) => field.id === CF.TAHAP_PRODUKSI)?.value))?.name;
 	if (!current || !isProductionStage(current)) return error(409, "INVALID_TRANSITION");
+	if (action === "advance" && isQcStage(current)) return error(409, "QC_ACTION_REQUIRED");
 
 	if (action === "release_komplain") {
 		const spvIds = new Set((process.env.CLICKUP_SPV_OPERATOR_IDS ?? "").split(",").map((id) => id.trim()).filter(Boolean));
-		if (!spvIds.has(operatorId)) return error(403, "ROLE_NOT_ALLOWED");
+		if (!operatorId || !spvIds.has(operatorId)) return error(403, "ROLE_NOT_ALLOWED");
 		if (!body.rework_to || !isReworkStep(body.rework_to)) return error(400, "MISSING_FIELD");
 	}
 
 	const movement = moveProduction(current, action, body.qc_result ?? undefined, body.rework_to && isReworkStep(body.rework_to) ? body.rework_to : undefined);
 	if (!movement) return error(409, "INVALID_TRANSITION");
+	const next = tahapByName(movement.to);
+	if (!next) return error(409, "INVALID_TRANSITION");
 
 	const headers = { Authorization: token, "Content-Type": "application/json" };
 	const writes: Promise<Response>[] = [
-		fetch(`https://api.clickup.com/api/v2/task/${task.id}/field/${CF.TAHAP_PRODUKSI}`, { method: "POST", headers, body: JSON.stringify({ value: tahapById(movement.to)?.id }) }),
+		fetch(`https://api.clickup.com/api/v2/task/${task.id}/field/${CF.TAHAP_PRODUKSI}`, { method: "POST", headers, body: JSON.stringify({ value: next.id }) }),
 		fetch(`https://api.clickup.com/api/v2/task/${task.id}/field/${CF.LAST_SCAN}`, { method: "POST", headers, body: JSON.stringify({ value: scannedAt.valueOf(), value_options: { time: true } }) }),
 		fetch(`https://api.clickup.com/api/v2/task/${task.id}/field/${CF.PROGRESS}`, { method: "POST", headers, body: JSON.stringify({ value: { current: movement.progress } }) }),
+		fetch(`https://api.clickup.com/api/v2/task/${task.id}`, { method: "PUT", headers, body: JSON.stringify({ status: STAGE_TO_STATUS[movement.to] }) }),
 	];
 	if (movement.qcResult) {
 		const value = movement.qcResult === "Pass" ? QC.PASS : QC.PENDING;
@@ -101,12 +106,15 @@ export async function POST(request: NextRequest) {
 		writes.push(fetch(`https://api.clickup.com/api/v2/task/${task.id}/field/${CF.QC_RESULT}`, { method: "POST", headers, body: JSON.stringify({ value: QC.PENDING }) }));
 	if (current === "Handover Produksi" && !task.custom_fields?.find((field) => field.id === CF.START_PRODUCTION)?.value)
 		writes.push(fetch(`https://api.clickup.com/api/v2/task/${task.id}/field/${CF.START_PRODUCTION}`, { method: "POST", headers, body: JSON.stringify({ value: scannedAt.valueOf() }) }));
-	if (movement.to === "Pengiriman") writes.push(fetch(`https://api.clickup.com/api/v2/task/${task.id}`, { method: "PUT", headers, body: JSON.stringify({ status: "complete" }) }));
 
 	const timestamp = scannedAt.toLocaleString("sv-SE", { timeZone: "Asia/Jakarta", hour12: false });
-	writes.push(fetch(`https://api.clickup.com/api/v2/task/${task.id}/comment`, { method: "POST", headers, body: JSON.stringify({ comment_text: `[SCAN] ${current} → ${movement.to} | operator: ${operatorId} | device: ${deviceId} | ${timestamp} WIB`, notify_all: false }) }));
+	writes.push(fetch(`https://api.clickup.com/api/v2/task/${task.id}/comment`, { method: "POST", headers, body: JSON.stringify({ comment_text: `[SCAN] ${current} → ${movement.to} | ${timestamp} WIB`, notify_all: false }) }));
 	const responses = await Promise.all(writes);
+	if (!responses[0].ok) {
+		console.error("ClickUp Tahap Produksi update failed", { status: responses[0].status, body: await responses[0].text() });
+		return error(responses[0].status === 429 ? 429 : 502, responses[0].status === 429 ? "RATE_LIMITED" : "CLICKUP_STAGE_UPDATE_FAILED");
+	}
 	if (responses.some((response) => !response.ok)) return clickUpError(responses.find((response) => !response.ok)!);
 
-	return NextResponse.json({ task_id: task.id, barcode, from: current, to: movement.to, progress: movement.progress, last_scan: scannedAt.toISOString() });
+	return NextResponse.json({ task_id: task.id, nama: task.name ?? barcode, barcode, from: current, to: movement.to, progress: movement.progress, last_scan: scannedAt.toISOString() });
 }

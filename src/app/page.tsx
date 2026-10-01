@@ -4,9 +4,9 @@ import { type FormEvent, useEffect, useState } from "react";
 import { CloudOff } from "lucide-react";
 import { Scanner } from "@/components/scanner";
 import {
-	ProductionSheet,
+	StatusChange,
 	type ProductionItem,
-} from "@/components/productionSheet";
+} from "@/components/StatusChange";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -54,6 +54,7 @@ export default function ScannerPage() {
 				ok?: boolean;
 				data?: ProductionItem;
 				error?: string;
+				message?: string;
 			};
 			if (response.status === 404) {
 				const message = `Barcode ${barcode} tidak ditemukan di Produksi.`;
@@ -62,7 +63,7 @@ export default function ScannerPage() {
 				return;
 			}
 			if (!response.ok || !result.ok || !result.data)
-				throw new Error(result.error ?? "Data produksi tidak dapat dicari.");
+				throw new Error(result.message ?? result.error ?? "Data produksi tidak dapat dicari.");
 			setProduction(result.data);
 		} catch (error) {
 			const message =
@@ -141,7 +142,7 @@ export default function ScannerPage() {
 				terbaca.
 			</p>
 			{production && (
-				<ProductionSheet
+				<StatusChange
 					production={production}
 					onClose={restartScanner}
 					onUpdated={() => void findProduction(production.barcode)}

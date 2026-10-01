@@ -27,7 +27,7 @@ const labelsValue = (task: ClickUpTask) => {
   });
 };
 const userName = (value: unknown) => Array.isArray(value) && typeof value[0] === "object" && value[0] !== null && "username" in value[0] && typeof value[0].username === "string" ? value[0].username : null;
-const error = (status: number, code: string) => NextResponse.json({ ok: false, error: code }, { status });
+const error = (status: number, code: string, message = code) => NextResponse.json({ ok: false, error: code, message }, { status });
 
 export async function GET(_request: NextRequest, { params }: RouteContext<"/api/produksi/[barcode]">) {
   const { barcode: rawBarcode } = await params;
@@ -58,7 +58,10 @@ export async function GET(_request: NextRequest, { params }: RouteContext<"/api/
   if (!taskResponse.ok || !kendalaResponse.ok) return error(taskResponse.status === 429 || kendalaResponse.status === 429 ? 429 : 502, taskResponse.status === 429 || kendalaResponse.status === 429 ? "RATE_LIMITED" : "CLICKUP_ERROR");
   const task = (await taskResponse.json()) as ClickUpTask;
   const { tasks: kendalaTasks = [] } = (await kendalaResponse.json()) as { tasks?: ClickUpTask[] };
-  const tahapId = optionId(fields["Tahap Produksi"]!, valueOf(task, CF.TAHAP_PRODUKSI));
+  const tahapValue = valueOf(task, CF.TAHAP_PRODUKSI);
+  if (tahapValue === undefined || tahapValue === null || tahapValue === "")
+    return error(409, "TAHAP_PRODUKSI_NOT_SET", "Tahap Produksi belum diisi. Pilih tahap produksi di ClickUp terlebih dahulu.");
+  const tahapId = optionId(fields["Tahap Produksi"]!, tahapValue);
   const tahap = tahapById(tahapId)?.name;
   if (!tahap) return error(409, "INVALID_TRANSITION");
   const kendala = kendalaTasks
