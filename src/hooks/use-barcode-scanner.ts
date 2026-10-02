@@ -75,26 +75,31 @@ export function useBarcodeScanner(
 				},
 				() => undefined,
 			);
-
-			const capabilities = instance.getRunningTrackCapabilities() as Record<
-				string,
-				unknown
-			>;
-			if (
-				Array.isArray(capabilities.focusMode) &&
-				capabilities.focusMode.includes("continuous")
-			) {
-				try {
+			setIsScanning(true);
+			try {
+				const capabilities = instance.getRunningTrackCapabilities() as Record<
+					string,
+					unknown
+				>;
+				if (
+					Array.isArray(capabilities.focusMode) &&
+					capabilities.focusMode.includes("continuous")
+				) {
 					await instance.applyVideoConstraints({
 						advanced: [{ focusMode: "continuous" }],
 					} as unknown as MediaTrackConstraints);
-				} catch {
-					// The camera can advertise autofocus without allowing control.
 				}
+			} catch {
+				// Autofocus is optional and unsupported by some browsers.
 			}
-			setIsScanning(true);
 		} catch {
 			scanner.current = null;
+			try {
+				if (instance.isScanning) await instance.stop();
+				await instance.clear();
+			} catch {
+				// The camera may have already been released.
+			}
 			setError(
 				"Camera could not be opened. Allow camera access and try again.",
 			);

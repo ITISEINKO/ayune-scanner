@@ -1,19 +1,21 @@
 "use client";
 
-import { useState } from "react";
 import { TAHAP_FLOW } from "@/lib/produksi";
 
 type StagePickerProps = {
 	currentStage: number;
+	selectedStage?: string;
+	onStageChange?: (stage: string) => void;
 };
 
-export default function StagePicker({ currentStage }: StagePickerProps) {
-	const [target, setTarget] = useState<number | null>(null);
-
-	const selectedTarget =
-		target === null || target === currentStage
-			? Math.min(currentStage + 1, TAHAP_FLOW.length - 1)
-			: target;
+export default function StagePicker({
+	currentStage,
+	selectedStage,
+	onStageChange,
+}: StagePickerProps) {
+	const selectedTarget = TAHAP_FLOW.findIndex(
+		(tahap) => tahap.name === selectedStage,
+	);
 
 	return (
 		<div className="mb-4 rounded-radius  bg-card px-4 pb-2 pt-3.5">
@@ -40,12 +42,12 @@ export default function StagePicker({ currentStage }: StagePickerProps) {
 							aria-disabled={isCurrent}
 							onClick={() => {
 								if (isCurrent) return;
-								setTarget(index);
+								onStageChange?.(tahap.name);
 							}}
 							onKeyDown={(e) => {
 								if ((e.key === "Enter" || e.key === " ") && !isCurrent) {
 									e.preventDefault();
-									setTarget(index);
+									onStageChange?.(tahap.name);
 								}
 							}}
 							className={[
@@ -77,7 +79,7 @@ export default function StagePicker({ currentStage }: StagePickerProps) {
 									isDone && "border-primary bg-primary text-white",
 									isCurrent && "border-primary text-accent-foreground",
 									!isDone && !isCurrent && "border-border",
-									isTarget && "border-dashed border-amber-500",
+									isTarget && "border-dashed border-amber-400",
 									isCurrent && "shadow-[0_0_4px_4px_var(--accent)]",
 								]
 									.filter(Boolean)
