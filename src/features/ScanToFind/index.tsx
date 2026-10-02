@@ -1,12 +1,12 @@
 "use client";
 
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { type SubmitEvent, useEffect, useRef, useState } from "react";
 import { ExternalLink, ScanBarcode } from "lucide-react";
 import { Scanner } from "@/components/scanner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-export default function ScanPage() {
+export const ScanToFindPage = () => {
 	const lastScan = useRef(0);
 	const finding = useRef(false);
 	const [code, setCode] = useState("");
@@ -30,11 +30,21 @@ export default function ScanPage() {
 		const tab = window.open("about:blank", "_blank");
 
 		try {
-			const response = await fetch(`/api/find-task?code=${encodeURIComponent(barcode)}`);
-			const result = (await response.json()) as { url?: string; count?: number; error?: string };
+			const response = await fetch(
+				`/api/find-task?code=${encodeURIComponent(barcode)}`,
+			);
+			const result = (await response.json()) as {
+				url?: string;
+				count?: number;
+				error?: string;
+			};
 			if (!response.ok || !result.url) {
 				tab?.close();
-				setMessage(result.error === "NOT_FOUND" ? "Barcode tidak terdaftar." : "Task tidak dapat dicari. Coba lagi.");
+				setMessage(
+					result.error === "NOT_FOUND"
+						? "Barcode tidak terdaftar."
+						: "Task tidak dapat dicari. Coba lagi.",
+				);
 				return;
 			}
 			if (!tab) {
@@ -42,7 +52,11 @@ export default function ScanPage() {
 				return;
 			}
 			tab.location.href = result.url;
-			setMessage(result.count && result.count > 1 ? "Barcode duplikat: task pertama dibuka." : "Task dibuka di tab baru.");
+			setMessage(
+				result.count && result.count > 1
+					? "Barcode duplikat: task pertama dibuka."
+					: "Task dibuka di tab baru.",
+			);
 		} catch {
 			tab?.close();
 			setMessage("Task tidak dapat dicari. Coba lagi.");
@@ -53,7 +67,7 @@ export default function ScanPage() {
 		}
 	};
 
-	const submit = (event: FormEvent<HTMLFormElement>) => {
+	const submit = (event: SubmitEvent<HTMLFormElement>) => {
 		event.preventDefault();
 		void findTask(code);
 	};
@@ -61,13 +75,21 @@ export default function ScanPage() {
 	return (
 		<main className="mx-auto min-h-dvh max-w-lg p-4 pb-8">
 			<header className="mb-7 pt-3">
-				<p className="text-xs font-bold tracking-widest text-muted-foreground uppercase">Production scanner</p>
-				<h1 className="text-3xl font-black tracking-tight">Buka task ClickUp</h1>
-				<p className="mt-2 text-sm text-muted-foreground">Scan barcode untuk membuka task Produksi.</p>
+				<p className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
+					Production scanner
+				</p>
+				<h1 className="text-3xl font-black tracking-tight">
+					Buka task ClickUp
+				</h1>
+				<p className="mt-2 text-sm text-muted-foreground">
+					Scan barcode untuk membuka task Produksi.
+				</p>
 			</header>
 
 			<form onSubmit={submit}>
-				<label htmlFor="barcode" className="mb-2 block text-sm font-semibold">Barcode</label>
+				<label htmlFor="barcode" className="mb-2 block text-sm font-semibold">
+					Barcode
+				</label>
 				<div className="flex gap-2">
 					<Input
 						id="barcode"
@@ -82,14 +104,19 @@ export default function ScanPage() {
 					</Button>
 				</div>
 			</form>
-			{message && <p role="status" className="mt-3 text-sm text-muted-foreground">{message}</p>}
+			{message && (
+				<p role="status" className="mt-3 text-sm text-muted-foreground">
+					{message}
+				</p>
+			)}
 
 			<div className="mt-6">
 				<Scanner onDetected={findTask} disabled={isFinding} />
 			</div>
 			<p className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
-				<ScanBarcode className="size-4" /> USB scanner siap dipakai; gunakan kamera bila perlu.
+				<ScanBarcode className="size-4" /> USB scanner siap dipakai; gunakan
+				kamera bila perlu.
 			</p>
 		</main>
 	);
-}
+};

@@ -14,7 +14,6 @@ export const CF = {
 	PIC_WORKSHOP: "71b54903-3cec-4ae5-ac8a-b0e88e5f8a12",
 	KENDALA: "4c59d4e9-7163-4e4a-9c6e-41cbf2e911ff",
 	DETAIL_KENDALA: "55f122d2-ebdb-4a9f-9b3a-62c0c4ab2390",
-	QC_RESULT: "6f23f219-18fd-4362-a426-311eb8175e9d",
 	PRODUCT_TYPE: "73db8b30-dbd7-40a7-b06c-34ad0ad96e40",
 	MATERIAL: "1cbd25e3-387c-4e41-8c25-eafaa2dfd918",
 } as const;
@@ -45,34 +44,27 @@ export const TAHAP_FLOW = [
 ] as const;
 
 export const TAHAP_KOMPLAIN = { name: "Komplain", id: "44a218d2-479d-4713-ab89-ee03a75308c8" } as const;
-export const QC = {
-	PENDING: "5c2a5f7c-167e-4b2b-8d7c-c360a36299fc",
-	PASS: "5eba903b-e8b3-43ae-84b6-f4fa5a3fa1fb",
-	FAIL: "33dd6e12-5b46-4393-82b5-beed4dd51285",
-} as const;
-
 export const productionSteps = TAHAP_FLOW.map(({ name }) => name);
 export type ProductionStep = (typeof TAHAP_FLOW)[number]["name"];
 export type ProductionStage = ProductionStep | typeof TAHAP_KOMPLAIN.name;
-export type ScanAction = "advance" | "qc" | "release_komplain";
-export type QcResult = "Pass" | "Fail";
+export type ScanAction = "advance" | "release_komplain";
 
-export const STAGE_TO_STATUS = {
+export const TAHAP_TO_STATUS = {
 	"Handover Produksi": "waiting",
 	"Persiapan Material": "waiting",
-	"QC Material": "waiting",
+	"QC Material": "qc",
 	"Pelapisan Bahan": "cutting",
 	"Marking & Cutting": "cutting",
-	"QC Hasil Potong": "cutting",
-	Edging: "sanding",
-	Drilling: "sanding",
+	"QC Hasil Potong": "qc",
+	Edging: "assembly",
+	Drilling: "assembly",
 	"Finishing Pelapisan": "finishing",
 	"QC3 - QC WS": "qc",
 	Komplain: "qc",
 	"QC4 - QC Assembly": "qc",
 	"Dis-assembling": "final assembly",
 	Packing: "packing",
-	Pengiriman: "completed",
+	Pengiriman: "done",
 } as const satisfies Record<ProductionStage, string>;
 
 const progress: Record<ProductionStep, number> = {
@@ -91,15 +83,10 @@ const progress: Record<ProductionStep, number> = {
 	Packing: 95,
 	Pengiriman: 100,
 };
-export const QC_STAGES = ["QC Material", "QC Hasil Potong", "QC3 - QC WS", "QC4 - QC Assembly"] as const;
-const qcSteps = new Set<ProductionStep>(QC_STAGES);
-
 export const isProductionStage = (value: string): value is ProductionStage =>
 	value === TAHAP_KOMPLAIN.name || productionSteps.includes(value as ProductionStep);
 export const isReworkStep = (value: string): value is ProductionStep =>
 	isProductionStage(value) && value !== TAHAP_KOMPLAIN.name && value !== "Pengiriman";
-export const isQcStage = (value: string | null | undefined): value is (typeof QC_STAGES)[number] =>
-	qcSteps.has(value as ProductionStep);
 export const tahapById = (id: unknown) =>
 	[...TAHAP_FLOW, TAHAP_KOMPLAIN].find((tahap) => tahap.id === id);
 export const tahapByName = (name: unknown) =>
@@ -112,16 +99,11 @@ export const nextTahap = (id: unknown) => {
 export function moveProduction(
 	current: ProductionStage,
 	action: ScanAction,
-	qcResult?: QcResult,
 	reworkTo?: ProductionStep,
 ) {
-	if (action === "qc" && qcSteps.has(current as ProductionStep) && qcResult === "Pass") {
-		const to = productionSteps[productionSteps.indexOf(current as ProductionStep) + 1];
-		return { to, progress: progress[to as ProductionStep], qcResult };
-	}
 	if (action === "release_komplain" && current === TAHAP_KOMPLAIN.name && reworkTo)
-		return { to: reworkTo, progress: progress[reworkTo], qcResult: "Pending" as const };
-	if (action === "advance" && !qcSteps.has(current as ProductionStep)) {
+		return { to: reworkTo, progress: progress[reworkTo] };
+	if (action === "advance") {
 		const next = productionSteps[productionSteps.indexOf(current as ProductionStep) + 1];
 		if (next) return { to: next, progress: progress[next] };
 	}

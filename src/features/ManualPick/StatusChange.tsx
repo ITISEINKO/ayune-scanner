@@ -12,8 +12,7 @@ export type ProductionItem = {
 	barcode: string;
 	tahapSekarang: string;
 	tahapBerikutnya: string | null;
-	isQcStage: boolean;
-	actions: { lanjut: boolean; qcPass: boolean };
+	actions: { lanjut: boolean };
 };
 
 type Props = { production: ProductionItem; onClose: () => void; onUpdated: () => void };
@@ -21,14 +20,13 @@ type Props = { production: ProductionItem; onClose: () => void; onUpdated: () =>
 export function StatusChange({ production, onClose, onUpdated }: Props) {
 	const [confirming, setConfirming] = useState(false);
 	const [saving, setSaving] = useState(false);
-	const canAdvance = Boolean(production.tahapBerikutnya && (production.actions.lanjut || production.actions.qcPass));
+	const canAdvance = Boolean(production.tahapBerikutnya && production.actions.lanjut);
 
 	const advance = async () => {
 		setSaving(true);
 		try {
 			const form = new FormData();
 			form.append("task_id", production.taskId);
-			if (production.isQcStage) form.append("qc_pass", "true");
 			const response = await fetch("/api/produksi/advance", { method: "POST", body: form });
 			const data = await response.json() as { error?: string };
 			if (!response.ok) throw new Error(data.error ?? "Status tidak dapat diperbarui.");

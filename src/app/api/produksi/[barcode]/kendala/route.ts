@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fieldsByName, hasTaskRelation, optionId, optionName } from "@/lib/clickup";
-import { CF, KENDALA_CF, KENDALA_LIST_ID, PRODUKSI_LIST_ID, QC, isQcStage, tahapById } from "@/lib/produksi";
+import { fieldsByName, optionId, optionName } from "@/lib/clickup";
+import { CF, KENDALA_CF, KENDALA_LIST_ID, PRODUKSI_LIST_ID, tahapById } from "@/lib/produksi";
 import type { ClickUpTask } from "@/types/clickup";
 
 const error = (status: number, code: string) => NextResponse.json({ ok: false, error: code }, { status });
@@ -18,7 +18,6 @@ export async function POST(request: NextRequest, { params }: RouteContext<"/api/
   const jenisId = form.get("jenisId");
   const detail = form.get("detail");
   const picId = form.get("picId");
-  const qcFail = form.get("qc_fail") === "true";
   const photos = form.getAll("photos[]").filter((item): item is File => item instanceof File);
   if (!barcode || typeof jenisId !== "string" || typeof detail !== "string" || detail.trim().length < 10 || photos.length < 1 || photos.length > 3)
     return error(400, "MISSING_FIELD");
@@ -46,14 +45,10 @@ export async function POST(request: NextRequest, { params }: RouteContext<"/api/
   if (!tasks.length) return error(404, "BARCODE_NOT_FOUND");
   if (tasks.length > 1) return error(409, "DUPLICATE_BARCODE");
   const taskResponse = await fetch(`https://api.clickup.com/api/v2/task/${tasks[0].id}`, { headers, cache: "no-store" });
-  const logResponse = await fetch(`https://api.clickup.com/api/v2/list/${kendalaListId}/task?include_closed=true`, { headers, cache: "no-store" });
-  if (!taskResponse.ok || !logResponse.ok) return error(taskResponse.status === 429 || logResponse.status === 429 ? 429 : 502, taskResponse.status === 429 || logResponse.status === 429 ? "RATE_LIMITED" : "CLICKUP_ERROR");
+  if (!taskResponse.ok) return error(taskResponse.status === 429 ? 429 : 502, taskResponse.status === 429 ? "RATE_LIMITED" : "CLICKUP_ERROR");
   const task = (await taskResponse.json()) as ClickUpTask;
-  const { tasks: kendalaTasks = [] } = (await logResponse.json()) as { tasks?: ClickUpTask[] };
   const current = tahapById(optionId(produksiFields["Tahap Produksi"], valueOf(task, CF.TAHAP_PRODUKSI)));
   if (!current) return error(409, "INVALID_TRANSITION");
-  const openKendala = kendalaTasks.some((item) => hasTaskRelation(valueOf(item, kendalaFields["Produksi Task"]!.id), task.id) && item.status?.status !== "resolved");
-  if (qcFail && (!isQcStage(current.name) || openKendala)) return error(409, openKendala ? "OPEN_KENDALA" : "INVALID_TRANSITION");
   const tahapId = kendalaFields["Tahap Saat Kendala"].type_config?.options?.find((option) => option.name === current.name)?.id;
   if (!tahapId) return error(500, "CLICKUP_FIELD_MISSING");
 
@@ -73,7 +68,6 @@ export async function POST(request: NextRequest, { params }: RouteContext<"/api/
   if (picId) writes.push(fetch(`https://api.clickup.com/api/v2/task/${kendalaTask.id}/field/${KENDALA_CF.PIC}`, { method: "POST", headers: writeHeaders, body: JSON.stringify({ value: { add: [String(picId)], rem: [] } }) }));
   const produksiJenisId = produksiFields.Kendala.type_config?.options?.find((option) => option.name === jenis)?.id;
   if (produksiJenisId) writes.push(fetch(`https://api.clickup.com/api/v2/task/${task.id}/field/${CF.KENDALA}`, { method: "POST", headers: writeHeaders, body: JSON.stringify({ value: produksiJenisId }) }));
-  if (qcFail) writes.push(fetch(`https://api.clickup.com/api/v2/task/${task.id}/field/${CF.QC_RESULT}`, { method: "POST", headers: writeHeaders, body: JSON.stringify({ value: QC.FAIL }) }));
   const responses = await Promise.all(writes);
   if (responses.some((response) => !response.ok)) return error(502, "CLICKUP_ERROR");
   for (const photo of photos) {

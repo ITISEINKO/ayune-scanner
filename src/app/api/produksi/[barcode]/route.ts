@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fieldsByName, optionId } from "@/lib/clickup";
-import { CF, PRODUKSI_LIST_ID, isQcStage, nextTahap, tahapById } from "@/lib/produksi";
+import { CF, PRODUKSI_LIST_ID, nextTahap, tahapById } from "@/lib/produksi";
 import type { ClickUpTask } from "@/types/clickup";
 
 const error = (status: number, code: string, message = code) => NextResponse.json({ ok: false, error: code, message }, { status });
@@ -32,7 +32,6 @@ export async function GET(_request: NextRequest, { params }: RouteContext<"/api/
 		return error(409, "TAHAP_PRODUKSI_NOT_SET", "Tahap Produksi belum diisi. Pilih tahap produksi di ClickUp terlebih dahulu.");
 	const current = tahapById(optionId(tahapField, tahapValue));
 	if (!current) return error(409, "INVALID_TRANSITION");
-	const isQc = isQcStage(current.name);
 	const next = nextTahap(current.id)?.name ?? null;
 
 	return NextResponse.json({
@@ -43,8 +42,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext<"/api/
 			barcode,
 			tahapSekarang: current.name,
 			tahapBerikutnya: next,
-			isQcStage: isQc,
-			actions: { lanjut: !isQc && current.name !== "Pengiriman", qcPass: isQc },
+			actions: { lanjut: current.name !== "Pengiriman" },
 		},
 	});
 }
