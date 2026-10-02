@@ -50,7 +50,7 @@ export const AutoScanPage = () => {
 			if (!response.ok || !data.to) throw new Error(messageFor(data.error));
 			const change = {
 				nama: data.nama ?? code,
-				from: data.from ?? "-",
+				from: data.from ?? "Pre Produksi",
 				to: data.to,
 			};
 			setStatusChange(change);

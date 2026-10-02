@@ -89,14 +89,19 @@ export async function POST(request: NextRequest) {
 	const tahap = fields?.["Tahap Produksi"];
 	if (!tahap || tahap.id !== CF.TAHAP_PRODUKSI)
 		return error(500, "CLICKUP_FIELD_MISSING");
+	const currentValue = task.custom_fields?.find(
+		(field) => field.id === CF.TAHAP_PRODUKSI,
+	)?.value;
 	const current = tahapById(
 		optionId(
 			tahap,
-			task.custom_fields?.find((field) => field.id === CF.TAHAP_PRODUKSI)
-				?.value,
+			currentValue,
 		),
 	)?.name;
-	if (!current || !isProductionStage(current))
+	if (
+		(!current && currentValue !== undefined && currentValue !== null && currentValue !== "") ||
+		(current && !isProductionStage(current))
+	)
 		return error(409, "INVALID_TRANSITION");
 	if (action === "release_komplain") {
 		const spvIds = new Set(
