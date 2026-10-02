@@ -1,21 +1,23 @@
 "use client";
 
-import { type SubmitEvent, useEffect, useState } from "react";
+import { type SubmitEvent, useEffect, useRef, useState } from "react";
 import { Barcode, CloudOff } from "lucide-react";
 import { Scanner } from "@/components/scanner";
 import {
 	StatusChange,
 	type ProductionItem,
-} from "@/features/ManualPick/StatusChange";
+} from "@/features/ManualStatusScan/StatusChange";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 
-export const ManualPick = () => {
+export const ManualStatusScanPage = () => {
 	const [production, setProduction] = useState<ProductionItem | null>(null);
 	const [online, setOnline] = useState(true);
 	const [scannerCycle, setScannerCycle] = useState(0);
 	const [manualBarcode, setManualBarcode] = useState("");
+	const finding = useRef(false);
+	const [isFinding, setIsFinding] = useState(false);
 	const restartScanner = () => {
 		setProduction(null);
 		setScannerCycle((value) => value + 1);
@@ -41,11 +43,14 @@ export const ManualPick = () => {
 	}, []);
 
 	const findProduction = async (barcode: string) => {
+		if (finding.current) return;
 		if (!navigator.onLine) {
 			notify("Tidak ada koneksi internet.", true);
 			restartScanner();
 			return;
 		}
+		finding.current = true;
+		setIsFinding(true);
 		try {
 			const response = await fetch(
 				`/api/produksi/${encodeURIComponent(barcode)}`,
@@ -74,6 +79,9 @@ export const ManualPick = () => {
 					: "Data produksi tidak dapat dicari.";
 			notify(message, true);
 			restartScanner();
+		} finally {
+			finding.current = false;
+			setIsFinding(false);
 		}
 	};
 	const submitManualBarcode = (event: SubmitEvent<HTMLFormElement>) => {
@@ -85,7 +93,7 @@ export const ManualPick = () => {
 	};
 
 	return (
-		<main className="mx-auto min-h-dvh max-w-lg p-4 pb-8">
+		<main className="mx-auto min-h-dvh max-w-lg p-4 pb-28">
 			<header className="mb-7  pt-3">
 				<div className="flex items-center gap-4">
 					<div className="size-10 shrink-0 overflow-hidden">
@@ -96,7 +104,7 @@ export const ManualPick = () => {
 							Production scanner
 						</p>
 						<h1 className="text-3xl font-black tracking-tight uppercase">
-							scannow
+							TrackerProd
 						</h1>
 					</div>
 				</div>
@@ -113,7 +121,7 @@ export const ManualPick = () => {
 			<Scanner
 				onDetected={findProduction}
 				autoStart={scannerCycle > 0}
-				disabled={!online || Boolean(production)}
+				disabled={!online || Boolean(production) || isFinding}
 			/>
 			<div className="rounded-3xl mt-4 border border-border bg-card p-4 text-card-foreground shadow-2xl">
 				<form onSubmit={submitManualBarcode}>
@@ -136,14 +144,23 @@ export const ManualPick = () => {
 								onChange={(event) => setManualBarcode(event.target.value)}
 								placeholder="Masukkan barcode"
 								autoComplete="off"
-								disabled={!online || Boolean(production)}
+								disabled={!online || Boolean(production) || isFinding}
 							/>
 						</div>
 						<Button
 							type="submit"
-							disabled={!online || Boolean(production) || !manualBarcode.trim()}
+							disabled={
+								!online || Boolean(production) || isFinding || !manualBarcode.trim()
+							}
 						>
-							Cari
+							{isFinding ? (
+								<>
+									<span aria-hidden="true" className="loader" />
+									<span className="sr-only">Mencari barcode</span>
+								</>
+							) : (
+								"Cari"
+							)}
 						</Button>
 					</div>
 				</form>
@@ -159,23 +176,6 @@ export const ManualPick = () => {
 					onUpdated={() => void findProduction(production.barcode)}
 				/>
 			)}
-
-			<Button
-				className="mt-5 w-full"
-				variant="secondary"
-				nativeButton={false}
-				render={<a href="/scan-to-find" />}
-			>
-				Scan Langsung Ke ClickUp
-			</Button>
-			<Button
-				className="mt-5 w-full"
-				variant="secondary"
-				nativeButton={false}
-				render={<a href="/autoscan" />}
-			>
-				Scan Auto Mengubah Status
-			</Button>
 		</main>
 	);
 };

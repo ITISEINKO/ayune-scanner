@@ -1,4 +1,4 @@
-import { AutoScanPage } from "@/features/AutoScan";
+import { AutoScanPage } from "@/features/AutoStatusScan";
 
 const AutoScan = () => {
 	return <AutoScanPage />;

@@ -43,7 +43,10 @@ export const TAHAP_FLOW = [
 	{ name: "Pengiriman", id: "dae12c83-8a31-41b8-96f2-726482feb647" },
 ] as const;
 
-export const TAHAP_KOMPLAIN = { name: "Komplain", id: "44a218d2-479d-4713-ab89-ee03a75308c8" } as const;
+export const TAHAP_KOMPLAIN = {
+	name: "Komplain",
+	id: "44a218d2-479d-4713-ab89-ee03a75308c8",
+} as const;
 export const productionSteps = TAHAP_FLOW.map(({ name }) => name);
 export type ProductionStep = (typeof TAHAP_FLOW)[number]["name"];
 export type ProductionStage = ProductionStep | typeof TAHAP_KOMPLAIN.name;
@@ -84,16 +87,19 @@ const progress: Record<ProductionStep, number> = {
 	Pengiriman: 100,
 };
 export const isProductionStage = (value: string): value is ProductionStage =>
-	value === TAHAP_KOMPLAIN.name || productionSteps.includes(value as ProductionStep);
+	value === TAHAP_KOMPLAIN.name ||
+	productionSteps.includes(value as ProductionStep);
 export const isReworkStep = (value: string): value is ProductionStep =>
-	isProductionStage(value) && value !== TAHAP_KOMPLAIN.name && value !== "Pengiriman";
+	isProductionStage(value) &&
+	value !== TAHAP_KOMPLAIN.name &&
+	value !== "Pengiriman";
 export const tahapById = (id: unknown) =>
 	[...TAHAP_FLOW, TAHAP_KOMPLAIN].find((tahap) => tahap.id === id);
 export const tahapByName = (name: unknown) =>
 	[...TAHAP_FLOW, TAHAP_KOMPLAIN].find((tahap) => tahap.name === name);
 export const nextTahap = (id: unknown) => {
 	const index = TAHAP_FLOW.findIndex((tahap) => tahap.id === id);
-	return index < 0 ? null : TAHAP_FLOW[index + 1] ?? null;
+	return index < 0 ? null : (TAHAP_FLOW[index + 1] ?? null);
 };
 
 export function moveProduction(
@@ -101,10 +107,15 @@ export function moveProduction(
 	action: ScanAction,
 	reworkTo?: ProductionStep,
 ) {
-	if (action === "release_komplain" && current === TAHAP_KOMPLAIN.name && reworkTo)
+	if (
+		action === "release_komplain" &&
+		current === TAHAP_KOMPLAIN.name &&
+		reworkTo
+	)
 		return { to: reworkTo, progress: progress[reworkTo] };
 	if (action === "advance") {
-		const next = productionSteps[productionSteps.indexOf(current as ProductionStep) + 1];
+		const next =
+			productionSteps[productionSteps.indexOf(current as ProductionStep) + 1];
 		if (next) return { to: next, progress: progress[next] };
 	}
 	return null;

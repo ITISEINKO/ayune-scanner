@@ -1,5 +1,5 @@
-import { ManualPick } from "@/features/ManualPick";
+import { ManualStatusScanPage } from "@/features/ManualStatusScan";
 
-export default function ScannerPage() {
-	return <ManualPick />;
+export default function Home() {
+	return <div>allo</div>;
 }

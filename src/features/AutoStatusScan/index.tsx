@@ -1,6 +1,7 @@
 "use client";
 
 import { type SubmitEvent, useRef, useState } from "react";
+import { ArrowLeft, Barcode } from "lucide-react";
 import { toast } from "sonner";
 import { Scanner } from "@/components/scanner";
 import { Badge } from "@/components/ui/badge";
@@ -71,34 +72,72 @@ export const AutoScanPage = () => {
 	};
 
 	return (
-		<main className="mx-auto min-h-dvh max-w-lg p-4 pb-8">
+		<main className="mx-auto min-h-dvh max-w-lg p-4 pb-28">
 			<header className="mb-7 pt-3">
-				<p className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
-					Update status produk
-				</p>
-				<h1 className="text-3xl font-black tracking-tight">
-					Scan untuk update status
-				</h1>
+				<Button
+					variant="ghost"
+					size="sm"
+					nativeButton={false}
+					render={<a href="/" />}
+				>
+					<ArrowLeft /> Kembali
+				</Button>
+				<div className="mt-4 flex items-center gap-4">
+					<div className="size-10 shrink-0 overflow-hidden">
+						<img src="/icon.svg" alt="" className="size-full" />
+					</div>
+					<div>
+						<p className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
+							Update status produk
+						</p>
+						<h1 className="text-2xl font-black tracking-tight">
+							Scan untuk update status
+						</h1>
+					</div>
+				</div>
 				<p className="mt-2 text-sm text-muted-foreground">
 					Scan barcode untuk melanjutkan tahap produksi.
 				</p>
 			</header>
 
-			<div className="mt-6">
-				<Scanner onDetected={advance} autoStart disabled={scanning} />
+			<Scanner onDetected={advance} autoStart disabled={scanning} />
+			<div className="mt-4 rounded-3xl border border-border bg-card p-4 text-card-foreground shadow-2xl">
+				<form onSubmit={submit}>
+					<label
+						htmlFor="barcode"
+						className="mb-2 block text-sm font-semibold text-muted-foreground"
+					>
+						Input barcode manual
+					</label>
+					<div className="flex gap-2">
+						<div className="relative flex-1">
+							<Barcode
+								aria-hidden="true"
+								className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-muted-foreground"
+							/>
+							<Input
+								id="barcode"
+								className="pl-11"
+								value={barcode}
+								onChange={(event) => setBarcode(event.target.value)}
+								placeholder="Masukkan barcode"
+								autoComplete="off"
+								disabled={scanning}
+							/>
+						</div>
+						<Button type="submit" disabled={!barcode.trim() || scanning}>
+							{scanning ? (
+								<>
+									<span aria-hidden="true" className="loader" />
+									<span className="sr-only">Memproses barcode</span>
+								</>
+							) : (
+								"Proses"
+							)}
+						</Button>
+					</div>
+				</form>
 			</div>
-			<form className="mt-4 flex gap-2" onSubmit={submit}>
-				<Input
-					value={barcode}
-					onChange={(event) => setBarcode(event.target.value)}
-					placeholder="Scan atau masukkan barcode"
-					autoComplete="off"
-					disabled={scanning}
-				/>
-				<Button type="submit" disabled={!barcode.trim() || scanning}>
-					Proses
-				</Button>
-			</form>
 			<Dialog
 				open={Boolean(statusChange)}
 				onOpenChange={(open) => !open && setStatusChange(null)}

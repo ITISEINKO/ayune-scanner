@@ -1,7 +1,7 @@
 "use client";
 
 import { type SubmitEvent, useEffect, useRef, useState } from "react";
-import { ExternalLink, ScanBarcode } from "lucide-react";
+import { ArrowLeft, Barcode, ExternalLink, ScanBarcode } from "lucide-react";
 import { Scanner } from "@/components/scanner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -73,50 +73,79 @@ export const ScanToFindPage = () => {
 	};
 
 	return (
-		<main className="mx-auto min-h-dvh max-w-lg p-4 pb-8">
+		<main className="mx-auto min-h-dvh max-w-lg p-4 pb-28">
 			<header className="mb-7 pt-3">
-				<p className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
-					Production scanner
-				</p>
-				<h1 className="text-3xl font-black tracking-tight">
-					Buka task ClickUp
-				</h1>
+				<Button
+					variant="ghost"
+					size="sm"
+					nativeButton={false}
+					render={<a href="/" />}
+				>
+					<ArrowLeft /> Kembali
+				</Button>
+				<div className="mt-4 flex items-center gap-4">
+					<div className="size-10 shrink-0 overflow-hidden">
+						<img src="/icon.svg" alt="" className="size-full" />
+					</div>
+					<div>
+						<p className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
+							Production scanner
+						</p>
+						<h1 className="text-2xl font-black tracking-tight">
+							Buka task ClickUp
+						</h1>
+					</div>
+				</div>
 				<p className="mt-2 text-sm text-muted-foreground">
 					Scan barcode untuk membuka task Produksi.
 				</p>
 			</header>
 
-			<form onSubmit={submit}>
-				<label htmlFor="barcode" className="mb-2 block text-sm font-semibold">
-					Barcode
-				</label>
-				<div className="flex gap-2">
-					<Input
-						id="barcode"
-						value={code}
-						onChange={(event) => setCode(event.target.value)}
-						placeholder="Scan atau masukkan barcode"
-						autoComplete="off"
-						disabled={isFinding}
-					/>
-					<Button type="submit" disabled={isFinding || !code.trim()}>
-						<ExternalLink className="size-4" /> Buka
-					</Button>
-				</div>
-			</form>
+			<Scanner onDetected={findTask} disabled={isFinding} />
+			<div className="mt-4 rounded-3xl border border-border bg-card p-4 text-card-foreground shadow-2xl">
+				<form onSubmit={submit}>
+					<label
+						htmlFor="barcode"
+						className="mb-2 block text-sm font-semibold text-muted-foreground"
+					>
+						Input barcode manual
+					</label>
+					<div className="flex gap-2">
+						<div className="relative flex-1">
+							<Barcode
+								aria-hidden="true"
+								className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-muted-foreground"
+							/>
+							<Input
+								id="barcode"
+								className="pl-11"
+								value={code}
+								onChange={(event) => setCode(event.target.value)}
+								placeholder="Masukkan barcode"
+								autoComplete="off"
+								disabled={isFinding}
+							/>
+						</div>
+						<Button type="submit" disabled={isFinding || !code.trim()}>
+							{isFinding ? (
+								<>
+									<span aria-hidden="true" className="loader" />
+									<span className="sr-only">Mencari task</span>
+								</>
+							) : (
+								<>
+									<ExternalLink className="size-4" /> Buka
+								</>
+							)}
+						</Button>
+					</div>
+				</form>
+			</div>
 			{message && (
 				<p role="status" className="mt-3 text-sm text-muted-foreground">
 					{message}
 				</p>
 			)}
-
-			<div className="mt-6">
-				<Scanner onDetected={findTask} disabled={isFinding} />
-			</div>
-			<p className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
-				<ScanBarcode className="size-4" /> USB scanner siap dipakai; gunakan
-				kamera bila perlu.
-			</p>
 		</main>
 	);
 };
