@@ -211,6 +211,38 @@
 	}
 }
 
+.loader {
+	display: inline-block;
+	width: 1.1rem;
+	aspect-ratio: 1;
+	border: 2px solid transparent;
+	border-right-color: var(--primary-foreground);
+	border-radius: 50%;
+	position: relative;
+	animation: l24 1s infinite linear;
+}
+
+.loader::before,
+.loader::after {
+	content: "";
+	position: absolute;
+	inset: -2px;
+	border: inherit;
+	border-radius: inherit;
+	animation: inherit;
+	animation-duration: 2s;
+}
+
+.loader::after {
+	animation-duration: 4s;
+}
+
+@keyframes l24 {
+	100% {
+		transform: rotate(1turn);
+	}
+}
+
 @layer utilities {
 	.animate-marquee {
 		display: flex;

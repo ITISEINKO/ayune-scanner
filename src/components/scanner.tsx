@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect } from "react";
-import { Camera, Flashlight, FlashlightOff, ScanBarcode } from "lucide-react";
+import {
+	Camera,
+	Flashlight,
+	FlashlightOff,
+	InfoIcon,
+	ScanBarcode,
+} from "lucide-react";
 import { useBarcodeScanner } from "@/hooks/use-barcode-scanner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -44,7 +50,9 @@ export function Scanner({
 			</div>
 			<div
 				className="relative min-h-64 cursor-pointer overflow-hidden rounded-2xl bg-muted"
-				onPointerDown={() => void refocus()}
+				onPointerDown={() => {
+					if (!disabled) void (isScanning ? refocus() : start());
+				}}
 			>
 				<div id="barcode-reader" className="min-h-64" />
 				{!isScanning && (
@@ -56,6 +64,7 @@ export function Scanner({
 			</div>
 			{error && (
 				<Alert variant="destructive" className="mt-3">
+					<InfoIcon className="size-4" />
 					<AlertDescription>{error}</AlertDescription>
 				</Alert>
 			)}
