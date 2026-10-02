@@ -2,30 +2,15 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
+import StagePicker from "@/components/stagePicker";
 import { Button } from "@/components/ui/button";
-import {
-	Dialog,
-	DialogClose,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "@/components/ui/dialog";
 import {
 	Drawer,
 	DrawerContent,
 	DrawerDescription,
 	DrawerTitle,
 } from "@/components/ui/drawer";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
-import { productionSteps } from "@/lib/produksi";
+import { TAHAP_FLOW } from "@/lib/produksi";
 import { Badge } from "@/components/ui/badge";
 
 export type ProductionItem = {
@@ -42,9 +27,11 @@ type Props = {
 };
 
 export function StatusChange({ production, onClose, onUpdated }: Props) {
-	const [confirming, setConfirming] = useState(false);
 	const [saving, setSaving] = useState(false);
 	const [selectedTahap, setSelectedTahap] = useState("");
+	const currentStage = TAHAP_FLOW.findIndex(
+		(tahap) => tahap.name === production.tahapSekarang,
+	);
 
 	const advance = async () => {
 		setSaving(true);
@@ -59,7 +46,6 @@ export function StatusChange({ production, onClose, onUpdated }: Props) {
 			const data = (await response.json()) as { error?: string };
 			if (!response.ok)
 				throw new Error(data.error ?? "Status tidak dapat diperbarui.");
-			setConfirming(false);
 			setSelectedTahap("");
 			onUpdated();
 			toast.success("Status diperbarui.");
@@ -79,8 +65,8 @@ export function StatusChange({ production, onClose, onUpdated }: Props) {
 			snapPoints={["28rem", 1]}
 			showSwipeHandle
 		>
-			<DrawerContent className="rounded-t-3xl border-t border-border bg-background shadow-2xl">
-				<div className="p-5 pb-8">
+			<DrawerContent className="[--drawer-inset:0px]! rounded-t-3xl border-t border-border bg-background shadow-2xl">
+				<div className="flex-1 overflow-y-auto p-5 pb-8">
 					<Badge className="mb-3">Barcode: {production.barcode}</Badge>
 					<DrawerTitle className="text-2xl font-bold">
 						{production.nama ?? "Produk"}
@@ -94,63 +80,43 @@ export function StatusChange({ production, onClose, onUpdated }: Props) {
 							{production.tahapSekarang}
 						</p>
 					</div>
-					<p
-						id="tahap-produksi-label"
-						className="mb-2 block text-sm font-semibold text-muted-foreground"
-					>
-						Pilih status
-					</p>
-					<Select
-						value={selectedTahap}
-						onValueChange={(value) => setSelectedTahap(value ?? "")}
-					>
-						<SelectTrigger
-							aria-labelledby="tahap-produksi-label"
-							className="mb-3 h-12 w-full rounded-2xl"
+					<StagePicker
+						currentStage={currentStage}
+						selectedStage={selectedTahap}
+						onStageChange={setSelectedTahap}
+					/>
+					{selectedTahap && (
+						<div
+							role="alert"
+							className="animate-in fade-in-0 slide-in-from-top-2 mb-4 rounded-2xl border border-primary/30 bg-primary/10 p-4 duration-200"
 						>
-							<SelectValue placeholder="Pilih status baru" />
-						</SelectTrigger>
-						<SelectContent>
-							{productionSteps
-								.filter((tahap) => tahap !== production.tahapSekarang)
-								.map((tahap) => (
-									<SelectItem key={tahap} value={tahap}>
-										{tahap}
-									</SelectItem>
-								))}
-						</SelectContent>
-					</Select>
-					<Button
-						className="w-full text-lg"
-						disabled={!selectedTahap}
-						onClick={() => setConfirming(true)}
-					>
-						UBAH STATUS
-					</Button>
+							<p className="font-bold">Ubah status produksi?</p>
+							<p className="mt-1 text-sm text-muted-foreground">
+								{production.tahapSekarang} → {selectedTahap}
+							</p>
+							<div className="mt-4 flex gap-2">
+								<Button
+									type="button"
+									variant="secondary"
+									className="flex-1"
+									disabled={saving}
+									onClick={() => setSelectedTahap("")}
+								>
+									Batal
+								</Button>
+								<Button
+									type="button"
+									className="flex-1"
+									disabled={saving}
+									onClick={advance}
+								>
+									{saving ? "Memproses..." : "Ya, ubah status"}
+								</Button>
+							</div>
+						</div>
+					)}
 				</div>
 			</DrawerContent>
-			<Dialog open={confirming} onOpenChange={setConfirming}>
-				<DialogContent showCloseButton={!saving}>
-					<DialogHeader>
-						<DialogTitle>Ubah status produksi?</DialogTitle>
-						<DialogDescription>
-							Status akan berubah dari {production.tahapSekarang} ke{" "}
-							{selectedTahap}.
-						</DialogDescription>
-					</DialogHeader>
-					<DialogFooter>
-						<DialogClose
-							disabled={saving}
-							render={<Button variant="secondary" />}
-						>
-							Batal
-						</DialogClose>
-						<Button disabled={saving} onClick={advance}>
-							{saving ? "Memproses..." : "Ya, ubah status"}
-						</Button>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
 		</Drawer>
 	);
 }

@@ -103,10 +103,12 @@ export const nextTahap = (id: unknown) => {
 };
 
 export function moveProduction(
-	current: ProductionStage,
+	current: ProductionStage | undefined,
 	action: ScanAction,
 	reworkTo?: ProductionStep,
 ) {
+	if (action === "advance" && !current)
+		return { to: TAHAP_FLOW[0].name, progress: progress[TAHAP_FLOW[0].name] };
 	if (
 		action === "release_komplain" &&
 		current === TAHAP_KOMPLAIN.name &&

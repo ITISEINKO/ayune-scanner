@@ -35,6 +35,10 @@ assert.equal(TAHAP_TO_STATUS["QC Material"], "qc");
 assert.equal(TAHAP_TO_STATUS.Edging, "assembly");
 assert.equal(TAHAP_TO_STATUS.Packing, "packing");
 assert.equal(TAHAP_TO_STATUS.Pengiriman, "done");
+assert.deepEqual(moveProduction(undefined, "advance"), {
+	to: "Handover Produksi",
+	progress: 5,
+});
 assert.deepEqual(moveProduction("QC Material", "advance"), {
 	to: "Pelapisan Bahan",
 	progress: 25,
