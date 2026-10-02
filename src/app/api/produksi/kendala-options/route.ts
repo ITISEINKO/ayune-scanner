@@ -1,17 +1,18 @@
 import { NextResponse } from "next/server";
 import { fieldsByName } from "@/lib/clickup";
+import { clickUpToken } from "@/lib/session";
 import { KENDALA_LIST_ID } from "@/lib/produksi";
 
 export async function GET() {
-	const token = process.env.CLICKUP_TOKEN || process.env.CLICKUP_API_TOKEN;
+	const token = await clickUpToken();
 	const listId =
 		process.env.CLICKUP_KENDALA_LIST_ID ||
 		process.env.LIST_KENDALA_ID ||
 		KENDALA_LIST_ID;
 	if (!token)
 		return NextResponse.json(
-			{ ok: false, error: "CLICKUP_NOT_CONFIGURED" },
-			{ status: 500 },
+			{ ok: false, error: "UNAUTHORIZED" },
+			{ status: 401 },
 		);
 	const fields = await fieldsByName(token, listId, ["Jenis Kendala"]);
 	const field = fields?.["Jenis Kendala"];

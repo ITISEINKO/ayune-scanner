@@ -1,7 +1,6 @@
 import LoginPage from "@/features/login";
 
-const Login = () => {
-	return <LoginPage />;
-};
-
-export default Login;
+export default async function Login({ searchParams }: PageProps<"/login">) {
+	const { error } = await searchParams;
+	return <LoginPage error={typeof error === "string" ? error : undefined} />;
+}

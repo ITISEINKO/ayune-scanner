@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fieldsByName, optionId } from "@/lib/clickup";
+import { clickUpHeaders, fieldsByName, optionId } from "@/lib/clickup";
+import { clickUpToken } from "@/lib/session";
 import { CF, PRODUKSI_LIST_ID, tahapById } from "@/lib/produksi";
 import type { ClickUpTask } from "@/types/clickup";
 
@@ -12,10 +13,10 @@ export async function GET(
 ) {
 	const { barcode: rawBarcode } = await params;
 	const barcode = rawBarcode.trim().toUpperCase();
-	const token = process.env.CLICKUP_TOKEN || process.env.CLICKUP_API_TOKEN;
+	const token = await clickUpToken();
 	const listId = process.env.CLICKUP_PRODUKSI_LIST_ID || PRODUKSI_LIST_ID;
 	if (!barcode) return error(400, "MISSING_FIELD");
-	if (!token) return error(500, "CLICKUP_NOT_CONFIGURED");
+	if (!token) return error(401, "UNAUTHORIZED");
 
 	const fields = await fieldsByName(token, listId, ["Tahap Produksi"]);
 	const tahapField = fields?.["Tahap Produksi"];
@@ -31,7 +32,7 @@ export async function GET(
 			{ field_id: CF.BARCODE, operator: "==", value: barcode },
 		]),
 	});
-	const headers = { Authorization: token };
+	const headers = clickUpHeaders(token);
 	const searchResponse = await fetch(
 		`https://api.clickup.com/api/v2/list/${listId}/task?${query}`,
 		{ headers, cache: "no-store" },

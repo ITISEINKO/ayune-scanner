@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { clickUpHeaders } from "@/lib/clickup";
+import { clickUpToken } from "@/lib/session";
 import { CF } from "@/lib/produksi";
 import type { ClickUpTask } from "@/types/clickup";
 
@@ -9,9 +11,10 @@ export async function GET(request: Request) {
 	const code = new URL(request.url).searchParams.get("code")?.trim();
 	if (!code) return error(400, "NO_CODE");
 
-	const token = process.env.CLICKUP_TOKEN || process.env.CLICKUP_API_TOKEN;
+	const token = await clickUpToken();
 	const listId = process.env.CLICKUP_PRODUKSI_LIST_ID;
-	if (!token || !listId) return error(500, "CLICKUP_NOT_CONFIGURED");
+	if (!token) return error(401, "UNAUTHORIZED");
+	if (!listId) return error(500, "CLICKUP_NOT_CONFIGURED");
 
 	const query = new URLSearchParams({
 		custom_fields: JSON.stringify([
@@ -24,7 +27,7 @@ export async function GET(request: Request) {
 		response = await fetch(
 			`https://api.clickup.com/api/v2/list/${listId}/task?${query}`,
 			{
-				headers: { Authorization: token },
+				headers: clickUpHeaders(token),
 				cache: "no-store",
 			},
 		);

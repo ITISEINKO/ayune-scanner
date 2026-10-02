@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fieldsByName, optionId, optionName } from "@/lib/clickup";
+import {
+	clickUpHeaders,
+	fieldsByName,
+	optionId,
+	optionName,
+} from "@/lib/clickup";
+import { clickUpToken } from "@/lib/session";
 import {
 	CF,
 	KENDALA_CF,
@@ -51,14 +57,14 @@ export async function POST(
 	if (picId !== null && (!/^\d+$/.test(String(picId)) || !String(picId)))
 		return error(400, "INVALID_PIC");
 
-	const token = process.env.CLICKUP_TOKEN || process.env.CLICKUP_API_TOKEN;
+	const token = await clickUpToken();
 	const listId = process.env.CLICKUP_PRODUKSI_LIST_ID || PRODUKSI_LIST_ID;
 	const kendalaListId =
 		process.env.CLICKUP_KENDALA_LIST_ID ||
 		process.env.LIST_KENDALA_ID ||
 		KENDALA_LIST_ID;
-	if (!token) return error(500, "CLICKUP_NOT_CONFIGURED");
-	const headers = { Authorization: token };
+	if (!token) return error(401, "UNAUTHORIZED");
+	const headers = clickUpHeaders(token);
 	const [produksiFields, kendalaFields] = await Promise.all([
 		fieldsByName(token, listId, ["Tahap Produksi", "Kendala"]),
 		fieldsByName(token, kendalaListId, [

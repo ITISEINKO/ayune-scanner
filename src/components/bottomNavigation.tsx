@@ -13,7 +13,7 @@ const items = [
 
 export function BottomNavigation() {
 	const pathname = usePathname();
-	if (pathname === "/login") return null;
+	if (pathname === "/login" || pathname === "/unauthorized") return null;
 
 	return (
 		<nav
