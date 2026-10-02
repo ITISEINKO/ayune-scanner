@@ -14,20 +14,30 @@ export async function GET(request: Request) {
 	if (!token || !listId) return error(500, "CLICKUP_NOT_CONFIGURED");
 
 	const query = new URLSearchParams({
-		custom_fields: JSON.stringify([{ field_id: CF.BARCODE, operator: "=", value: code }]),
+		custom_fields: JSON.stringify([
+			{ field_id: CF.BARCODE, operator: "=", value: code },
+		]),
 		include_closed: "true",
 	});
 	let response: Response;
 	try {
-		response = await fetch(`https://api.clickup.com/api/v2/list/${listId}/task?${query}`, {
-			headers: { Authorization: token },
-			cache: "no-store",
-		});
+		response = await fetch(
+			`https://api.clickup.com/api/v2/list/${listId}/task?${query}`,
+			{
+				headers: { Authorization: token },
+				cache: "no-store",
+			},
+		);
 	} catch {
 		return error(502, "CLICKUP_ERROR");
 	}
 	if (!response.ok)
-		return error(response.status === 429 ? 429 : 502, response.status === 429 ? "RATE_LIMITED" : `CLICKUP_ERROR_${response.status}`);
+		return error(
+			response.status === 429 ? 429 : 502,
+			response.status === 429
+				? "RATE_LIMITED"
+				: `CLICKUP_ERROR_${response.status}`,
+		);
 
 	let tasks: ClickUpTask[];
 	try {

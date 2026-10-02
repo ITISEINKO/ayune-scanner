@@ -26,6 +26,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { productionSteps } from "@/lib/produksi";
+import { Badge } from "@/components/ui/badge";
 
 export type ProductionItem = {
 	taskId: string;
@@ -75,16 +76,17 @@ export function StatusChange({ production, onClose, onUpdated }: Props) {
 		<Drawer
 			open
 			onOpenChange={(open) => !open && onClose()}
-			snapPoints={["22rem", 1]}
+			snapPoints={["28rem", 1]}
 			showSwipeHandle
 		>
 			<DrawerContent className="rounded-t-3xl border-t border-border bg-background shadow-2xl">
 				<div className="p-5 pb-8">
+					<Badge className="mb-3">Barcode: {production.barcode}</Badge>
 					<DrawerTitle className="text-2xl font-bold">
 						{production.nama ?? "Produk"}
 					</DrawerTitle>
-					<DrawerDescription className="sr-only">
-						Status produksi
+					<DrawerDescription className="mt-1">
+						Pastikan produk sudah sesuai, lalu pilih status baru.
 					</DrawerDescription>
 					<div className="my-6 rounded-2xl bg-card p-5 text-center">
 						<p className="text-sm text-muted-foreground">Status saat ini</p>

@@ -148,7 +148,9 @@ export const AutoScanPage = () => {
 						<DialogDescription>{statusChange?.nama}</DialogDescription>
 					</DialogHeader>
 					<div className="flex items-center justify-center gap-2">
-						<Badge variant="secondary">{statusChange?.from}</Badge>
+						<Badge variant="secondary" className="text-md">
+							{statusChange?.from}
+						</Badge>
 						<span aria-hidden="true">→</span>
 						<Badge>{statusChange?.to}</Badge>
 					</div>
