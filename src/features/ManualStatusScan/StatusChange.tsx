@@ -97,8 +97,7 @@ export function StatusChange({ production, onClose, onUpdated }: Props) {
 							<div className="mt-4 flex gap-2">
 								<Button
 									type="button"
-									variant="secondary"
-									className="flex-1"
+									className="flex-1 border-primary/30 bg-primary/10 text-primary"
 									disabled={saving}
 									onClick={() => setSelectedTahap("")}
 								>

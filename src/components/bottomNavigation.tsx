@@ -1,11 +1,10 @@
 "use client";
 
+import { Search, Settings2, Zap } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { House, Search, Settings2, Zap } from "lucide-react";
 
 const items = [
-	{ href: "/", label: "Home", icon: House },
 	{ href: "/auto-status-scan", label: "Auto", icon: Zap },
 	{ href: "/manual-status-scan", label: "Manual", icon: Settings2 },
 	{ href: "/scan-to-find", label: "Find", icon: Search },

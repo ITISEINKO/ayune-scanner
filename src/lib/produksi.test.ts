@@ -55,6 +55,19 @@ assert.deepEqual(moveProduction(undefined, "advance"), {
 	to: "Handover Produksi",
 	progress: 5,
 });
+assert.deepEqual(moveProduction(undefined, "auto_advance"), {
+	to: "Handover Produksi",
+	progress: 5,
+});
+assert.deepEqual(moveProduction("Handover Produksi", "auto_advance"), {
+	to: "Packing",
+	progress: 95,
+});
+assert.deepEqual(moveProduction("Packing", "auto_advance"), {
+	to: "Pengiriman",
+	progress: 100,
+});
+assert.equal(moveProduction("Pengiriman", "auto_advance"), null);
 assert.deepEqual(moveProduction("QC Material", "advance"), {
 	to: "Pelapisan Bahan",
 	progress: 25,

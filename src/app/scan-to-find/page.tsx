@@ -1,6 +1,8 @@
 import { ScanToFindPage } from "@/features/ScanToFind";
+import { requireClickUpToken } from "@/lib/session";
 
-const ScanToFind = () => {
+const ScanToFind = async () => {
+	await requireClickUpToken();
 	return <ScanToFindPage />;
 };
 

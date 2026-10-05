@@ -25,7 +25,11 @@ type Payload = {
 	scanned_at?: string;
 };
 
-const actions = new Set<ScanAction>(["advance", "release_komplain"]);
+const actions = new Set<ScanAction>([
+	"advance",
+	"auto_advance",
+	"release_komplain",
+]);
 const error = (status: number, code: string) =>
 	NextResponse.json({ ok: false, error: code }, { status });
 const clickUpError = (response: Response) =>
