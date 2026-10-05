@@ -1,6 +1,6 @@
 "use client";
 
-import { type SubmitEvent, useEffect, useRef, useState } from "react";
+import { type SubmitEvent, useRef, useState } from "react";
 import { ArrowLeft, Barcode, ExternalLink, ScanBarcode } from "lucide-react";
 import { Scanner } from "@/components/scanner";
 import { Button } from "@/components/ui/button";
@@ -16,8 +16,6 @@ export const ScanToFindPage = () => {
 	const focusInput = () => {
 		requestAnimationFrame(() => document.getElementById("barcode")?.focus());
 	};
-	useEffect(() => focusInput(), []);
-
 	const findTask = async (value: string) => {
 		const barcode = value.trim();
 		const now = Date.now();

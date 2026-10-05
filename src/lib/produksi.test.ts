@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import {
 	hasTaskRelation,
+	clickUpAuthUrl,
+	clickUpHeaders,
 	optionId,
 	optionName,
 	type ClickUpField,
@@ -27,6 +29,20 @@ assert.equal(optionName(dropdown, "pending-id"), "Pending");
 assert.equal(optionId(dropdown, 0), "pending-id");
 assert.equal(hasTaskRelation([{ id: "produksi-1" }], "produksi-1"), true);
 assert.equal(hasTaskRelation([{ id: "produksi-1" }], "produksi-2"), false);
+assert.deepEqual(clickUpHeaders("user-token"), {
+	Authorization: "Bearer user-token",
+});
+const authUrl = clickUpAuthUrl(
+	"client-id",
+	"http://localhost:3000/api/auth/clickup/callback",
+	"state",
+);
+assert.equal(authUrl.searchParams.get("client_id"), "client-id");
+assert.equal(
+	authUrl.searchParams.get("redirect_uri"),
+	"http://localhost:3000/api/auth/clickup/callback",
+);
+assert.equal(authUrl.searchParams.get("state"), "state");
 assert.equal(tahapById(TAHAP_FLOW[0].id)?.name, "Handover Produksi");
 assert.equal(tahapByName("Persiapan Material")?.id, TAHAP_FLOW[1].id);
 assert.equal(nextTahap(TAHAP_FLOW[0].id)?.name, "Persiapan Material");
@@ -39,6 +55,19 @@ assert.deepEqual(moveProduction(undefined, "advance"), {
 	to: "Handover Produksi",
 	progress: 5,
 });
+assert.deepEqual(moveProduction(undefined, "auto_advance"), {
+	to: "Handover Produksi",
+	progress: 5,
+});
+assert.deepEqual(moveProduction("Handover Produksi", "auto_advance"), {
+	to: "Packing",
+	progress: 95,
+});
+assert.deepEqual(moveProduction("Packing", "auto_advance"), {
+	to: "Pengiriman",
+	progress: 100,
+});
+assert.equal(moveProduction("Pengiriman", "auto_advance"), null);
 assert.deepEqual(moveProduction("QC Material", "advance"), {
 	to: "Pelapisan Bahan",
 	progress: 25,

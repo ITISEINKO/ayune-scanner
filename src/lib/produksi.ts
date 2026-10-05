@@ -50,7 +50,7 @@ export const TAHAP_KOMPLAIN = {
 export const productionSteps = TAHAP_FLOW.map(({ name }) => name);
 export type ProductionStep = (typeof TAHAP_FLOW)[number]["name"];
 export type ProductionStage = ProductionStep | typeof TAHAP_KOMPLAIN.name;
-export type ScanAction = "advance" | "release_komplain";
+export type ScanAction = "advance" | "auto_advance" | "release_komplain";
 
 export const TAHAP_TO_STATUS = {
 	"Handover Produksi": "waiting",
@@ -107,6 +107,17 @@ export function moveProduction(
 	action: ScanAction,
 	reworkTo?: ProductionStep,
 ) {
+	if (action === "auto_advance") {
+		const next: ProductionStep | undefined = !current
+			? "Handover Produksi"
+			: current === "Handover Produksi"
+				? "Packing"
+				: current === "Packing"
+					? "Pengiriman"
+					: undefined;
+		if (next) return { to: next, progress: progress[next] };
+		return null;
+	}
 	if (action === "advance" && !current)
 		return { to: TAHAP_FLOW[0].name, progress: progress[TAHAP_FLOW[0].name] };
 	if (

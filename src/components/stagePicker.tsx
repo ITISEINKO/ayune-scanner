@@ -78,7 +78,7 @@ export default function StagePicker({
 									"text-[11px] font-bold",
 									isDone && "border-primary bg-primary text-white",
 									isCurrent && "border-primary text-accent-foreground",
-									!isDone && !isCurrent && "border-border",
+									!isDone && !isCurrent && !isTarget && "border-border",
 									isTarget && "border-dashed border-amber-400",
 									isCurrent && "shadow-[0_0_4px_4px_var(--accent)]",
 								]

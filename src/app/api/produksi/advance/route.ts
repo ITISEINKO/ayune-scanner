@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fieldsByName, optionId } from "@/lib/clickup";
+import { clickUpHeaders, fieldsByName, optionId } from "@/lib/clickup";
+import { clickUpToken } from "@/lib/session";
 import {
 	CF,
 	PRODUKSI_LIST_ID,
@@ -41,10 +42,10 @@ export async function POST(request: NextRequest) {
 	)
 		return error(400, "INVALID_ATTACHMENT");
 
-	const token = process.env.CLICKUP_TOKEN || process.env.CLICKUP_API_TOKEN;
+	const token = await clickUpToken();
 	const listId = process.env.CLICKUP_PRODUKSI_LIST_ID || PRODUKSI_LIST_ID;
-	if (!token) return error(500, "CLICKUP_NOT_CONFIGURED");
-	const headers = { Authorization: token };
+	if (!token) return error(401, "UNAUTHORIZED");
+	const headers = clickUpHeaders(token);
 
 	const [taskResponse, fields] = await Promise.all([
 		fetch(`https://api.clickup.com/api/v2/task/${encodeURIComponent(taskId)}`, {

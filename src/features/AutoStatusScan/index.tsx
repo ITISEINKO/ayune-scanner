@@ -27,7 +27,15 @@ export const AutoScanPage = () => {
 		to: string;
 	} | null>(null);
 	const messageFor = (error?: string) =>
-		error ?? "Status tidak dapat diperbarui.";
+		({
+			BARCODE_NOT_FOUND: "Barcode tidak ditemukan di data Produksi.",
+			DUPLICATE_BARCODE: "Barcode terdaftar lebih dari satu kali.",
+			INVALID_TRANSITION: "Tahap produksi tidak dapat dilanjutkan.",
+			CLICKUP_FIELD_MISSING: "Field Produksi belum tersedia di ClickUp.",
+			CLICKUP_STAGE_UPDATE_FAILED: "Tahap produksi gagal diperbarui di ClickUp.",
+			RATE_LIMITED: "Terlalu banyak permintaan. Coba lagi sebentar.",
+			UNAUTHORIZED: "Sesi login sudah berakhir. Silakan login kembali.",
+		}[error ?? ""] ?? "Status tidak dapat diperbarui.");
 
 	const advance = async (value: string) => {
 		const code = value.trim();
@@ -39,7 +47,7 @@ export const AutoScanPage = () => {
 			const response = await fetch("/api/produksi/scan", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ barcode: code, action: "advance" }),
+				body: JSON.stringify({ barcode: code, action: "auto_advance" }),
 			});
 			const data = (await response.json()) as {
 				nama?: string;

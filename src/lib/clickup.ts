@@ -7,12 +7,29 @@ const fieldCache = new Map<
 	{ expires: number; fields: ClickUpField[] }
 >();
 
+export const clickUpHeaders = (token: string) => ({
+	Authorization: `Bearer ${token}`,
+});
+
+export const clickUpAuthUrl = (
+	clientId: string,
+	redirectUri: string,
+	state: string,
+) => {
+	const url = new URL("https://app.clickup.com/api");
+	url.searchParams.set("client_id", clientId);
+	url.searchParams.set("redirect_uri", redirectUri);
+	url.searchParams.set("state", state);
+	return url;
+};
+
 export async function fieldsByName(
 	token: string,
 	listId: string,
 	names: readonly string[],
 ) {
-	const cached = fieldCache.get(listId);
+	const cacheKey = `${token}:${listId}`;
+	const cached = fieldCache.get(cacheKey);
 	let fields =
 		cached && cached.expires > Date.now() ? cached.fields : undefined;
 	if (!fields) {
@@ -21,7 +38,7 @@ export async function fieldsByName(
 			response = await fetch(
 				`https://api.clickup.com/api/v2/list/${listId}/field`,
 				{
-					headers: { Authorization: token },
+					headers: clickUpHeaders(token),
 					cache: "no-store",
 				},
 			);
@@ -41,14 +58,15 @@ export async function fieldsByName(
 		}
 		({ fields = [] } = (await response.json()) as { fields?: ClickUpField[] });
 		// ponytail: cache is per server process; use shared cache if field changes must be immediate across instances.
-		fieldCache.set(listId, { fields, expires: Date.now() + 5 * 60_000 });
+		fieldCache.set(cacheKey, { fields, expires: Date.now() + 5 * 60_000 });
 	}
 	return Object.fromEntries(
 		names.map((name) => [name, fields.find((field) => field.name === name)]),
 	);
 }
 
-export const clearFieldsCache = (listId: string) => fieldCache.delete(listId);
+export const clearFieldsCache = (token: string, listId: string) =>
+	fieldCache.delete(`${token}:${listId}`);
 
 export const optionId = (field: ClickUpField, value: unknown) =>
 	field.type_config?.options?.find(

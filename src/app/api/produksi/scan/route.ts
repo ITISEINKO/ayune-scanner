@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fieldsByName, optionId } from "@/lib/clickup";
+import { clickUpHeaders, fieldsByName, optionId } from "@/lib/clickup";
+import { clickUpToken } from "@/lib/session";
 import {
 	CF,
 	PRODUKSI_LIST_ID,
@@ -24,7 +25,11 @@ type Payload = {
 	scanned_at?: string;
 };
 
-const actions = new Set<ScanAction>(["advance", "release_komplain"]);
+const actions = new Set<ScanAction>([
+	"advance",
+	"auto_advance",
+	"release_komplain",
+]);
 const error = (status: number, code: string) =>
 	NextResponse.json({ ok: false, error: code }, { status });
 const clickUpError = (response: Response) =>
@@ -52,9 +57,9 @@ export async function POST(request: NextRequest) {
 		Number.isNaN(scannedAt.valueOf())
 	)
 		return error(400, "MISSING_FIELD");
-	const token = process.env.CLICKUP_TOKEN || process.env.CLICKUP_API_TOKEN;
+	const token = await clickUpToken();
 	const listId = process.env.CLICKUP_PRODUKSI_LIST_ID || PRODUKSI_LIST_ID;
-	if (!token) return error(500, "CLICKUP_NOT_CONFIGURED");
+	if (!token) return error(401, "UNAUTHORIZED");
 
 	const query = new URLSearchParams({
 		include_closed: "true",
@@ -65,7 +70,7 @@ export async function POST(request: NextRequest) {
 	const searchResponse = await fetch(
 		`https://api.clickup.com/api/v2/list/${listId}/task?${query}`,
 		{
-			headers: { Authorization: token },
+			headers: clickUpHeaders(token),
 			cache: "no-store",
 		},
 	);
@@ -79,7 +84,7 @@ export async function POST(request: NextRequest) {
 	const taskResponse = await fetch(
 		`https://api.clickup.com/api/v2/task/${tasks[0].id}`,
 		{
-			headers: { Authorization: token },
+			headers: clickUpHeaders(token),
 			cache: "no-store",
 		},
 	);
@@ -125,7 +130,10 @@ export async function POST(request: NextRequest) {
 	const next = tahapByName(movement.to);
 	if (!next) return error(409, "INVALID_TRANSITION");
 
-	const headers = { Authorization: token, "Content-Type": "application/json" };
+	const headers = {
+		...clickUpHeaders(token),
+		"Content-Type": "application/json",
+	};
 	const stepResponse = await fetch(
 		`https://api.clickup.com/api/v2/task/${task.id}/field/${CF.TAHAP_PRODUKSI}`,
 		{
