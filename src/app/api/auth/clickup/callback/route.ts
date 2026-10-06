@@ -108,6 +108,7 @@ export async function GET(request: NextRequest) {
 		secure: process.env.NODE_ENV === "production",
 		sameSite: "lax",
 		path: "/",
+		maxAge: 9 * 60 * 60,
 	});
 	response.cookies.set("clickup_oauth_state", "", {
 		path: "/api/auth/clickup/callback",

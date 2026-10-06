@@ -65,9 +65,6 @@ export async function fieldsByName(
 	);
 }
 
-export const clearFieldsCache = (token: string, listId: string) =>
-	fieldCache.delete(`${token}:${listId}`);
-
 export const optionId = (field: ClickUpField, value: unknown) =>
 	field.type_config?.options?.find(
 		(option) =>
