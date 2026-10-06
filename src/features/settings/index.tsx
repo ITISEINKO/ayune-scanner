@@ -1,9 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Settings2 } from "lucide-react";
+import { CircleOff, Package, PackageCheck, Settings2 } from "lucide-react";
 import type { PanelMember } from "@/types/clickup";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
 	Table,
 	TableBody,
@@ -16,7 +23,6 @@ import {
 export const SettingPage = () => {
 	const [members, setMembers] = useState<PanelMember[] | null>(null);
 	const [error, setError] = useState(false);
-	const [openMemberId, setOpenMemberId] = useState<string | null>(null);
 	const [statusByMember, setStatusByMember] = useState<
 		Record<string, string | null>
 	>({});
@@ -26,13 +32,17 @@ export const SettingPage = () => {
 		{
 			status: "BARANG_DITERIMA",
 			label: "Barang Diterima",
+			icon: PackageCheck,
+			variant: "green",
 		},
 		{
 			status: "SEDANG_DIPACKING",
 			label: "Sedang Dipacking",
+			icon: Package,
+			variant: "blue",
 		},
-		{ status: null, label: "Not active" },
-	];
+		{ status: null, label: "Not active", icon: CircleOff, variant: "muted" },
+	] as const;
 
 	useEffect(() => {
 		fetch("/api/panel/members", { cache: "no-store" })
@@ -82,7 +92,24 @@ export const SettingPage = () => {
 
 	return (
 		<main className="mx-auto min-h-dvh max-w-lg p-4 pb-28">
-			<h1>Settings</h1>
+			<header className="mb-7 pt-3">
+				<div className="mt-4 flex items-center gap-4">
+					<div className="size-10 shrink-0 overflow-hidden">
+						<img src="/icon.svg" alt="" className="size-full" />
+					</div>
+					<div>
+						<p className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
+							Pengaturan akses
+						</p>
+						<h1 className="text-2xl font-black tracking-tight">
+							Akses halaman PPIC
+						</h1>
+					</div>
+				</div>
+				<p className="mt-2 text-sm text-muted-foreground">
+					Tentukan halaman yang boleh diakses oleh setiap pengguna.
+				</p>
+			</header>
 			{saveError && (
 				<p className="mt-2 text-sm text-destructive" role="alert">
 					Could not save permission. Try again.
@@ -91,46 +118,37 @@ export const SettingPage = () => {
 			<Table>
 				<TableHeader>
 					<TableRow>
+						<TableHead className="w-12" />
 						<TableHead>Name</TableHead>
 						<TableHead>Status</TableHead>
-						<TableHead className="w-12" />
 					</TableRow>
 				</TableHeader>
 				<TableBody>
-					{members.map((member) => (
+					{members.map((member) => {
+						const status =
+							statusOptions.find(
+								(option) => option.status === statusByMember[member.id],
+							) ?? statusOptions[2];
+						return (
 						<TableRow key={member.id}>
-							<TableCell>{member.name}</TableCell>
 							<TableCell>
-								{statusOptions.find(
-									(option) => option.status === statusByMember[member.id],
-								)?.label ?? "Not active"}
-							</TableCell>
-							<TableCell className="relative">
-								<Button
-									variant="ghost"
-									size="icon-sm"
-									aria-label={`Set status for ${member.name}`}
-									aria-expanded={openMemberId === member.id}
-									disabled={savingMemberId === member.id}
-									onClick={() =>
-										setOpenMemberId((id) =>
-											id === member.id ? null : member.id,
-										)
-									}
-								>
-									<Settings2 />
-								</Button>
-								{openMemberId === member.id && (
-									<div
-										role="menu"
-										className="absolute right-2 z-10 mt-1 min-w-44 rounded-2xl border border-border bg-popover p-1 text-popover-foreground shadow-lg"
+								<DropdownMenu>
+									<DropdownMenuTrigger
+										render={
+											<Button
+												variant="ghost"
+												size="icon-sm"
+												aria-label={`Set status for ${member.name}`}
+												disabled={savingMemberId === member.id}
+											/>
+										}
 									>
+										<Settings2 />
+									</DropdownMenuTrigger>
+									<DropdownMenuContent>
 										{statusOptions.map((option) => (
-											<button
+											<DropdownMenuItem
 												key={option.label}
-												type="button"
-												role="menuitem"
-												className="block w-full rounded-xl px-3 py-2 text-left text-sm hover:bg-muted"
 												onClick={async () => {
 													setSaveError(false);
 													setSavingMemberId(member.id);
@@ -140,9 +158,9 @@ export const SettingPage = () => {
 															headers: {
 																"Content-Type": "application/json",
 															},
-														body: JSON.stringify({
-															user_id: member.id,
-															allowed_status: option.status,
+															body: JSON.stringify({
+																user_id: member.id,
+																allowed_status: option.status,
 															}),
 														});
 														if (!response.ok) throw new Error("permission");
@@ -150,7 +168,6 @@ export const SettingPage = () => {
 															...statuses,
 															[member.id]: option.status,
 														}));
-														setOpenMemberId(null);
 													} catch {
 														setSaveError(true);
 													} finally {
@@ -158,14 +175,23 @@ export const SettingPage = () => {
 													}
 												}}
 											>
+												<option.icon />
 												{option.label}
-											</button>
+											</DropdownMenuItem>
 										))}
-									</div>
-								)}
+									</DropdownMenuContent>
+								</DropdownMenu>
+							</TableCell>
+							<TableCell>{member.name}</TableCell>
+							<TableCell>
+								<Badge variant={status.variant}>
+									<status.icon />
+									{status.label}
+								</Badge>
 							</TableCell>
 						</TableRow>
-					))}
+						);
+					})}
 				</TableBody>
 			</Table>
 		</main>

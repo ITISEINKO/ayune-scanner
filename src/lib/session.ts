@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { clickUpHeaders } from "@/lib/clickup";
+import { getPpicPermission, isPpicStatus } from "@/lib/db";
 import {
 	PANEL_CHAT_CHANNEL_ID,
 	PANEL_CHAT_WORKSPACE_ID,
@@ -37,6 +38,26 @@ const clickUpUserIdForToken = async (token: string) => {
 export const clickUpUserId = async () => {
 	const token = await clickUpToken();
 	return token ? clickUpUserIdForToken(token) : null;
+};
+
+const isSuperAdmin = (userId: string) =>
+	(process.env.CLICKUP_SUPERADMIN_IDS ??
+		process.env.CLICKUP_SUPERADMIN_IDs ??
+		process.env.CLICKUP_SUPERADMIN_ID ??
+		""
+	)
+		.split(",")
+		.map((id) => id.trim())
+		.filter(Boolean)
+		.includes(userId);
+
+export const requirePpicStatusAccess = async (status: string) => {
+	if (!isPpicStatus(status)) redirect("/unauthorized");
+	const userId = await clickUpUserId();
+	if (!userId) redirect("/login");
+	if (isSuperAdmin(userId)) return;
+	if ((await getPpicPermission(userId))?.allowed_status !== status)
+		redirect("/unauthorized");
 };
 
 export const panelChannelMembers = async (): Promise<PanelMembersResult> => {
@@ -82,18 +103,7 @@ export const panelChannelMembers = async (): Promise<PanelMembersResult> => {
 			: [];
 		if (!members.some((member) => member.id === userId))
 			return { ok: false, status: 403 };
-		const superAdminIds = new Set(
-			(
-				process.env.CLICKUP_SUPERADMIN_IDS ??
-				process.env.CLICKUP_SUPERADMIN_IDs ??
-				process.env.CLICKUP_SUPERADMIN_ID ??
-				""
-			)
-				.split(",")
-				.map((id) => id.trim())
-				.filter(Boolean),
-		);
-		return superAdminIds.has(userId)
+		return isSuperAdmin(userId)
 			? { ok: true, members }
 			: { ok: false, status: 403 };
 	} catch {

@@ -1,13 +1,13 @@
 "use client";
 
-import { Search, Settings2, Zap } from "lucide-react";
+import { Cog, Search, Settings2, Zap } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const items = [
-	{ href: "/auto-status-scan", label: "Auto", icon: Zap },
-	{ href: "/manual-status-scan", label: "Manual", icon: Settings2 },
 	{ href: "/scan-to-find", label: "Find", icon: Search },
+	{ href: "/manual-status-scan", label: "Manual", icon: Settings2 },
+	{ href: "/settings", label: "Settings", icon: Cog },
 ];
 
 export function BottomNavigation() {
