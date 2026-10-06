@@ -50,6 +50,12 @@ const isSuperAdmin = (userId: string) =>
 		.filter(Boolean)
 		.includes(userId);
 
+export const requireSuperAdmin = async () => {
+	const userId = await clickUpUserId();
+	if (!userId) redirect("/login");
+	if (!isSuperAdmin(userId)) redirect("/unauthorized");
+};
+
 export const requirePpicStatusAccess = async (status: string) => {
 	if (!isPpicStatus(status)) redirect("/unauthorized");
 	const userId = await clickUpUserId();
@@ -63,7 +69,9 @@ export const panelChannelMembers = async (): Promise<PanelMembersResult> => {
 	const token = await clickUpToken();
 	if (!token) return { ok: false, status: 401 };
 	const workspaceId =
-		process.env.CLICKUP_CHAT_WORKSPACE_ID || CLICKUP_PPIC_CHANNEL_ID;
+		process.env.CLICKUP_CHAT_WORKSPACE_ID ||
+		process.env.CLICKUP_TEAM_ID ||
+		CLICKUP_TEAM_ID;
 	const channelId =
 		process.env.CLICKUP_CHAT_CHANNEL_ID ||
 		process.env.CLICKUP_PPIC_CHANNEL_ID ||
@@ -100,8 +108,6 @@ export const panelChannelMembers = async (): Promise<PanelMembersResult> => {
 						: [];
 				})
 			: [];
-		if (!members.some((member) => member.id === userId))
-			return { ok: false, status: 403 };
 		return isSuperAdmin(userId)
 			? { ok: true, members }
 			: { ok: false, status: 403 };

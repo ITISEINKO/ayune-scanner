@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 
 const items = [
 	{ href: "/scan-to-find", label: "Find", icon: Search },
-	{ href: "/manual-status-scan", label: "Manual", icon: Settings2 },
+	{ href: "/ubah-manual", label: "Manual", icon: Settings2 },
 	{ href: "/settings", label: "Settings", icon: Cog },
 ];
 

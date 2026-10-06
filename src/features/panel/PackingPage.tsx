@@ -1,9 +1,150 @@
-import React from "react";
+"use client";
+
+import { type SubmitEvent, useRef, useState } from "react";
+import { ArrowLeft, Barcode } from "lucide-react";
+import { toast } from "sonner";
+import { Scanner } from "@/components/scanner";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+	Dialog,
+	DialogClose,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 
 export const PackingPage = () => {
+	const busy = useRef(false);
+	const [batchNumber, setBatchNumber] = useState("");
+	const [scanning, setScanning] = useState(false);
+	const [packedItem, setPackedItem] = useState<string | null>(null);
+	const messageFor = (error?: string) =>
+		({
+			MISSING_BATCH_NUMBER: "Batch number wajib diisi.",
+			BATCH_NUMBER_NOT_FOUND: "Batch number tidak ditemukan.",
+			DUPLICATE_BATCH_NUMBER: "Batch number terdaftar lebih dari satu kali.",
+			CLICKUP_STATUS_UPDATE_FAILED: "Status Barang Scan gagal diperbarui.",
+			RATE_LIMITED: "Terlalu banyak permintaan. Coba lagi sebentar.",
+			UNAUTHORIZED: "Sesi login sudah berakhir. Silakan login kembali.",
+		})[error ?? ""] ?? "Status barang tidak dapat diperbarui.";
+
+	const pack = async (value: string) => {
+		const code = value.trim();
+		if (!code || busy.current) return;
+		busy.current = true;
+		setScanning(true);
+		setBatchNumber("");
+		try {
+			const response = await fetch("/api/panel/scan", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					batch_number: code,
+					status: "SEDANG_DIPACKING",
+				}),
+			});
+			const data = (await response.json()) as { nama?: string; error?: string };
+			if (!response.ok) throw new Error(messageFor(data.error));
+			setPackedItem(data.nama ?? code);
+		} catch (error) {
+			toast.error("Status tidak berubah", {
+				description:
+					error instanceof Error
+						? error.message
+						: "Status barang tidak dapat diperbarui.",
+			});
+		} finally {
+			busy.current = false;
+			setScanning(false);
+		}
+	};
+
+	const submit = (event: SubmitEvent<HTMLFormElement>) => {
+		event.preventDefault();
+		void pack(batchNumber);
+	};
+
 	return (
 		<main className="mx-auto min-h-dvh max-w-lg p-4 pb-28">
-			<div>PackingPage</div>
+			<header className="mb-7 pt-3">
+				<div className="mt-4 flex items-center gap-4">
+					<div className="size-10 shrink-0 overflow-hidden">
+						<img src="/icon.svg" alt="" className="size-full" />
+					</div>
+					<div>
+						<p className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
+							Packing barang
+						</p>
+						<h1 className="text-2xl font-black tracking-tight">
+							Scan barang dipacking
+						</h1>
+					</div>
+				</div>
+				<p className="mt-2 text-sm text-muted-foreground">
+					Scan Batch Number untuk mengubah Status Barang Scan menjadi Sedang
+					Dipacking.
+				</p>
+			</header>
+
+			<Scanner onDetected={pack} autoStart disabled={scanning} />
+			<div className="mt-4 rounded-3xl border border-border bg-card p-4 text-card-foreground shadow-2xl">
+				<form onSubmit={submit}>
+					<label
+						htmlFor="batch-number"
+						className="mb-2 block text-sm font-semibold text-muted-foreground"
+					>
+						Input Batch Number manual
+					</label>
+					<div className="flex gap-2">
+						<div className="relative flex-1">
+							<Barcode
+								aria-hidden="true"
+								className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-muted-foreground"
+							/>
+							<Input
+								id="batch-number"
+								className="pl-11"
+								value={batchNumber}
+								onChange={(event) => setBatchNumber(event.target.value)}
+								placeholder="Masukkan Batch Number"
+								autoComplete="off"
+								disabled={scanning}
+							/>
+						</div>
+						<Button type="submit" disabled={!batchNumber.trim() || scanning}>
+							{scanning ? (
+								<>
+									<span aria-hidden="true" className="loader" />
+									<span className="sr-only">Memproses Batch Number</span>
+								</>
+							) : (
+								"Proses"
+							)}
+						</Button>
+					</div>
+				</form>
+			</div>
+			<Dialog
+				open={Boolean(packedItem)}
+				onOpenChange={(open) => !open && setPackedItem(null)}
+			>
+				<DialogContent showCloseButton={false}>
+					<DialogHeader>
+						<DialogTitle>Status berhasil diubah</DialogTitle>
+						<DialogDescription>{packedItem}</DialogDescription>
+					</DialogHeader>
+					<div className="flex justify-center">
+						<Badge className="text-md">SEDANG DIPACKING</Badge>
+					</div>
+					<DialogFooter>
+						<DialogClose render={<Button />}>OK</DialogClose>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 		</main>
 	);
 };

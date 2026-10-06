@@ -16,6 +16,7 @@ import {
 	tahapById,
 	tahapByName,
 } from "./produksi.ts";
+import { statusBarangScanOptions } from "./produksiPanel.ts";
 
 const dropdown: ClickUpField = {
 	id: "dropdown",
@@ -81,3 +82,5 @@ assert.deepEqual(moveProduction("Komplain", "release_komplain", "Edging"), {
 	progress: 55,
 });
 assert.equal(tahapById(TAHAP_KOMPLAIN.id)?.name, "Komplain");
+assert.equal(statusBarangScanOptions.length, 9);
+assert.equal(statusBarangScanOptions[3].label, "SEDANG DIPACKING");

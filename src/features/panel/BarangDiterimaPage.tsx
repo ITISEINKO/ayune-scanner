@@ -30,7 +30,7 @@ export const BarangDiterimaPage = () => {
 			CLICKUP_STATUS_UPDATE_FAILED: "Status Barang Scan gagal diperbarui.",
 			RATE_LIMITED: "Terlalu banyak permintaan. Coba lagi sebentar.",
 			UNAUTHORIZED: "Sesi login sudah berakhir. Silakan login kembali.",
-		}[error ?? ""] ?? "Status barang tidak dapat diperbarui.");
+		})[error ?? ""] ?? "Status barang tidak dapat diperbarui.";
 
 	const receive = async (value: string) => {
 		const code = value.trim();
@@ -39,10 +39,13 @@ export const BarangDiterimaPage = () => {
 		setScanning(true);
 		setBatchNumber("");
 		try {
-			const response = await fetch("/api/panel/barang-diterima", {
+			const response = await fetch("/api/panel/scan", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ batch_number: code }),
+				body: JSON.stringify({
+					batch_number: code,
+					status: "BARANG_DITERIMA",
+				}),
 			});
 			const data = (await response.json()) as { nama?: string; error?: string };
 			if (!response.ok) throw new Error(messageFor(data.error));
@@ -68,14 +71,6 @@ export const BarangDiterimaPage = () => {
 	return (
 		<main className="mx-auto min-h-dvh max-w-lg p-4 pb-28">
 			<header className="mb-7 pt-3">
-				<Button
-					variant="ghost"
-					size="sm"
-					nativeButton={false}
-					render={<a href="/" />}
-				>
-					<ArrowLeft /> Kembali
-				</Button>
 				<div className="mt-4 flex items-center gap-4">
 					<div className="size-10 shrink-0 overflow-hidden">
 						<img src="/icon.svg" alt="" className="size-full" />

@@ -8,9 +8,7 @@ const error = (status: number, code: string) =>
 	NextResponse.json({ ok: false, error: code }, { status });
 
 export async function POST(request: Request) {
-	await requirePpicStatusAccess("BARANG_DITERIMA");
-
-	let body: { batch_number?: unknown };
+	let body: { batch_number?: unknown; status?: unknown };
 	try {
 		body = (await request.json()) as typeof body;
 	} catch {
@@ -18,7 +16,19 @@ export async function POST(request: Request) {
 	}
 	const batchNumber =
 		typeof body.batch_number === "string" ? body.batch_number.trim() : "";
+	const status = typeof body.status === "string" ? body.status : "";
+	const target =
+		status === "BARANG_DITERIMA"
+			? { label: "BARANG DITERIMA", value: STATUS_BARANG_SCAN.BARANG_DITERIMA }
+			: status === "SEDANG_DIPACKING"
+				? {
+						label: "SEDANG DIPACKING",
+						value: STATUS_BARANG_SCAN.SEDANG_DIPACKING,
+					}
+				: null;
 	if (!batchNumber) return error(400, "MISSING_BATCH_NUMBER");
+	if (!target) return error(400, "INVALID_STATUS");
+	await requirePpicStatusAccess(status);
 
 	const token = await clickUpToken();
 	if (!token) return error(401, "UNAUTHORIZED");
@@ -57,7 +67,7 @@ export async function POST(request: Request) {
 			{
 				method: "POST",
 				headers: { ...headers, "Content-Type": "application/json" },
-				body: JSON.stringify({ value: STATUS_BARANG_SCAN.BARANG_DITERIMA }),
+				body: JSON.stringify({ value: target.value }),
 			},
 		);
 	} catch {
@@ -78,6 +88,6 @@ export async function POST(request: Request) {
 		task_id: tasks[0].id,
 		nama: tasks[0].name ?? batchNumber,
 		batch_number: batchNumber,
-		status: "BARANG DITERIMA",
+		status: target.label,
 	});
 }
