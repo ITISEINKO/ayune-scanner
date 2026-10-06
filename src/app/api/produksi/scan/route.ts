@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { clickUpHeaders, fieldsByName, optionId } from "@/lib/clickup";
-import { clickUpToken } from "@/lib/session";
+import { clickUpToken, clickUpUserId } from "@/lib/session";
 import {
 	CF,
 	PRODUKSI_LIST_ID,
@@ -16,7 +16,6 @@ import type { ClickUpTask } from "@/types/clickup";
 
 type Payload = {
 	barcode?: string;
-	operator_id?: string;
 	device_id?: string;
 	action?: ScanAction;
 	kendala?: string | null;
@@ -47,7 +46,6 @@ export async function POST(request: NextRequest) {
 	}
 
 	const barcode = body.barcode?.trim();
-	const operatorId = body.operator_id?.trim();
 	const action = body.action;
 	const scannedAt = body.scanned_at ? new Date(body.scanned_at) : new Date();
 	if (
@@ -109,6 +107,7 @@ export async function POST(request: NextRequest) {
 	)
 		return error(409, "INVALID_TRANSITION");
 	if (action === "release_komplain") {
+		const operatorId = await clickUpUserId();
 		const spvIds = new Set(
 			(process.env.CLICKUP_SPV_OPERATOR_IDS ?? "")
 				.split(",")

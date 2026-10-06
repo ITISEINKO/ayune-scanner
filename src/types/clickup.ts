@@ -27,3 +27,5 @@ export type ClickUpField = {
 	name: string;
 	type_config?: { options?: ClickUpDropdownOption[] };
 };
+
+export type PanelMember = { id: string; name: string };

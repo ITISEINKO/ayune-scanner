@@ -17,7 +17,7 @@ export function BottomNavigation() {
 	return (
 		<nav
 			aria-label="Main navigation"
-			className="fixed inset-x-0 bottom-0 z-50 flex  items-center justify-between rounded-t-2xl border border-border/70 bg-primary p-3 shadow-lg "
+			className="fixed inset-x-0 bottom-0 z-50 flex  mx-auto  max-w-lg items-center justify-between rounded-t-2xl border border-border/70 bg-primary p-3 shadow-lg "
 		>
 			{items.map(({ href, label, icon: Icon }) => {
 				const active = pathname === href;
