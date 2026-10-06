@@ -1,7 +1,7 @@
 export const PANEL_LIST_ID = "1100830000000087";
-export const PANEL_CHAT_WORKSPACE_ID = "90182186539";
-export const PANEL_CHAT_CHANNEL_ID = "2kzmdxhb-693718";
-export const PANEL_CHAT_MEMBERS_URL = `https://api.clickup.com/api/v3/workspaces/${PANEL_CHAT_WORKSPACE_ID}/chat/channels/${PANEL_CHAT_CHANNEL_ID}/members`;
+export const CLICKUP_TEAM_ID = "90182186539";
+export const CLICKUP_PPIC_CHANNEL_ID = "2kzmdxhb-693718";
+export const CLICKUP_PANEL_CHAT_MEMBERS_URL = `https://api.clickup.com/api/v3/workspaces/${CLICKUP_TEAM_ID}/chat/channels/${CLICKUP_PPIC_CHANNEL_ID}/members`;
 
 export const CF_PANEL = {
 	ORDER_PROCESSING_TIME: "088a20c4-6006-4af7-a713-479f57666a6f",

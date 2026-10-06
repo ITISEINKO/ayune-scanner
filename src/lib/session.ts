@@ -1,11 +1,9 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { cache } from "react";
 import { clickUpHeaders } from "@/lib/clickup";
 import { getPpicPermission, isPpicStatus } from "@/lib/db";
-import {
-	PANEL_CHAT_CHANNEL_ID,
-	PANEL_CHAT_WORKSPACE_ID,
-} from "@/lib/produksiPanel";
+import { CLICKUP_TEAM_ID, CLICKUP_PPIC_CHANNEL_ID } from "@/lib/produksiPanel";
 import type { PanelMember } from "@/types/clickup";
 
 type ClickUpUserResponse = {
@@ -20,7 +18,7 @@ export type PanelMembersResult =
 export const clickUpToken = async () =>
 	(await cookies()).get("clickup_access_token")?.value ?? null;
 
-const clickUpUserIdForToken = async (token: string) => {
+const clickUpUserIdForToken = cache(async (token: string) => {
 	try {
 		const response = await fetch("https://api.clickup.com/api/v2/user", {
 			headers: clickUpHeaders(token),
@@ -33,7 +31,7 @@ const clickUpUserIdForToken = async (token: string) => {
 	} catch {
 		return null;
 	}
-};
+});
 
 export const clickUpUserId = async () => {
 	const token = await clickUpToken();
@@ -41,7 +39,8 @@ export const clickUpUserId = async () => {
 };
 
 const isSuperAdmin = (userId: string) =>
-	(process.env.CLICKUP_SUPERADMIN_IDS ??
+	(
+		process.env.CLICKUP_SUPERADMIN_IDS ??
 		process.env.CLICKUP_SUPERADMIN_IDs ??
 		process.env.CLICKUP_SUPERADMIN_ID ??
 		""
@@ -64,11 +63,11 @@ export const panelChannelMembers = async (): Promise<PanelMembersResult> => {
 	const token = await clickUpToken();
 	if (!token) return { ok: false, status: 401 };
 	const workspaceId =
-		process.env.CLICKUP_CHAT_WORKSPACE_ID || PANEL_CHAT_WORKSPACE_ID;
+		process.env.CLICKUP_CHAT_WORKSPACE_ID || CLICKUP_PPIC_CHANNEL_ID;
 	const channelId =
 		process.env.CLICKUP_CHAT_CHANNEL_ID ||
 		process.env.CLICKUP_PPIC_CHANNEL_ID ||
-		PANEL_CHAT_CHANNEL_ID;
+		CLICKUP_PPIC_CHANNEL_ID;
 	const membersUrl = `https://api.clickup.com/api/v3/workspaces/${workspaceId}/chat/channels/${channelId}/members`;
 
 	try {

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { CircleOff, Package, PackageCheck, Settings2 } from "lucide-react";
+import { toast } from "sonner";
 import type { PanelMember } from "@/types/clickup";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,12 +21,27 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 
+const loadMembers = async () => {
+	const response = await fetch("/api/panel/members", { cache: "no-store" });
+	const data = (await response.json()) as {
+		members?: PanelMember[];
+		permissions?: Record<string, string | null>;
+	};
+	if (!response.ok || !data.members) throw new Error("members");
+	return { members: data.members, permissions: data.permissions ?? {} };
+};
+
+let cachedMembers: Awaited<ReturnType<typeof loadMembers>> | null = null;
+let membersRequest: ReturnType<typeof loadMembers> | null = null;
+
 export const SettingPage = () => {
-	const [members, setMembers] = useState<PanelMember[] | null>(null);
+	const [members, setMembers] = useState<PanelMember[] | null>(
+		() => cachedMembers?.members ?? null,
+	);
 	const [error, setError] = useState(false);
 	const [statusByMember, setStatusByMember] = useState<
 		Record<string, string | null>
-	>({});
+	>(() => cachedMembers?.permissions ?? {});
 	const [saveError, setSaveError] = useState(false);
 	const [savingMemberId, setSavingMemberId] = useState<string | null>(null);
 	const statusOptions = [
@@ -45,17 +61,20 @@ export const SettingPage = () => {
 	] as const;
 
 	useEffect(() => {
-		fetch("/api/panel/members", { cache: "no-store" })
-			.then(async (response) => {
-				const data = (await response.json()) as {
-					members?: PanelMember[];
-					permissions?: Record<string, string | null>;
-				};
-				if (!response.ok || !data.members) throw new Error("members");
+		if (cachedMembers) return;
+		membersRequest ??= loadMembers().then((data) => {
+			cachedMembers = data;
+			return data;
+		});
+		membersRequest
+			.then((data) => {
 				setMembers(data.members);
-				setStatusByMember(data.permissions ?? {});
+				setStatusByMember(data.permissions);
 			})
-			.catch(() => setError(true));
+			.catch(() => {
+				membersRequest = null;
+				setError(true);
+			});
 	}, []);
 
 	if (error)
@@ -164,13 +183,20 @@ export const SettingPage = () => {
 															}),
 														});
 														if (!response.ok) throw new Error("permission");
-														setStatusByMember((statuses) => ({
-															...statuses,
-															[member.id]: option.status,
-														}));
-													} catch {
-														setSaveError(true);
-													} finally {
+														setStatusByMember((statuses) => {
+															const permissions = {
+																...statuses,
+																[member.id]: option.status,
+															};
+										if (cachedMembers)
+											cachedMembers = { ...cachedMembers, permissions };
+										return permissions;
+									});
+									toast.success("Status berhasil diperbarui.");
+								} catch {
+									setSaveError(true);
+									toast.error("Gagal memperbarui status.");
+								} finally {
 														setSavingMemberId(null);
 													}
 												}}

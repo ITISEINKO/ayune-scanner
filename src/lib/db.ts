@@ -1,4 +1,5 @@
 import { createClient } from "@libsql/client";
+import { unstable_cache } from "next/cache";
 
 const url = process.env.TURSO_DATABASE_URL;
 const authToken = process.env.TURSO_AUTH_TOKEN;
@@ -17,10 +18,12 @@ const allowedPpicStatuses = new Set([
 	"SEDANG_DIPACKING",
 ]);
 
+export const PPIC_PERMISSIONS_CACHE_TAG = "ppic-permissions";
+
 export const isPpicStatus = (status: unknown): status is string =>
 	typeof status === "string" && allowedPpicStatuses.has(status);
 
-export const getPpicPermission = async (clickupUserId: string) => {
+export const getPpicPermission = unstable_cache(async (clickupUserId: string) => {
 	const result = await db.execute({
 		sql: `
 			SELECT clickup_user_id, allowed_status, active
@@ -32,7 +35,10 @@ export const getPpicPermission = async (clickupUserId: string) => {
 	});
 
 	return result.rows[0] ?? null;
-};
+}, ["ppic-permission"], {
+	tags: [PPIC_PERMISSIONS_CACHE_TAG],
+	revalidate: 300,
+});
 
 export const savePpicPermission = async (
 	userId: string,

@@ -1,8 +1,10 @@
+import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 import {
 	deactivatePpicPermission,
 	getPpicPermission,
 	isPpicStatus,
+	PPIC_PERMISSIONS_CACHE_TAG,
 	savePpicPermission,
 } from "@/lib/db";
 import { clickUpUserId, panelChannelMembers } from "@/lib/session";
@@ -72,6 +74,7 @@ export async function POST(request: Request) {
 		if (body.allowed_status === null)
 			await deactivatePpicPermission(userId, updatedBy);
 		else await savePpicPermission(userId, body.allowed_status, updatedBy);
+		revalidateTag(PPIC_PERMISSIONS_CACHE_TAG, { expire: 0 });
 		return NextResponse.json({ ok: true });
 	} catch {
 		return NextResponse.json(
