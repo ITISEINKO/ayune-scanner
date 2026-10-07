@@ -6,7 +6,6 @@ To-do list
 - [v] Confirm target ClickUp channel and target list/folder.
   - Add env values instead of hardcoding:CLICKUP_CHAT_WORKSPACE_ID=
     CLICKUP_CHAT_CHANNEL_ID=
-    CLICKUP_SUPER_ADMIN_IDS=id1,id2
   - Do not reuse the current production channel ID.
 - [ ] Confirm the target custom field.
   - Verify whether the new channel uses STATUS BARANG SCAN or the existing Tahap Produksi.
@@ -34,7 +33,7 @@ To-do list
   - List channel members and current permissions.
   - Grant/revoke menu access.
   - Assign exactly one status option per user.
-  - Allow only IDs included in CLICKUP_SUPER_ADMIN_IDS.
+  - Allow only users with role SUPER_ADMIN in ppic_permissions.
 - [ ] Enforce permissions on the server first.
   - Protect /api/produksi/scan.
   - Protect /api/produksi/advance.

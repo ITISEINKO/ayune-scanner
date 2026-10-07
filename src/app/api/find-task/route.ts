@@ -1,24 +1,29 @@
 import { NextResponse } from "next/server";
 import { clickUpHeaders } from "@/lib/clickup";
+import { CF_PANEL, PANEL_LIST_ID } from "@/lib/produksiPanel";
 import { clickUpToken } from "@/lib/session";
-import { CF } from "@/lib/produksi";
 import type { ClickUpTask } from "@/types/clickup";
 
 const error = (status: number, message: string) =>
 	NextResponse.json({ error: message }, { status });
 
 export async function GET(request: Request) {
-	const code = new URL(request.url).searchParams.get("code")?.trim();
-	if (!code) return error(400, "NO_CODE");
+	const batchNumber = new URL(request.url).searchParams
+		.get("batch_number")
+		?.trim();
+	if (!batchNumber) return error(400, "NO_BATCH_NUMBER");
 
 	const token = await clickUpToken();
-	const listId = process.env.CLICKUP_PRODUKSI_LIST_ID;
+	const listId = process.env.CLICKUP_PPIC_PANEL_LIST_ID || PANEL_LIST_ID;
 	if (!token) return error(401, "UNAUTHORIZED");
-	if (!listId) return error(500, "CLICKUP_NOT_CONFIGURED");
 
 	const query = new URLSearchParams({
 		custom_fields: JSON.stringify([
-			{ field_id: CF.BARCODE, operator: "=", value: code },
+			{
+				field_id: CF_PANEL.BATCH_NUMBER,
+				operator: "=",
+				value: batchNumber,
+			},
 		]),
 		include_closed: "true",
 	});

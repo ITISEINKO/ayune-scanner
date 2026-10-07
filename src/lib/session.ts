@@ -2,8 +2,16 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import { clickUpHeaders } from "@/lib/clickup";
-import { getPpicPermission, isPpicStatus } from "@/lib/db";
-import { CLICKUP_TEAM_ID, CLICKUP_PPIC_CHANNEL_ID } from "@/lib/produksiPanel";
+import {
+	getPpicPermission,
+	isPpicStatus,
+	isPpicSuperAdmin,
+} from "@/lib/db";
+import {
+	CLICKUP_TEAM_ID,
+	CLICKUP_PPIC_CHANNEL_ID,
+	ppicStatusPath,
+} from "@/lib/produksiPanel";
 import type { PanelMember } from "@/types/clickup";
 
 type ClickUpUserResponse = {
@@ -38,29 +46,24 @@ export const clickUpUserId = async () => {
 	return token ? clickUpUserIdForToken(token) : null;
 };
 
-const isSuperAdmin = (userId: string) =>
-	(
-		process.env.CLICKUP_SUPERADMIN_IDS ??
-		process.env.CLICKUP_SUPERADMIN_IDs ??
-		process.env.CLICKUP_SUPERADMIN_ID ??
-		""
-	)
-		.split(",")
-		.map((id) => id.trim())
-		.filter(Boolean)
-		.includes(userId);
+export const postLoginPath = async () => {
+	const userId = await clickUpUserId();
+	return userId
+		? ppicStatusPath((await getPpicPermission(userId))?.allowed_status)
+		: "/login";
+};
 
 export const requireSuperAdmin = async () => {
 	const userId = await clickUpUserId();
 	if (!userId) redirect("/login");
-	if (!isSuperAdmin(userId)) redirect("/unauthorized");
+	if (!(await isPpicSuperAdmin(userId))) redirect("/unauthorized");
 };
 
 export const requirePpicStatusAccess = async (status: string) => {
 	if (!isPpicStatus(status)) redirect("/unauthorized");
 	const userId = await clickUpUserId();
 	if (!userId) redirect("/login");
-	if (isSuperAdmin(userId)) return;
+	if (await isPpicSuperAdmin(userId)) return;
 	if ((await getPpicPermission(userId))?.allowed_status !== status)
 		redirect("/unauthorized");
 };
@@ -108,7 +111,7 @@ export const panelChannelMembers = async (): Promise<PanelMembersResult> => {
 						: [];
 				})
 			: [];
-		return isSuperAdmin(userId)
+		return (await isPpicSuperAdmin(userId))
 			? { ok: true, members }
 			: { ok: false, status: 403 };
 	} catch {

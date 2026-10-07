@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { clickUpHeaders } from "@/lib/clickup";
+import { getPpicPermission } from "@/lib/db";
+import { ppicStatusPath } from "@/lib/produksiPanel";
 
 const loginError = (request: NextRequest, error = "clickup") =>
 	NextResponse.redirect(new URL(`/login?error=${error}`, request.url));
@@ -64,6 +66,19 @@ export async function GET(request: NextRequest) {
 	}
 	if (!userResponse.ok) return loginError(request);
 
+	let userId: string | null = null;
+	try {
+		const body = (await userResponse.json()) as {
+			user?: { id?: string | number };
+			id?: string | number;
+		};
+		const id = body.user?.id ?? body.id;
+		if (id !== undefined && id !== null) userId = String(id);
+	} catch {
+		return unauthorized(request);
+	}
+	if (!userId) return unauthorized(request);
+
 	let teamsResponse: Response;
 	try {
 		teamsResponse = await fetch("https://api.clickup.com/api/v2/team", {
@@ -102,7 +117,14 @@ export async function GET(request: NextRequest) {
 	}
 	if (!listResponse.ok) return unauthorized(request);
 
-	const response = NextResponse.redirect(new URL("/", request.url));
+	let redirectPath = "/";
+	try {
+		redirectPath = ppicStatusPath((await getPpicPermission(userId))?.allowed_status);
+	} catch {
+		return unauthorized(request);
+	}
+
+	const response = NextResponse.redirect(new URL(redirectPath, request.url));
 	response.cookies.set("clickup_access_token", token, {
 		httpOnly: true,
 		secure: process.env.NODE_ENV === "production",

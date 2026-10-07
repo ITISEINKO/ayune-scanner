@@ -16,7 +16,7 @@ import {
 	tahapById,
 	tahapByName,
 } from "./produksi.ts";
-import { statusBarangScanOptions } from "./produksiPanel.ts";
+import { ppicStatusPath, statusBarangScanOptions } from "./produksiPanel.ts";
 
 const dropdown: ClickUpField = {
 	id: "dropdown",
@@ -84,3 +84,6 @@ assert.deepEqual(moveProduction("Komplain", "release_komplain", "Edging"), {
 assert.equal(tahapById(TAHAP_KOMPLAIN.id)?.name, "Komplain");
 assert.equal(statusBarangScanOptions.length, 9);
 assert.equal(statusBarangScanOptions[3].label, "SEDANG DIPACKING");
+assert.equal(ppicStatusPath("BARANG_DITERIMA"), "/barang-diterima");
+assert.equal(ppicStatusPath("SEDANG_DIPACKING"), "/sedang-dipacking");
+assert.equal(ppicStatusPath("inactive"), "/manual-status-scan");

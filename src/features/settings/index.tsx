@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { CircleOff, Package, PackageCheck, Settings2 } from "lucide-react";
 import { toast } from "sonner";
-import type { PanelMember } from "@/types/clickup";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,62 +19,44 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
-
-const loadMembers = async () => {
-	const response = await fetch("/api/panel/members", { cache: "no-store" });
-	const data = (await response.json()) as {
-		members?: PanelMember[];
-		permissions?: Record<string, string | null>;
-	};
-	if (!response.ok || !data.members) throw new Error("members");
-	return { members: data.members, permissions: data.permissions ?? {} };
-};
-
-let cachedMembers: Awaited<ReturnType<typeof loadMembers>> | null = null;
-let membersRequest: ReturnType<typeof loadMembers> | null = null;
+import { usePanelMembers } from "@/hooks/use-panel-members";
+import { PPIC_ROLES, PPIC_STATUSES } from "@/types/ppic";
 
 export const SettingPage = () => {
-	const [members, setMembers] = useState<PanelMember[] | null>(
-		() => cachedMembers?.members ?? null,
-	);
-	const [error, setError] = useState(false);
-	const [statusByMember, setStatusByMember] = useState<
-		Record<string, string | null>
-	>(() => cachedMembers?.permissions ?? {});
+	const {
+		members,
+		roles,
+		permissions,
+		loading,
+		error,
+		updateRole,
+		updatePermission,
+		savingMemberId,
+	} = usePanelMembers();
 	const [saveError, setSaveError] = useState(false);
-	const [savingMemberId, setSavingMemberId] = useState<string | null>(null);
 	const statusOptions = [
 		{
-			status: "BARANG_DITERIMA",
+			value: PPIC_STATUSES[0],
+			status: PPIC_STATUSES[0],
 			label: "Barang Diterima",
 			icon: PackageCheck,
 			variant: "green",
 		},
 		{
-			status: "SEDANG_DIPACKING",
+			value: PPIC_STATUSES[1],
+			status: PPIC_STATUSES[1],
 			label: "Sedang Dipacking",
 			icon: Package,
 			variant: "blue",
 		},
-		{ status: null, label: "Not active", icon: CircleOff, variant: "muted" },
+		{
+			value: "INACTIVE",
+			status: null,
+			label: "Not active",
+			icon: CircleOff,
+			variant: "muted",
+		},
 	] as const;
-
-	useEffect(() => {
-		if (cachedMembers) return;
-		membersRequest ??= loadMembers().then((data) => {
-			cachedMembers = data;
-			return data;
-		});
-		membersRequest
-			.then((data) => {
-				setMembers(data.members);
-				setStatusByMember(data.permissions);
-			})
-			.catch(() => {
-				membersRequest = null;
-				setError(true);
-			});
-	}, []);
 
 	if (error)
 		return (
@@ -93,7 +74,7 @@ export const SettingPage = () => {
 				</section>
 			</main>
 		);
-	if (!members)
+	if (loading || !members)
 		return (
 			<main className="flex min-h-dvh items-center justify-center p-4 pb-28">
 				<span
@@ -131,13 +112,13 @@ export const SettingPage = () => {
 			</header>
 			{saveError && (
 				<p className="mt-2 text-sm text-destructive" role="alert">
-					Could not save permission. Try again.
+					Could not save access. Try again.
 				</p>
 			)}
 			<Table>
 				<TableHeader>
 					<TableRow>
-						<TableHead className="w-12" />
+						<TableHead>Edit</TableHead>
 						<TableHead>Name</TableHead>
 						<TableHead>Status</TableHead>
 					</TableRow>
@@ -146,76 +127,98 @@ export const SettingPage = () => {
 					{members.map((member) => {
 						const status =
 							statusOptions.find(
-								(option) => option.status === statusByMember[member.id],
+								(option) => option.status === permissions[member.id],
 							) ?? statusOptions[2];
 						return (
-						<TableRow key={member.id}>
-							<TableCell>
-								<DropdownMenu>
-									<DropdownMenuTrigger
-										render={
-											<Button
-												variant="ghost"
-												size="icon-sm"
-												aria-label={`Set status for ${member.name}`}
-												disabled={savingMemberId === member.id}
-											/>
-										}
-									>
-										<Settings2 />
-									</DropdownMenuTrigger>
-									<DropdownMenuContent>
-										{statusOptions.map((option) => (
-											<DropdownMenuItem
-												key={option.label}
-												onClick={async () => {
-													setSaveError(false);
-													setSavingMemberId(member.id);
-													try {
-														const response = await fetch("/api/panel/members", {
-															method: "POST",
-															headers: {
-																"Content-Type": "application/json",
-															},
-															body: JSON.stringify({
-																user_id: member.id,
-																allowed_status: option.status,
-															}),
-														});
-														if (!response.ok) throw new Error("permission");
-														setStatusByMember((statuses) => {
-															const permissions = {
-																...statuses,
-																[member.id]: option.status,
-															};
-										if (cachedMembers)
-											cachedMembers = { ...cachedMembers, permissions };
-										return permissions;
-									});
-									toast.success("Status berhasil diperbarui.");
-								} catch {
-									setSaveError(true);
-									toast.error("Gagal memperbarui status.");
-								} finally {
-														setSavingMemberId(null);
+							<TableRow key={member.id}>
+								<TableCell>
+									<DropdownMenu>
+										<DropdownMenuTrigger
+											render={
+												<Button
+													variant="ghost"
+													size="icon-sm"
+													aria-label={`Set role for ${member.name}`}
+													disabled={savingMemberId === member.id}
+												/>
+											}
+										>
+											<Settings2 />
+										</DropdownMenuTrigger>
+										<DropdownMenuContent>
+											{PPIC_ROLES.map((role) => (
+												<DropdownMenuItem
+													key={role}
+													onClick={() => {
+														setSaveError(false);
+														void updateRole(member.id, role)
+															.then(() =>
+																toast.success("Role berhasil diperbarui."),
+															)
+															.catch(() => {
+																setSaveError(true);
+																toast.error("Gagal memperbarui role.");
+															});
+													}}
+												>
+													{role === "SUPER_ADMIN" ? "Super Admin" : "Member"}
+												</DropdownMenuItem>
+											))}
+										</DropdownMenuContent>
+									</DropdownMenu>
+								</TableCell>
+								<TableCell>
+									<div>{member.name}</div>
+									<div className="mt-1 text-xs text-muted-foreground">
+										{roles[member.id] === "SUPER_ADMIN" ? "Admin" : "Member"}
+									</div>
+								</TableCell>
+								<TableCell>
+									<DropdownMenu>
+										<DropdownMenuTrigger
+											render={
+												<Button
+													variant="ghost"
+													className="h-auto p-0 hover:bg-transparent"
+													aria-label={`Set status for ${member.name}`}
+													disabled={
+														savingMemberId === member.id ||
+														roles[member.id] === "SUPER_ADMIN"
 													}
-												}}
-											>
-												<option.icon />
-												{option.label}
-											</DropdownMenuItem>
-										))}
-									</DropdownMenuContent>
-								</DropdownMenu>
-							</TableCell>
-							<TableCell>{member.name}</TableCell>
-							<TableCell>
-								<Badge variant={status.variant}>
-									<status.icon />
-									{status.label}
-								</Badge>
-							</TableCell>
-						</TableRow>
+												/>
+											}
+										>
+											<Badge variant={status.variant}>
+												<status.icon />
+												{status.label}
+											</Badge>
+										</DropdownMenuTrigger>
+										<DropdownMenuContent align="end" className="w-56">
+											{statusOptions.map((option) => (
+												<DropdownMenuItem
+													key={option.value}
+													onClick={() => {
+														setSaveError(false);
+														void updatePermission(member.id, option.status)
+															.then(() =>
+																toast.success("Status berhasil diperbarui."),
+															)
+															.catch(() => {
+																setSaveError(true);
+																toast.error("Gagal memperbarui status.");
+															});
+													}}
+												>
+													<Badge variant={option.variant}>
+														<option.icon />
+														{option.label}
+													</Badge>
+												</DropdownMenuItem>
+											))}
+										</DropdownMenuContent>
+									</DropdownMenu>
+								</TableCell>
+							</TableRow>
 						);
 					})}
 				</TableBody>

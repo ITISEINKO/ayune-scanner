@@ -52,7 +52,7 @@ export const UbahManualPage = () => {
 			if (!response.ok || !data.data) throw new Error(messageFor(data.error));
 			setItem(data.data);
 		} catch (error) {
-			toast.error("Barang tidak ditemukan", {
+			toast.error("Terjadi Kesalahan", {
 				description: error instanceof Error ? error.message : undefined,
 			});
 		} finally {
@@ -150,7 +150,7 @@ export const UbahManualPage = () => {
 					snapPoints={["28rem", 1]}
 					showSwipeHandle
 				>
-					<DrawerContent className="[--drawer-inset:0px]! rounded-t-3xl border-t border-border bg-background shadow-2xl">
+					<DrawerContent className="[--drawer-inset:0px]! mx-auto max-w-lg rounded-t-3xl border-t border-border bg-background shadow-2xl">
 						<div className="flex-1 overflow-y-auto p-5 pb-8">
 							<Badge className="mb-3">Batch: {item.batch_number}</Badge>
 							<DrawerTitle className="text-2xl font-bold">
