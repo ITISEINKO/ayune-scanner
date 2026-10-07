@@ -5,8 +5,9 @@ import { ArrowLeft, Barcode, ExternalLink } from "lucide-react";
 import { Scanner } from "@/components/scanner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import type { PpicRole } from "@/types/ppic";
 
-export const ScanToFindPage = () => {
+export const ScanToFindPage = ({ role }: { role: PpicRole }) => {
 	const lastScan = useRef(0);
 	const finding = useRef(false);
 	const [batchNumber, setBatchNumber] = useState("");
@@ -81,15 +82,15 @@ export const ScanToFindPage = () => {
 					</div>
 					<div>
 						<p className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
-							PPIC admin
+							{role === "SUPER_ADMIN" ? "PPIC admin" : "PPIC member"}
 						</p>
 						<h1 className="text-2xl font-black tracking-tight">
-							Buka task PPIC
+							Buka Task PPIC
 						</h1>
 					</div>
 				</div>
 				<p className="mt-2 text-sm text-muted-foreground">
-					Scan Batch Number untuk membuka task PPIC.
+					Scan Batch Number untuk membuka task PPIC di Clickup
 				</p>
 			</header>
 

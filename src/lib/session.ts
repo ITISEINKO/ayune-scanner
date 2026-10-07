@@ -68,7 +68,7 @@ export const encodePpicSession = (
 	return signature ? `${payload}.${signature}` : null;
 };
 
-const ppicSession = async () => {
+export const ppicSession = async () => {
 	const value = (await cookies()).get(PPIC_SESSION_COOKIE)?.value;
 	if (!value) return null;
 	const [payload, signature] = value.split(".");
@@ -89,7 +89,7 @@ const ppicSession = async () => {
 			return { role: "SUPER_ADMIN" as const, allowed_status: null };
 		if (
 			session.role === "MEMBER" &&
-			isPpicStatus(session.allowed_status)
+			(session.allowed_status === null || isPpicStatus(session.allowed_status))
 		)
 			return {
 				role: "MEMBER" as const,

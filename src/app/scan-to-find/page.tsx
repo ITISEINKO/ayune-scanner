@@ -1,9 +1,10 @@
 import { ScanToFindPage } from "@/features/ScanToFind";
-import { requireClickUpToken } from "@/lib/session";
+import { ppicSession, requireClickUpToken } from "@/lib/session";
 
 const ScanToFind = async () => {
 	await requireClickUpToken();
-	return <ScanToFindPage />;
+	const session = await ppicSession();
+	return <ScanToFindPage role={session?.role ?? "MEMBER"} />;
 };
 
 export default ScanToFind;

@@ -1,25 +1,55 @@
 "use client";
 
-import { Cog, LogOut, Search, Settings2 } from "lucide-react";
+import {
+	Cog,
+	LogOut,
+	PackageCheck,
+	PackageOpen,
+	Search,
+	Settings2,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import type { PpicRole, PpicStatus } from "@/types/ppic";
 
-const items = [
+const superAdminItems = [
 	{ href: "/scan-to-find", label: "Find", icon: Search },
 	{ href: "/ubah-manual", label: "Manual", icon: Settings2 },
 	{ href: "/settings", label: "Settings", icon: Cog },
 ];
-const panelItems = [{ href: "/api/auth/logout", label: "Logout", icon: LogOut }];
+const memberItems = (allowedStatus: PpicStatus | null) => [
+	{ href: "/scan-to-find", label: "Find", icon: Search },
+	...(allowedStatus
+		? [
+				{
+					href:
+						allowedStatus === "BARANG_DITERIMA"
+							? "/barang-diterima"
+							: "/sedang-dipacking",
+					label: "Scan",
+					icon:
+						allowedStatus === "BARANG_DITERIMA" ? PackageCheck : PackageOpen,
+				},
+			]
+		: []),
+	{ href: "/api/auth/logout", label: "Logout", icon: LogOut },
+];
 
-export function BottomNavigation() {
+export function BottomNavigation({
+	role,
+	allowedStatus,
+}: {
+	role: PpicRole | null;
+	allowedStatus: PpicStatus | null;
+}) {
 	const pathname = usePathname();
 	if (pathname === "/login") return null;
 	const navigationItems =
-		pathname === "/unauthorized" ||
-		pathname === "/barang-diterima" ||
-		pathname === "/sedang-dipacking"
-			? panelItems
-			: items;
+		role === "SUPER_ADMIN"
+			? superAdminItems
+			: role === "MEMBER"
+				? memberItems(allowedStatus)
+				: [{ href: "/api/auth/logout", label: "Logout", icon: LogOut }];
 
 	return (
 		<nav

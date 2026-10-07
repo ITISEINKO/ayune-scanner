@@ -79,8 +79,8 @@ export const BarangDiterimaPage = () => {
 						<p className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
 							Penerimaan barang
 						</p>
-						<h1 className="text-2xl font-black tracking-tight">
-							Scan barang diterima
+						<h1 className="text-2xl font-black capitalize tracking-tight">
+							Scan Barang diterima
 						</h1>
 					</div>
 				</div>

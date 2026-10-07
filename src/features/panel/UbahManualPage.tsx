@@ -101,7 +101,7 @@ export const UbahManualPage = () => {
 						<p className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
 							PPIC admin
 						</p>
-						<h1 className="text-2xl font-black tracking-tight">
+						<h1 className="text-2xl font-black capitalize tracking-tight">
 							Ubah status barang
 						</h1>
 					</div>
