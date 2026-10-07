@@ -16,6 +16,7 @@ import {
 	tahapById,
 	tahapByName,
 } from "./produksi.ts";
+import { ppicStatusPath, statusBarangScanOptions } from "./produksiPanel.ts";
 
 const dropdown: ClickUpField = {
 	id: "dropdown",
@@ -30,7 +31,7 @@ assert.equal(optionId(dropdown, 0), "pending-id");
 assert.equal(hasTaskRelation([{ id: "produksi-1" }], "produksi-1"), true);
 assert.equal(hasTaskRelation([{ id: "produksi-1" }], "produksi-2"), false);
 assert.deepEqual(clickUpHeaders("user-token"), {
-	Authorization: "Bearer user-token",
+	Authorization: "user-token",
 });
 const authUrl = clickUpAuthUrl(
 	"client-id",
@@ -81,3 +82,8 @@ assert.deepEqual(moveProduction("Komplain", "release_komplain", "Edging"), {
 	progress: 55,
 });
 assert.equal(tahapById(TAHAP_KOMPLAIN.id)?.name, "Komplain");
+assert.equal(statusBarangScanOptions.length, 9);
+assert.equal(statusBarangScanOptions[3].label, "SEDANG DIPACKING");
+assert.equal(ppicStatusPath("BARANG_DITERIMA"), "/barang-diterima");
+assert.equal(ppicStatusPath("SEDANG_DIPACKING"), "/sedang-dipacking");
+assert.equal(ppicStatusPath("inactive"), "/scan-to-find");

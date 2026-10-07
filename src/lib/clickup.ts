@@ -8,7 +8,7 @@ const fieldCache = new Map<
 >();
 
 export const clickUpHeaders = (token: string) => ({
-	Authorization: `Bearer ${token}`,
+	Authorization: token,
 });
 
 export const clickUpAuthUrl = (
@@ -64,9 +64,6 @@ export async function fieldsByName(
 		names.map((name) => [name, fields.find((field) => field.name === name)]),
 	);
 }
-
-export const clearFieldsCache = (token: string, listId: string) =>
-	fieldCache.delete(`${token}:${listId}`);
 
 export const optionId = (field: ClickUpField, value: unknown) =>
 	field.type_config?.options?.find(

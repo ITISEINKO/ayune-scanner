@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { clickUpHeaders } from "@/lib/clickup";
+import {
+	encodePpicSession,
+	PPIC_SESSION_COOKIE,
+	ppicLoginState,
+} from "@/lib/session";
 
 const loginError = (request: NextRequest, error = "clickup") =>
 	NextResponse.redirect(new URL(`/login?error=${error}`, request.url));
@@ -64,6 +69,19 @@ export async function GET(request: NextRequest) {
 	}
 	if (!userResponse.ok) return loginError(request);
 
+	let userId: string | null = null;
+	try {
+		const body = (await userResponse.json()) as {
+			user?: { id?: string | number };
+			id?: string | number;
+		};
+		const id = body.user?.id ?? body.id;
+		if (id !== undefined && id !== null) userId = String(id);
+	} catch {
+		return unauthorized(request);
+	}
+	if (!userId) return unauthorized(request);
+
 	let teamsResponse: Response;
 	try {
 		teamsResponse = await fetch("https://api.clickup.com/api/v2/team", {
@@ -102,12 +120,32 @@ export async function GET(request: NextRequest) {
 	}
 	if (!listResponse.ok) return unauthorized(request);
 
-	const response = NextResponse.redirect(new URL("/", request.url));
+	let loginState: Awaited<ReturnType<typeof ppicLoginState>>;
+	try {
+		loginState = await ppicLoginState(userId);
+	} catch {
+		return unauthorized(request);
+	}
+
+	const response = NextResponse.redirect(new URL(loginState.path, request.url));
+	const session = encodePpicSession(
+		loginState.role,
+		loginState.allowed_status,
+	);
+	if (session)
+		response.cookies.set(PPIC_SESSION_COOKIE, session, {
+			httpOnly: true,
+			secure: process.env.NODE_ENV === "production",
+			sameSite: "lax",
+			path: "/",
+			maxAge: 9 * 60 * 60,
+		});
 	response.cookies.set("clickup_access_token", token, {
 		httpOnly: true,
 		secure: process.env.NODE_ENV === "production",
 		sameSite: "lax",
 		path: "/",
+		maxAge: 9 * 60 * 60,
 	});
 	response.cookies.set("clickup_oauth_state", "", {
 		path: "/api/auth/clickup/callback",
