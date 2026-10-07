@@ -24,7 +24,7 @@ export function LoginForm({
 }: React.ComponentProps<"div"> & { error?: string }) {
 	return (
 		<div className={cn("flex flex-col gap-6", className)} {...props}>
-			<Card>
+			<Card className="border-primary/10 shadow-xl shadow-primary/10">
 				<CardHeader className="text-center">
 					<CardTitle className="text-xl">Welcome back</CardTitle>
 					<CardDescription>Login with your Clickup account</CardDescription>
@@ -42,11 +42,11 @@ export function LoginForm({
 						<FieldGroup>
 							<Field>
 								<Button
-									variant="outline"
 									nativeButton={false}
 									render={<a href="/api/auth/clickup" />}
+									className="shadow-lg shadow-primary/20 transition-transform hover:-translate-y-0.5"
 								>
-									<img src="/clickup.svg" alt="" className="size-4" />
+									<img src="/clickup.svg" alt="" className="size-4 brightness-0 invert" />
 									Login with ClickUp
 								</Button>
 							</Field>
