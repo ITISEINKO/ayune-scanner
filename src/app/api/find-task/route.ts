@@ -8,21 +8,22 @@ const error = (status: number, message: string) =>
 	NextResponse.json({ error: message }, { status });
 
 export async function GET(request: Request) {
-	const batchNumber = new URL(request.url).searchParams
-		.get("batch_number")
+	const serialNumber = new URL(request.url).searchParams
+		.get("serial_number")
 		?.trim();
-	if (!batchNumber) return error(400, "NO_BATCH_NUMBER");
+	if (!serialNumber) return error(400, "NO_SERIAL_NUMBER");
 
 	const token = await clickUpToken();
 	const listId = process.env.CLICKUP_PPIC_PANEL_LIST_ID || PANEL_LIST_ID;
 	if (!token) return error(401, "UNAUTHORIZED");
 
 	const query = new URLSearchParams({
+		subtasks: "true",
 		custom_fields: JSON.stringify([
 			{
-				field_id: CF_PANEL.BATCH_NUMBER,
+				field_id: CF_PANEL.SERIAL_NUMBER,
 				operator: "=",
-				value: batchNumber,
+				value: serialNumber,
 			},
 		]),
 		include_closed: "true",

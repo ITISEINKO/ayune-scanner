@@ -10,13 +10,13 @@ import type { PpicRole } from "@/types/ppic";
 export const ScanToFindPage = ({ role }: { role: PpicRole }) => {
 	const lastScan = useRef(0);
 	const finding = useRef(false);
-	const [batchNumber, setBatchNumber] = useState("");
+	const [serialNumber, setSerialNumber] = useState("");
 	const [message, setMessage] = useState("");
 	const [isFinding, setIsFinding] = useState(false);
 
 	const focusInput = () => {
 		requestAnimationFrame(() =>
-			document.getElementById("batch-number")?.focus(),
+			document.getElementById("serial-number")?.focus(),
 		);
 	};
 	const findTask = async (value: string) => {
@@ -25,14 +25,14 @@ export const ScanToFindPage = ({ role }: { role: PpicRole }) => {
 		if (!code || finding.current || now - lastScan.current < 1_000) return;
 		finding.current = true;
 		lastScan.current = now;
-		setBatchNumber("");
+		setSerialNumber("");
 		setIsFinding(true);
 		setMessage("Mencari task…");
 		const tab = window.open("about:blank", "_blank");
 
 		try {
 			const response = await fetch(
-				`/api/find-task?batch_number=${encodeURIComponent(code)}`,
+				`/api/find-task?serial_number=${encodeURIComponent(code)}`,
 			);
 			const result = (await response.json()) as {
 				url?: string;
@@ -43,7 +43,7 @@ export const ScanToFindPage = ({ role }: { role: PpicRole }) => {
 				tab?.close();
 				setMessage(
 					result.error === "NOT_FOUND"
-						? "Batch number tidak terdaftar."
+						? "Serial number tidak terdaftar."
 						: "Task tidak dapat dicari. Coba lagi.",
 				);
 				return;
@@ -55,7 +55,7 @@ export const ScanToFindPage = ({ role }: { role: PpicRole }) => {
 			tab.location.href = result.url;
 			setMessage(
 				result.count && result.count > 1
-					? "Batch number duplikat: task pertama dibuka."
+					? "Serial number duplikat: task pertama dibuka."
 					: "Task dibuka di tab baru.",
 			);
 		} catch {
@@ -70,7 +70,7 @@ export const ScanToFindPage = ({ role }: { role: PpicRole }) => {
 
 	const submit = (event: SubmitEvent<HTMLFormElement>) => {
 		event.preventDefault();
-		void findTask(batchNumber);
+		void findTask(serialNumber);
 	};
 
 	return (
@@ -90,7 +90,7 @@ export const ScanToFindPage = ({ role }: { role: PpicRole }) => {
 					</div>
 				</div>
 				<p className="mt-2 text-sm text-muted-foreground">
-					Scan Batch Number untuk membuka task PPIC di Clickup
+					Scan Serial Number untuk membuka task PPIC di Clickup
 				</p>
 			</header>
 
@@ -98,10 +98,10 @@ export const ScanToFindPage = ({ role }: { role: PpicRole }) => {
 			<div className="mt-4 rounded-3xl border border-border bg-card p-4 text-card-foreground shadow-2xl">
 				<form onSubmit={submit}>
 					<label
-						htmlFor="batch-number"
+						htmlFor="serial-number"
 						className="mb-2 block text-sm font-semibold text-muted-foreground"
 					>
-						Input Batch Number manual
+						Input Serial Number manual
 					</label>
 					<div className="flex gap-2">
 						<div className="relative flex-1">
@@ -110,16 +110,16 @@ export const ScanToFindPage = ({ role }: { role: PpicRole }) => {
 								className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-muted-foreground"
 							/>
 							<Input
-								id="batch-number"
+								id="serial-number"
 								className="pl-11"
-								value={batchNumber}
-								onChange={(event) => setBatchNumber(event.target.value)}
-								placeholder="Masukkan Batch Number"
+								value={serialNumber}
+								onChange={(event) => setSerialNumber(event.target.value)}
+								placeholder="Masukkan Serial Number"
 								autoComplete="off"
 								disabled={isFinding}
 							/>
 						</div>
-						<Button type="submit" disabled={isFinding || !batchNumber.trim()}>
+						<Button type="submit" disabled={isFinding || !serialNumber.trim()}>
 							{isFinding ? (
 								<>
 									<span aria-hidden="true" className="loader" />

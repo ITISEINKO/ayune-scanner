@@ -47,13 +47,13 @@ test('configured active member reaches only its assigned panel', async ({
 	await expect(page).toHaveURL(/\/unauthorized$/);
 
 	const allowed = await page.request.post('/api/panel/scan', {
-		data: { batch_number: '__playwright_missing_batch__', status: 'BARANG_DITERIMA' },
+		data: { serial_number: '__playwright_missing_serial__', status: 'BARANG_DITERIMA' },
 		maxRedirects: 0,
 	});
 	expect(allowed.status()).toBe(404);
 
 	const denied = await page.request.post('/api/panel/scan', {
-		data: { batch_number: '__playwright_missing_batch__', status: 'SEDANG_DIPACKING' },
+		data: { serial_number: '__playwright_missing_serial__', status: 'SEDANG_DIPACKING' },
 		maxRedirects: 0,
 	});
 	expect(denied.status()).toBe(307);

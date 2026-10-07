@@ -8,14 +8,14 @@ const error = (status: number, code: string) =>
 	NextResponse.json({ ok: false, error: code }, { status });
 
 export async function POST(request: Request) {
-	let body: { batch_number?: unknown; status?: unknown };
+	let body: { serial_number?: unknown; status?: unknown };
 	try {
 		body = (await request.json()) as typeof body;
 	} catch {
-		return error(400, "MISSING_BATCH_NUMBER");
+		return error(400, "MISSING_SERIAL_NUMBER");
 	}
-	const batchNumber =
-		typeof body.batch_number === "string" ? body.batch_number.trim() : "";
+	const serialNumber =
+		typeof body.serial_number === "string" ? body.serial_number.trim() : "";
 	const status = typeof body.status === "string" ? body.status : "";
 	const target =
 		status === "BARANG_DITERIMA"
@@ -26,7 +26,7 @@ export async function POST(request: Request) {
 						value: STATUS_BARANG_SCAN.SEDANG_DIPACKING,
 					}
 				: null;
-	if (!batchNumber) return error(400, "MISSING_BATCH_NUMBER");
+	if (!serialNumber) return error(400, "MISSING_SERIAL_NUMBER");
 	if (!target) return error(400, "INVALID_STATUS");
 	await requireFreshPpicStatusAccess(status);
 
@@ -38,8 +38,9 @@ export async function POST(request: Request) {
 	const headers = clickUpHeaders(token);
 	const query = new URLSearchParams({
 		include_closed: "true",
+		subtasks: "true",
 		custom_fields: JSON.stringify([
-			{ field_id: CF_PANEL.BATCH_NUMBER, operator: "=", value: batchNumber },
+			{ field_id: CF_PANEL.SERIAL_NUMBER, operator: "=", value: serialNumber },
 		]),
 	});
 
@@ -57,8 +58,8 @@ export async function POST(request: Request) {
 	const { tasks = [] } = (await searchResponse.json()) as {
 		tasks?: ClickUpTask[];
 	};
-	if (!tasks.length) return error(404, "BATCH_NUMBER_NOT_FOUND");
-	if (tasks.length > 1) return error(409, "DUPLICATE_BATCH_NUMBER");
+	if (!tasks.length) return error(404, "SERIAL_NUMBER_NOT_FOUND");
+	if (tasks.length > 1) return error(409, "DUPLICATE_SERIAL_NUMBER");
 
 	let updateResponse: Response;
 	try {
@@ -86,8 +87,8 @@ export async function POST(request: Request) {
 
 	return NextResponse.json({
 		task_id: tasks[0].id,
-		nama: tasks[0].name ?? batchNumber,
-		batch_number: batchNumber,
+		nama: tasks[0].name ?? serialNumber,
+		serial_number: serialNumber,
 		status: target.label,
 	});
 }

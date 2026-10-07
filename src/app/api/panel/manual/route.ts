@@ -20,15 +20,16 @@ const statusFieldId = () =>
 
 export async function GET(request: Request) {
 	await requireSuperAdmin();
-	const batchNumber = new URL(request.url).searchParams.get("batch_number")?.trim();
-	if (!batchNumber) return error(400, "MISSING_BATCH_NUMBER");
+	const serialNumber = new URL(request.url).searchParams.get("serial_number")?.trim();
+	if (!serialNumber) return error(400, "MISSING_SERIAL_NUMBER");
 	const token = await clickUpToken();
 	if (!token) return error(401, "UNAUTHORIZED");
 	const headers = clickUpHeaders(token);
 	const query = new URLSearchParams({
 		include_closed: "true",
+		subtasks: "true",
 		custom_fields: JSON.stringify([
-			{ field_id: CF_PANEL.BATCH_NUMBER, operator: "=", value: batchNumber },
+			{ field_id: CF_PANEL.SERIAL_NUMBER, operator: "=", value: serialNumber },
 		]),
 	});
 	const [searchResponse, fields] = await Promise.all([
@@ -46,15 +47,15 @@ export async function GET(request: Request) {
 	const { tasks = [] } = (await searchResponse.json()) as {
 		tasks?: ClickUpTask[];
 	};
-	if (!tasks.length) return error(404, "BATCH_NUMBER_NOT_FOUND");
-	if (tasks.length > 1) return error(409, "DUPLICATE_BATCH_NUMBER");
+	if (!tasks.length) return error(404, "SERIAL_NUMBER_NOT_FOUND");
+	if (tasks.length > 1) return error(409, "DUPLICATE_SERIAL_NUMBER");
 	const task = tasks[0];
 	return NextResponse.json({
 		ok: true,
 		data: {
 			task_id: task.id,
-			nama: task.name ?? batchNumber,
-			batch_number: batchNumber,
+			nama: task.name ?? serialNumber,
+			serial_number: serialNumber,
 			status: optionName(
 				statusField,
 				task.custom_fields?.find((field) => field.id === statusFieldId())?.value,

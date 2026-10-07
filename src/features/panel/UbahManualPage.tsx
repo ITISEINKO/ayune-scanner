@@ -18,7 +18,7 @@ import { statusBarangScanOptions } from "@/lib/produksiPanel";
 
 export const UbahManualPage = () => {
 	const finding = useRef(false);
-	const [batchNumber, setBatchNumber] = useState("");
+	const [serialNumber, setSerialNumber] = useState("");
 	const [item, setItem] = useState<Record<string, string> | null>(null);
 	const [selectedStatus, setSelectedStatus] = useState("");
 	const [loading, setLoading] = useState(false);
@@ -29,8 +29,8 @@ export const UbahManualPage = () => {
 	};
 	const messageFor = (error?: string) =>
 		({
-			BATCH_NUMBER_NOT_FOUND: "Batch number tidak ditemukan.",
-			DUPLICATE_BATCH_NUMBER: "Batch number terdaftar lebih dari satu kali.",
+			SERIAL_NUMBER_NOT_FOUND: "Serial number tidak ditemukan.",
+			DUPLICATE_SERIAL_NUMBER: "Serial number terdaftar lebih dari satu kali.",
 			CLICKUP_FIELD_MISSING: "Field Status Barang Scan tidak tersedia.",
 			RATE_LIMITED: "Terlalu banyak permintaan. Coba lagi sebentar.",
 			UNAUTHORIZED: "Sesi login sudah berakhir. Silakan login kembali.",
@@ -40,10 +40,10 @@ export const UbahManualPage = () => {
 		if (!code || finding.current) return;
 		finding.current = true;
 		setLoading(true);
-		setBatchNumber("");
+		setSerialNumber("");
 		try {
 			const response = await fetch(
-				`/api/panel/manual?batch_number=${encodeURIComponent(code)}`,
+				`/api/panel/manual?serial_number=${encodeURIComponent(code)}`,
 			);
 			const data = (await response.json()) as {
 				data?: Record<string, string>;
@@ -62,7 +62,7 @@ export const UbahManualPage = () => {
 	};
 	const submit = (event: SubmitEvent<HTMLFormElement>) => {
 		event.preventDefault();
-		void findItem(batchNumber);
+		void findItem(serialNumber);
 	};
 	const save = async () => {
 		if (!item || !selectedStatus) return;
@@ -112,10 +112,10 @@ export const UbahManualPage = () => {
 			<div className="mt-4 rounded-3xl border border-border bg-card p-4 text-card-foreground shadow-2xl">
 				<form onSubmit={submit}>
 					<label
-						htmlFor="batch-number"
+						htmlFor="serial-number"
 						className="mb-2 block text-sm font-semibold text-muted-foreground"
 					>
-						Input Batch Number manual
+						Input Serial Number manual
 					</label>
 					<div className="flex gap-2">
 						<div className="relative flex-1">
@@ -124,18 +124,18 @@ export const UbahManualPage = () => {
 								className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-muted-foreground"
 							/>
 							<Input
-								id="batch-number"
+								id="serial-number"
 								className="pl-11"
-								value={batchNumber}
-								onChange={(event) => setBatchNumber(event.target.value)}
-								placeholder="Masukkan Batch Number"
+								value={serialNumber}
+								onChange={(event) => setSerialNumber(event.target.value)}
+								placeholder="Masukkan Serial Number"
 								autoComplete="off"
 								disabled={Boolean(item) || loading}
 							/>
 						</div>
 						<Button
 							type="submit"
-							disabled={!batchNumber.trim() || Boolean(item) || loading}
+								disabled={!serialNumber.trim() || Boolean(item) || loading}
 						>
 							{loading ? "Mencari..." : "Cari"}
 						</Button>
@@ -152,7 +152,7 @@ export const UbahManualPage = () => {
 				>
 					<DrawerContent className="[--drawer-inset:0px]! mx-auto max-w-lg rounded-t-3xl border-t border-border bg-background shadow-2xl">
 						<div className="flex-1 overflow-y-auto p-5 pb-8">
-							<Badge className="mb-3">Batch: {item.batch_number}</Badge>
+							<Badge className="mb-3">Serial: {item.serial_number}</Badge>
 							<DrawerTitle className="text-2xl font-bold">
 								{item.nama}
 							</DrawerTitle>

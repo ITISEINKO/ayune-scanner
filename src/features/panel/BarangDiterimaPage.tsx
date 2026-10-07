@@ -19,14 +19,14 @@ import { Input } from "@/components/ui/input";
 
 export const BarangDiterimaPage = () => {
 	const busy = useRef(false);
-	const [batchNumber, setBatchNumber] = useState("");
+	const [serialNumber, setSerialNumber] = useState("");
 	const [scanning, setScanning] = useState(false);
 	const [receivedItem, setReceivedItem] = useState<string | null>(null);
 	const messageFor = (error?: string) =>
 		({
-			MISSING_BATCH_NUMBER: "Batch number wajib diisi.",
-			BATCH_NUMBER_NOT_FOUND: "Batch number tidak ditemukan.",
-			DUPLICATE_BATCH_NUMBER: "Batch number terdaftar lebih dari satu kali.",
+			MISSING_SERIAL_NUMBER: "Serial number wajib diisi.",
+			SERIAL_NUMBER_NOT_FOUND: "Serial number tidak ditemukan.",
+			DUPLICATE_SERIAL_NUMBER: "Serial number terdaftar lebih dari satu kali.",
 			CLICKUP_STATUS_UPDATE_FAILED: "Status Barang Scan gagal diperbarui.",
 			RATE_LIMITED: "Terlalu banyak permintaan. Coba lagi sebentar.",
 			UNAUTHORIZED: "Sesi login sudah berakhir. Silakan login kembali.",
@@ -37,13 +37,13 @@ export const BarangDiterimaPage = () => {
 		if (!code || busy.current) return;
 		busy.current = true;
 		setScanning(true);
-		setBatchNumber("");
+		setSerialNumber("");
 		try {
 			const response = await fetch("/api/panel/scan", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({
-					batch_number: code,
+					serial_number: code,
 					status: "BARANG_DITERIMA",
 				}),
 			});
@@ -65,7 +65,7 @@ export const BarangDiterimaPage = () => {
 
 	const submit = (event: SubmitEvent<HTMLFormElement>) => {
 		event.preventDefault();
-		void receive(batchNumber);
+		void receive(serialNumber);
 	};
 
 	return (
@@ -85,7 +85,7 @@ export const BarangDiterimaPage = () => {
 					</div>
 				</div>
 				<p className="mt-2 text-sm text-muted-foreground">
-					Scan Batch Number untuk mengubah Status Barang Scan menjadi Barang
+					Scan Serial Number untuk mengubah Status Barang Scan menjadi Barang
 					Diterima.
 				</p>
 			</header>
@@ -94,10 +94,10 @@ export const BarangDiterimaPage = () => {
 			<div className="mt-4 rounded-3xl border border-border bg-card p-4 text-card-foreground shadow-2xl">
 				<form onSubmit={submit}>
 					<label
-						htmlFor="batch-number"
+						htmlFor="serial-number"
 						className="mb-2 block text-sm font-semibold text-muted-foreground"
 					>
-						Input Batch Number manual
+						Input Serial Number manual
 					</label>
 					<div className="flex gap-2">
 						<div className="relative flex-1">
@@ -106,20 +106,20 @@ export const BarangDiterimaPage = () => {
 								className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-muted-foreground"
 							/>
 							<Input
-								id="batch-number"
+								id="serial-number"
 								className="pl-11"
-								value={batchNumber}
-								onChange={(event) => setBatchNumber(event.target.value)}
-								placeholder="Masukkan Batch Number"
+								value={serialNumber}
+								onChange={(event) => setSerialNumber(event.target.value)}
+								placeholder="Masukkan Serial Number"
 								autoComplete="off"
 								disabled={scanning}
 							/>
 						</div>
-						<Button type="submit" disabled={!batchNumber.trim() || scanning}>
+						<Button type="submit" disabled={!serialNumber.trim() || scanning}>
 							{scanning ? (
 								<>
 									<span aria-hidden="true" className="loader" />
-									<span className="sr-only">Memproses Batch Number</span>
+									<span className="sr-only">Memproses Serial Number</span>
 								</>
 							) : (
 								"Proses"

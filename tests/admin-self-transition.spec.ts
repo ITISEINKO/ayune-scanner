@@ -91,7 +91,7 @@ test.describe("Admin self-transition", () => {
 
 	const expectScan = async (page: Page, status: PpicStatus, expected: number) => {
 		const response = await page.request.post("/api/panel/scan", {
-			data: { batch_number: "__playwright_missing_batch__", status },
+			data: { serial_number: "__playwright_missing_serial__", status },
 			maxRedirects: 0,
 		});
 		expect(response.status()).toBe(expected);
