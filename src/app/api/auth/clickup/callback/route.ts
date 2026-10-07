@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { clickUpHeaders } from "@/lib/clickup";
-import { getPpicPermission } from "@/lib/db";
-import { ppicStatusPath } from "@/lib/produksiPanel";
+import {
+	encodePpicSession,
+	PPIC_SESSION_COOKIE,
+	ppicLoginState,
+} from "@/lib/session";
 
 const loginError = (request: NextRequest, error = "clickup") =>
 	NextResponse.redirect(new URL(`/login?error=${error}`, request.url));
@@ -117,14 +120,26 @@ export async function GET(request: NextRequest) {
 	}
 	if (!listResponse.ok) return unauthorized(request);
 
-	let redirectPath = "/";
+	let loginState: Awaited<ReturnType<typeof ppicLoginState>>;
 	try {
-		redirectPath = ppicStatusPath((await getPpicPermission(userId))?.allowed_status);
+		loginState = await ppicLoginState(userId);
 	} catch {
 		return unauthorized(request);
 	}
 
-	const response = NextResponse.redirect(new URL(redirectPath, request.url));
+	const response = NextResponse.redirect(new URL(loginState.path, request.url));
+	const session = encodePpicSession(
+		loginState.role,
+		loginState.allowed_status,
+	);
+	if (session)
+		response.cookies.set(PPIC_SESSION_COOKIE, session, {
+			httpOnly: true,
+			secure: process.env.NODE_ENV === "production",
+			sameSite: "lax",
+			path: "/",
+			maxAge: 9 * 60 * 60,
+		});
 	response.cookies.set("clickup_access_token", token, {
 		httpOnly: true,
 		secure: process.env.NODE_ENV === "production",

@@ -13,13 +13,11 @@ const panelItems = [{ href: "/api/auth/logout", label: "Logout", icon: LogOut }]
 
 export function BottomNavigation() {
 	const pathname = usePathname();
-	if (
-		pathname === "/login" ||
-		pathname === "/unauthorized"
-	)
-		return null;
+	if (pathname === "/login") return null;
 	const navigationItems =
-		pathname === "/barang-diterima" || pathname === "/sedang-dipacking"
+		pathname === "/unauthorized" ||
+		pathname === "/barang-diterima" ||
+		pathname === "/sedang-dipacking"
 			? panelItems
 			: items;
 

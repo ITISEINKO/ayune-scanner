@@ -99,7 +99,7 @@ export const UbahManualPage = () => {
 					</div>
 					<div>
 						<p className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
-							PPIC super admin
+							PPIC admin
 						</p>
 						<h1 className="text-2xl font-black tracking-tight">
 							Ubah status barang

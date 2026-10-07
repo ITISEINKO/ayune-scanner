@@ -86,4 +86,4 @@ assert.equal(statusBarangScanOptions.length, 9);
 assert.equal(statusBarangScanOptions[3].label, "SEDANG DIPACKING");
 assert.equal(ppicStatusPath("BARANG_DITERIMA"), "/barang-diterima");
 assert.equal(ppicStatusPath("SEDANG_DIPACKING"), "/sedang-dipacking");
-assert.equal(ppicStatusPath("inactive"), "/manual-status-scan");
+assert.equal(ppicStatusPath("inactive"), "/scan-to-find");

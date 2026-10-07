@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { clickUpHeaders } from "@/lib/clickup";
 import { CF_PANEL, PANEL_LIST_ID, STATUS_BARANG_SCAN } from "@/lib/produksiPanel";
-import { clickUpToken, requirePpicStatusAccess } from "@/lib/session";
+import { clickUpToken, requireFreshPpicStatusAccess } from "@/lib/session";
 import type { ClickUpTask } from "@/types/clickup";
 
 const error = (status: number, code: string) =>
@@ -28,7 +28,7 @@ export async function POST(request: Request) {
 				: null;
 	if (!batchNumber) return error(400, "MISSING_BATCH_NUMBER");
 	if (!target) return error(400, "INVALID_STATUS");
-	await requirePpicStatusAccess(status);
+	await requireFreshPpicStatusAccess(status);
 
 	const token = await clickUpToken();
 	if (!token) return error(401, "UNAUTHORIZED");

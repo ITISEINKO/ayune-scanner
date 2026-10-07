@@ -161,7 +161,7 @@ export const SettingPage = () => {
 															});
 													}}
 												>
-													{role === "SUPER_ADMIN" ? "Super Admin" : "Member"}
+													{role === "SUPER_ADMIN" ? "Admin" : "Member"}
 												</DropdownMenuItem>
 											))}
 										</DropdownMenuContent>

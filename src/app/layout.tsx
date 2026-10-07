@@ -3,6 +3,7 @@ import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { BottomNavigation } from "@/components/bottomNavigation";
+import { SessionRefresh } from "@/components/sessionRefresh";
 import { cn } from "@/lib/utils";
 
 const jakartaSans = Plus_Jakarta_Sans({
@@ -36,6 +37,7 @@ export default function RootLayout({
 		<html lang="en" className={cn("light", "font-sans", jakartaSans.variable)}>
 			<body>
 				{children}
+				<SessionRefresh />
 				<BottomNavigation />
 				<Toaster position="top-center" />
 			</body>

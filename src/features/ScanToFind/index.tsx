@@ -81,7 +81,7 @@ export const ScanToFindPage = () => {
 					</div>
 					<div>
 						<p className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
-							PPIC Super admin
+							PPIC admin
 						</p>
 						<h1 className="text-2xl font-black tracking-tight">
 							Buka task PPIC

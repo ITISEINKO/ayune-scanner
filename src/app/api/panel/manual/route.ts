@@ -5,7 +5,11 @@ import {
 	PANEL_LIST_ID,
 	statusBarangScanOptions,
 } from "@/lib/produksiPanel";
-import { clickUpToken, requireSuperAdmin } from "@/lib/session";
+import {
+	clickUpToken,
+	requireFreshSuperAdmin,
+	requireSuperAdmin,
+} from "@/lib/session";
 import type { ClickUpTask } from "@/types/clickup";
 
 const error = (status: number, code: string) =>
@@ -60,7 +64,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-	await requireSuperAdmin();
+	await requireFreshSuperAdmin();
 	let body: { task_id?: unknown; status?: unknown };
 	try {
 		body = (await request.json()) as typeof body;
