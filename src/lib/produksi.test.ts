@@ -31,7 +31,7 @@ assert.equal(optionId(dropdown, 0), "pending-id");
 assert.equal(hasTaskRelation([{ id: "produksi-1" }], "produksi-1"), true);
 assert.equal(hasTaskRelation([{ id: "produksi-1" }], "produksi-2"), false);
 assert.deepEqual(clickUpHeaders("user-token"), {
-	Authorization: "Bearer user-token",
+	Authorization: "user-token",
 });
 const authUrl = clickUpAuthUrl(
 	"client-id",

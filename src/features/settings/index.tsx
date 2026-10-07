@@ -19,6 +19,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
 import { usePanelMembers } from "@/hooks/use-panel-members";
 import { PPIC_ROLES, PPIC_STATUSES } from "@/types/ppic";
 
@@ -76,17 +77,54 @@ export const SettingPage = () => {
 		);
 	if (loading || !members)
 		return (
-			<main className="flex min-h-dvh items-center justify-center p-4 pb-28">
-				<span
-					className="loader"
-					role="status"
-					aria-label="Loading channel members"
-					style={{
-						width: "4rem",
-						borderWidth: "3px",
-						borderRightColor: "var(--primary)",
-					}}
-				/>
+			<main className="mx-auto min-h-dvh max-w-lg p-4 pb-28" aria-busy="true">
+				<header className="mb-7 pt-3">
+					<div className="mt-4 flex items-center gap-4">
+						<div className="size-10 shrink-0 overflow-hidden">
+							<img src="/icon.svg" alt="" className="size-full" />
+						</div>
+						<div className="flex-1 space-y-2">
+							<Skeleton className="h-3 w-32 rounded-md" />
+							<Skeleton className="h-8 w-56 rounded-md" />
+						</div>
+					</div>
+					<Skeleton className="mt-2 h-4 w-72 max-w-full rounded-md" />
+				</header>
+				<div role="status" aria-label="Loading channel members">
+					<Table>
+						<TableHeader>
+							<TableRow>
+								<TableHead>
+									<Skeleton className="h-3 w-8 rounded-md" />
+								</TableHead>
+								<TableHead>
+									<Skeleton className="h-3 w-12 rounded-md" />
+								</TableHead>
+								<TableHead>
+									<Skeleton className="h-3 w-14 rounded-md" />
+								</TableHead>
+							</TableRow>
+						</TableHeader>
+						<TableBody>
+							{Array.from({ length: 11 }, (_, index) => (
+								<TableRow key={index}>
+									<TableCell>
+										<Skeleton className="size-8 rounded-md" />
+									</TableCell>
+									<TableCell>
+										<div className="space-y-2">
+											<Skeleton className="h-4 w-32 rounded-md" />
+											<Skeleton className="h-3 w-16 rounded-md" />
+										</div>
+									</TableCell>
+									<TableCell>
+										<Skeleton className="h-6 w-28 rounded-md" />
+									</TableCell>
+								</TableRow>
+							))}
+						</TableBody>
+					</Table>
+				</div>
 			</main>
 		);
 

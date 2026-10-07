@@ -8,7 +8,7 @@ const fieldCache = new Map<
 >();
 
 export const clickUpHeaders = (token: string) => ({
-	Authorization: `Bearer ${token}`,
+	Authorization: token,
 });
 
 export const clickUpAuthUrl = (
