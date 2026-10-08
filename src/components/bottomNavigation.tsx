@@ -8,6 +8,7 @@ import {
 	Search,
 	Settings2,
 } from "lucide-react";
+import { Fragment } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { PpicRole, PpicStatus } from "@/types/ppic";
@@ -54,14 +55,12 @@ export function BottomNavigation({
 	return (
 		<nav
 			aria-label="Main navigation"
-			className="fixed inset-x-0 bottom-0 z-50 flex  mx-auto  max-w-lg items-center justify-between rounded-t-2xl border border-border/70 bg-primary p-3 shadow-lg "
+			className="fixed inset-x-0 bottom-0 z-50 mx-auto flex max-w-lg items-center rounded-t-2xl border border-border/70 bg-primary px-3 py-2 shadow-lg"
 		>
-			{navigationItems.map(({ href, label, icon: Icon }) => {
+			{navigationItems.map(({ href, label, icon: Icon }, index) => {
 				const active = pathname === href;
-				const className = `flex min-w-0 items-center justify-center gap-1.5 rounded-full px-3 py-2 text-md font-semibold transition-colors ${
-					active
-						? "bg-white text-primary"
-						: "text-white hover:bg-white/20 hover:text-white"
+				const className = `flex min-w-0 flex-1 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+					active ? "bg-accent text-white" : "text-white/80 hover:text-white"
 				}`;
 				const content = (
 					<>
@@ -69,19 +68,28 @@ export function BottomNavigation({
 						<span>{label}</span>
 					</>
 				);
-				return href === "/api/auth/logout" ? (
-					<a key={href} href={href} className={className}>
-						{content}
-					</a>
-				) : (
-					<Link
-						key={href}
-						href={href}
-						aria-current={active ? "page" : undefined}
-						className={className}
-					>
-						{content}
-					</Link>
+				return (
+					<Fragment key={href}>
+						{index > 0 && (
+							<span
+								aria-hidden="true"
+								className="mx-2 h-7 w-px shrink-0 bg-white/10"
+							/>
+						)}
+						{href === "/api/auth/logout" ? (
+							<a href={href} className={className}>
+								{content}
+							</a>
+						) : (
+							<Link
+								href={href}
+								aria-current={active ? "page" : undefined}
+								className={className}
+							>
+								{content}
+							</Link>
+						)}
+					</Fragment>
 				);
 			})}
 		</nav>

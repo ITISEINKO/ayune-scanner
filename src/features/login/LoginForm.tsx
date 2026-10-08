@@ -8,14 +8,6 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import {
-	Field,
-	FieldDescription,
-	FieldGroup,
-	FieldLabel,
-	FieldSeparator,
-} from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
 
 export function LoginForm({
 	className,
@@ -23,35 +15,38 @@ export function LoginForm({
 	...props
 }: React.ComponentProps<"div"> & { error?: string }) {
 	return (
-		<div className={cn("flex flex-col gap-6", className)} {...props}>
-			<Card className="border-primary/10 shadow-xl shadow-primary/10">
-				<CardHeader className="text-center">
-					<CardTitle className="text-xl">Welcome back</CardTitle>
-					<CardDescription>Login with your Clickup account</CardDescription>
+		<div className={cn("flex flex-col", className)} {...props}>
+			<Card className="rounded-none bg-transparent py-0 shadow-none ring-0">
+				<CardHeader className="px-0 pt-5 pb-0">
+					<CardTitle className="text-2xl font-bold">Welcome back</CardTitle>
+					<CardDescription className="text-base">
+						Continue with your ClickUp account
+					</CardDescription>
 				</CardHeader>
-				<CardContent>
+				<CardContent className="px-0 pt-6">
 					{error === "unauthorized" && (
 						<p
 							role="alert"
-							className="mb-4 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
+							className="mb-5 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
 						>
 							Akun ClickUp ini tidak memiliki akses ke Produksi.
 						</p>
 					)}
-					<form>
-						<FieldGroup>
-							<Field>
-								<Button
-									nativeButton={false}
-									render={<a href="/api/auth/clickup" />}
-									className="shadow-lg shadow-primary/20 transition-transform hover:-translate-y-0.5"
-								>
-									<img src="/clickup.svg" alt="" className="size-4 brightness-0 invert" />
-									Login with ClickUp
-								</Button>
-							</Field>
-						</FieldGroup>
-					</form>
+					<Button
+						nativeButton={false}
+						render={<a href="/api/auth/clickup" />}
+						className="h-12 w-full rounded-xl shadow-lg shadow-primary/20 transition-transform hover:-translate-y-0.5"
+					>
+						<img
+							src="/clickup.svg"
+							alt=""
+							className="size-4 brightness-0 invert"
+						/>
+						Continue with ClickUp
+					</Button>
+					<p className="mt-5 text-center text-xs text-muted-foreground">
+						Use your ClickUp account to access the PPIC panel.
+					</p>
 				</CardContent>
 			</Card>
 		</div>

@@ -70,9 +70,9 @@ export const BarangDiterimaPage = () => {
 
 	return (
 		<main className="mx-auto min-h-dvh max-w-lg p-4 pb-28">
-			<header className="mb-7 pt-3">
-				<div className="mt-4 flex items-center gap-4">
-					<div className="size-10 shrink-0 overflow-hidden">
+			<header className="mb-7 ">
+				<div className=" flex items-center gap-4">
+					<div className="size-19 shrink-0 overflow-hidden">
 						<img src="/icon.svg" alt="" className="size-full" />
 					</div>
 					<div>
@@ -91,7 +91,7 @@ export const BarangDiterimaPage = () => {
 			</header>
 
 			<Scanner onDetected={receive} autoStart disabled={scanning} />
-			<div className="mt-4 rounded-3xl border border-border bg-card p-4 text-card-foreground shadow-2xl">
+			<div className="mt-4 rounded-3xl border border-border/30 bg-card p-4 text-card-foreground shadow-md/40">
 				<form onSubmit={submit}>
 					<label
 						htmlFor="serial-number"

@@ -74,10 +74,10 @@ export const ScanToFindPage = ({ role }: { role: PpicRole }) => {
 	};
 
 	return (
-		<main className="mx-auto min-h-dvh max-w-lg p-4 pb-28">
-			<header className="mb-7 pt-3">
-				<div className="mt-4 flex items-center gap-4">
-					<div className="size-10 shrink-0 overflow-hidden">
+		<main className="mx-auto min-h-dvh max-w-lg  p-4 pb-28">
+			<header className="mb-7">
+				<div className="flex items-center gap-4">
+					<div className="size-19 shrink-0 overflow-hidden">
 						<img src="/icon.svg" alt="" className="size-full" />
 					</div>
 					<div>
@@ -95,7 +95,7 @@ export const ScanToFindPage = ({ role }: { role: PpicRole }) => {
 			</header>
 
 			<Scanner onDetected={findTask} disabled={isFinding} />
-			<div className="mt-4 rounded-3xl border border-border bg-card p-4 text-card-foreground shadow-2xl">
+			<div className="mt-4 rounded-2xl border border-border/30 bg-card p-4 text-card-foreground shadow-sm/20">
 				<form onSubmit={submit}>
 					<label
 						htmlFor="serial-number"

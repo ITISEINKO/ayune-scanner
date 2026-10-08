@@ -70,16 +70,16 @@ export const PackingPage = () => {
 
 	return (
 		<main className="mx-auto min-h-dvh max-w-lg p-4 pb-28">
-			<header className="mb-7 pt-3">
-				<div className="mt-4 flex items-center gap-4">
-					<div className="size-10 shrink-0 overflow-hidden">
+			<header className="mb-7">
+				<div className="flex items-center gap-4">
+					<div className="size-19 shrink-0 overflow-hidden">
 						<img src="/icon.svg" alt="" className="size-full" />
 					</div>
 					<div>
 						<p className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
 							Packing barang
 						</p>
-						<h1 className="text-2xl capitalize font-black tracking-tight">
+						<h1 className="text-2xl font-black capitalize tracking-tight">
 							Scan barang dipacking
 						</h1>
 					</div>
@@ -91,7 +91,7 @@ export const PackingPage = () => {
 			</header>
 
 			<Scanner onDetected={pack} autoStart disabled={scanning} />
-			<div className="mt-4 rounded-3xl border border-border bg-card p-4 text-card-foreground shadow-2xl">
+			<div className="mt-4 rounded-3xl border border-border/30 shadow-[0_8px_24px_-14px_rgb(31_26_20/0.24)] bg-card p-4 text-card-foreground">
 				<form onSubmit={submit}>
 					<label
 						htmlFor="serial-number"

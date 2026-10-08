@@ -77,20 +77,26 @@ export const SettingPage = () => {
 		);
 	if (loading || !members)
 		return (
-			<main className="mx-auto min-h-dvh max-w-lg p-4 pb-28" aria-busy="true">
-				<header className="mb-7 pt-3">
-					<div className="mt-4 flex items-center gap-4">
-						<div className="size-10 shrink-0 overflow-hidden">
+			<main className="mx-auto min-h-dvh max-w-lg pb-28" aria-busy="true">
+				<header className="mb-7 rounded-b-4xl bg-muted px-6 py-8">
+					<div className="flex items-center gap-4">
+						<div className="size-19 shrink-0 overflow-hidden">
 							<img src="/icon.svg" alt="" className="size-full" />
 						</div>
-						<div className="flex-1 space-y-2">
-							<Skeleton className="h-3 w-32 rounded-md" />
-							<Skeleton className="h-8 w-56 rounded-md" />
+						<div>
+							<p className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
+								Pengaturan akses
+							</p>
+							<h1 className="text-2xl font-black capitalize tracking-tight">
+								Akses halaman PPIC
+							</h1>
 						</div>
 					</div>
-					<Skeleton className="mt-2 h-4 w-72 max-w-full rounded-md" />
+					<p className="mt-2 text-sm text-muted-foreground">
+						Tentukan halaman yang boleh diakses oleh setiap pengguna.
+					</p>
 				</header>
-				<div role="status" aria-label="Loading channel members">
+				<div className="mx-auto p-4" role="status" aria-label="Loading channel members">
 					<Table>
 						<TableHeader>
 							<TableRow>
@@ -129,17 +135,17 @@ export const SettingPage = () => {
 		);
 
 	return (
-		<main className="mx-auto min-h-dvh max-w-lg p-4 pb-28">
-			<header className="mb-7 pt-3">
-				<div className="mt-4 flex items-center gap-4">
-					<div className="size-10 shrink-0 overflow-hidden">
+		<main className="mx-auto min-h-dvh max-w-lg  pb-28">
+			<header className="mb-7 rounded-b-4xl px-6 py-8 bg-muted">
+				<div className="flex items-center gap-4">
+					<div className="size-19 shrink-0 overflow-hidden">
 						<img src="/icon.svg" alt="" className="size-full" />
 					</div>
 					<div>
 						<p className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
 							Pengaturan akses
 						</p>
-						<h1 className="text-2xl font-black tracking-tight">
+						<h1 className="text-2xl font-black capitalize tracking-tight">
 							Akses halaman PPIC
 						</h1>
 					</div>
@@ -148,119 +154,121 @@ export const SettingPage = () => {
 					Tentukan halaman yang boleh diakses oleh setiap pengguna.
 				</p>
 			</header>
-			{saveError && (
-				<p className="mt-2 text-sm text-destructive" role="alert">
-					Could not save access. Try again.
-				</p>
-			)}
-			<Table>
-				<TableHeader>
-					<TableRow>
-						<TableHead>Edit</TableHead>
-						<TableHead>Name</TableHead>
-						<TableHead>Status</TableHead>
-					</TableRow>
-				</TableHeader>
-				<TableBody>
-					{members.map((member) => {
-						const status =
-							statusOptions.find(
-								(option) => option.status === permissions[member.id],
-							) ?? statusOptions[2];
-						return (
-							<TableRow key={member.id}>
-								<TableCell>
-									<DropdownMenu>
-										<DropdownMenuTrigger
-											render={
-												<Button
-													variant="ghost"
-													size="icon-sm"
-													aria-label={`Set role for ${member.name}`}
-													disabled={savingMemberId === member.id}
-												/>
-											}
-										>
-											<Settings2 />
-										</DropdownMenuTrigger>
-										<DropdownMenuContent>
-											{PPIC_ROLES.map((role) => (
-												<DropdownMenuItem
-													key={role}
-													onClick={() => {
-														setSaveError(false);
-														void updateRole(member.id, role)
-															.then(() =>
-																toast.success("Role berhasil diperbarui."),
-															)
-															.catch(() => {
-																setSaveError(true);
-																toast.error("Gagal memperbarui role.");
-															});
-													}}
-												>
-													{role === "SUPER_ADMIN" ? "Admin" : "Member"}
-												</DropdownMenuItem>
-											))}
-										</DropdownMenuContent>
-									</DropdownMenu>
-								</TableCell>
-								<TableCell>
-									<div>{member.name}</div>
-									<div className="mt-1 text-xs text-muted-foreground">
-										{roles[member.id] === "SUPER_ADMIN" ? "Admin" : "Member"}
-									</div>
-								</TableCell>
-								<TableCell>
-									<DropdownMenu>
-										<DropdownMenuTrigger
-											render={
-												<Button
-													variant="ghost"
-													className="h-auto p-0 hover:bg-transparent"
-													aria-label={`Set status for ${member.name}`}
-													disabled={
-														savingMemberId === member.id ||
-														roles[member.id] === "SUPER_ADMIN"
-													}
-												/>
-											}
-										>
-											<Badge variant={status.variant}>
-												<status.icon />
-												{status.label}
-											</Badge>
-										</DropdownMenuTrigger>
-										<DropdownMenuContent align="end" className="w-56">
-											{statusOptions.map((option) => (
-												<DropdownMenuItem
-													key={option.value}
-													onClick={() => {
-														setSaveError(false);
-														void updatePermission(member.id, option.status)
-															.then(() =>
-																toast.success("Status berhasil diperbarui."),
-															)
-															.catch(() => {
-																setSaveError(true);
-																toast.error("Gagal memperbarui status.");
-															});
-													}}
-												>
-													<Badge variant={option.variant}>
-														<option.icon />
-														{option.label}
-													</Badge>
-												</DropdownMenuItem>
-											))}
-										</DropdownMenuContent>
-									</DropdownMenu>
-								</TableCell>
-							</TableRow>
-						);
-					})}
-				</TableBody>
-			</Table>
+			<div className="mx-auto p-4">
+				{saveError && (
+					<p className="mt-2 text-sm text-destructive" role="alert">
+						Could not save access. Try again.
+					</p>
+				)}
+				<Table>
+					<TableHeader>
+						<TableRow>
+							<TableHead>Edit</TableHead>
+							<TableHead>Name</TableHead>
+							<TableHead>Status</TableHead>
+						</TableRow>
+					</TableHeader>
+					<TableBody>
+						{members.map((member) => {
+							const status =
+								statusOptions.find(
+									(option) => option.status === permissions[member.id],
+								) ?? statusOptions[2];
+							return (
+								<TableRow key={member.id}>
+									<TableCell>
+										<DropdownMenu>
+											<DropdownMenuTrigger
+												render={
+													<Button
+														variant="ghost"
+														size="icon-sm"
+														aria-label={`Set role for ${member.name}`}
+														disabled={savingMemberId === member.id}
+													/>
+												}
+											>
+												<Settings2 />
+											</DropdownMenuTrigger>
+											<DropdownMenuContent>
+												{PPIC_ROLES.map((role) => (
+													<DropdownMenuItem
+														key={role}
+														onClick={() => {
+															setSaveError(false);
+															void updateRole(member.id, role)
+																.then(() =>
+																	toast.success("Role berhasil diperbarui."),
+																)
+																.catch(() => {
+																	setSaveError(true);
+																	toast.error("Gagal memperbarui role.");
+																});
+														}}
+													>
+														{role === "SUPER_ADMIN" ? "Admin" : "Member"}
+													</DropdownMenuItem>
+												))}
+											</DropdownMenuContent>
+										</DropdownMenu>
+									</TableCell>
+									<TableCell>
+										<div>{member.name}</div>
+										<div className="mt-1 text-xs text-muted-foreground">
+											{roles[member.id] === "SUPER_ADMIN" ? "Admin" : "Member"}
+										</div>
+									</TableCell>
+									<TableCell>
+										<DropdownMenu>
+											<DropdownMenuTrigger
+												render={
+													<Button
+														variant="ghost"
+														className="h-auto p-0 hover:bg-transparent"
+														aria-label={`Set status for ${member.name}`}
+														disabled={
+															savingMemberId === member.id ||
+															roles[member.id] === "SUPER_ADMIN"
+														}
+													/>
+												}
+											>
+												<Badge variant={status.variant}>
+													<status.icon />
+													{status.label}
+												</Badge>
+											</DropdownMenuTrigger>
+											<DropdownMenuContent align="end" className="w-56">
+												{statusOptions.map((option) => (
+													<DropdownMenuItem
+														key={option.value}
+														onClick={() => {
+															setSaveError(false);
+															void updatePermission(member.id, option.status)
+																.then(() =>
+																	toast.success("Status berhasil diperbarui."),
+																)
+																.catch(() => {
+																	setSaveError(true);
+																	toast.error("Gagal memperbarui status.");
+																});
+														}}
+													>
+														<Badge variant={option.variant}>
+															<option.icon />
+															{option.label}
+														</Badge>
+													</DropdownMenuItem>
+												))}
+											</DropdownMenuContent>
+										</DropdownMenu>
+									</TableCell>
+								</TableRow>
+							);
+						})}
+					</TableBody>
+				</Table>
+			</div>
 		</main>
 	);
 };
