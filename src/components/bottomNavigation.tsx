@@ -62,11 +62,11 @@ export function BottomNavigation({
 	return (
 		<nav
 			aria-label="Main navigation"
-			className="fixed inset-x-0 bottom-0 z-50 mx-auto flex max-w-lg items-center rounded-t-2xl border border-border/70 bg-primary px-3 py-2 shadow-lg"
+			className="fixed inset-x-0 bottom-0 z-50 mx-auto flex max-w-lg items-center rounded-t-2xl border border-border/70 bg-primary px-3 py-3 shadow-lg"
 		>
 			{navigationItems.map(({ href, label, icon: Icon }, index) => {
 				const active = pathname === href;
-				const className = `flex min-w-0 flex-1 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+				const className = `flex min-w-0 flex-1 items-center justify-center gap-2 rounded-md px-3 py-2.5 text-md font-medium transition-colors ${
 					active ? "bg-accent text-white" : "text-white/80 hover:text-white"
 				}`;
 				const content = (
