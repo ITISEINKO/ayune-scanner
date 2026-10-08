@@ -34,14 +34,14 @@ export function Scanner({
 	}, [autoStart, disabled, start, stop]);
 
 	return (
-		<section className="rounded-3xl border border-border bg-card p-4 text-card-foreground shadow-2xl">
+		<section className="rounded-2xl border border-border/30 bg-card p-4 text-card-foreground shadow-[0_8px_24px_-14px_rgb(31_26_20/0.24)]">
 			<div className="mb-3 flex items-center justify-between">
 				<div>
 					<p className="mb-1.75 mt-0 text-[10px] font-extrabold tracking-[1.1px] text-muted-foreground">
 						<span className="mr-1 inline-block size-1.75 rounded-full bg-emerald-400 align-[1px]" />{" "}
 						SIAP MEMINDAI
 					</p>
-					<h2 className="text-xl font-bold">Scan barcode barang</h2>
+					<h2 className="text-xl font-bold">Scan Barcode Barang</h2>
 				</div>
 				<ScanBarcode
 					className="size-7 text-muted-foreground"
@@ -49,15 +49,21 @@ export function Scanner({
 				/>
 			</div>
 			<div
-				className="relative min-h-64 cursor-pointer overflow-hidden rounded-2xl bg-muted"
+				className="relative w-full aspect-[1.9] cursor-pointer overflow-hidden rounded-2xl bg-muted"
 				onPointerDown={() => {
 					if (!disabled) void (isScanning ? refocus() : start());
 				}}
 			>
-				<div id="barcode-reader" className="min-h-64" />
+				<div id="barcode-reader" className="size-full [&_video]:size-full [&_video]:object-cover" />
+				<div className="pointer-events-none absolute inset-0 text-[#76695c]">
+					<span className="absolute top-7 left-15 size-5 rounded-tl-md border-t-2 border-l-2 border-[#76695c]" />
+					<span className="absolute top-7 right-15 size-5 rounded-tr-md border-t-2 border-r-2 border-[#76695c]" />
+					<span className="absolute bottom-7 left-15 size-5 rounded-bl-md border-b-2 border-l-2 border-[#76695c]" />
+					<span className="absolute right-15 bottom-7 size-5 rounded-br-md border-r-2 border-b-2 border-[#76695c]" />
+				</div>
 				{!isScanning && (
-					<div className="absolute inset-0 grid place-items-center text-center text-muted-foreground">
-						<Camera className="mx-auto mb-2 size-10" />
+					<div className="absolute inset-0 flex flex-col items-center justify-center text-center text-sm text-[#76695c]">
+						<Camera className="mb-4 size-10" />
 						<span>Siap untuk membuka kamera</span>
 					</div>
 				)}
@@ -68,11 +74,11 @@ export function Scanner({
 					<AlertDescription>{error}</AlertDescription>
 				</Alert>
 			)}
-			<div className="mt-4 grid grid-cols-2 gap-3">
+			<div className="mt-2 grid grid-cols-[1.28fr_1fr] gap-2.5">
 				<Button
 					onClick={() => void start()}
 					disabled={disabled || isScanning}
-					className="text-base"
+					className="h-11 min-h-0 text-sm"
 				>
 					<Camera className="mr-2 inline size-5" />
 					{isScanning ? "Kamera aktif" : "Buka scanner"}
@@ -82,6 +88,7 @@ export function Scanner({
 					onClick={() => void toggleTorch()}
 					disabled={!isScanning}
 					aria-label="Toggle flashlight"
+					className="h-11 min-h-0"
 				>
 					{torchOn ? (
 						<FlashlightOff className="mx-auto size-5" />
