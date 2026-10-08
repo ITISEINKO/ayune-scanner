@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import {
+	BadgeCheck,
 	CircleOff,
 	Package,
 	PackageCheck,
@@ -69,6 +70,13 @@ export const SettingPage = () => {
 			label: "Sedang Dipacking",
 			icon: Package,
 			variant: "blue",
+		},
+		{
+			value: PPIC_STATUSES[2],
+			status: PPIC_STATUSES[2],
+			label: "Terpasang / Digunakan",
+			icon: BadgeCheck,
+			variant: "green",
 		},
 		{
 			value: "INACTIVE",
@@ -208,7 +216,7 @@ export const SettingPage = () => {
 							const status =
 								statusOptions.find(
 									(option) => option.status === permissions[member.id],
-								) ?? statusOptions[2];
+								) ?? statusOptions[3];
 							return (
 								<TableRow key={member.id}>
 									<TableCell>

@@ -8,6 +8,8 @@ export const ppicStatusPath = (status: unknown) =>
 		? "/barang-diterima"
 		: status === "SEDANG_DIPACKING"
 			? "/sedang-dipacking"
+			: status === "TERPASANG_DIGUNAKAN"
+				? "/terpasang-digunakan"
 			: "/scan-to-find";
 
 export const CF_PANEL = {

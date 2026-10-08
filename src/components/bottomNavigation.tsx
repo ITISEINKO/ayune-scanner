@@ -2,6 +2,7 @@
 
 import {
 	Cog,
+	BadgeCheck,
 	LogOut,
 	PackageCheck,
 	PackageOpen,
@@ -26,10 +27,16 @@ const memberItems = (allowedStatus: PpicStatus | null) => [
 					href:
 						allowedStatus === "BARANG_DITERIMA"
 							? "/barang-diterima"
-							: "/sedang-dipacking",
+							: allowedStatus === "SEDANG_DIPACKING"
+								? "/sedang-dipacking"
+								: "/terpasang-digunakan",
 					label: "Scan",
 					icon:
-						allowedStatus === "BARANG_DITERIMA" ? PackageCheck : PackageOpen,
+						allowedStatus === "BARANG_DITERIMA"
+							? PackageCheck
+							: allowedStatus === "SEDANG_DIPACKING"
+								? PackageOpen
+								: BadgeCheck,
 				},
 			]
 		: []),
