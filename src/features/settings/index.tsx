@@ -1,7 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { CircleOff, Package, PackageCheck, Settings2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import {
+	CircleOff,
+	Package,
+	PackageCheck,
+	Search,
+	Settings2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,6 +26,7 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
 import { usePanelMembers } from "@/hooks/use-panel-members";
 import { PPIC_ROLES, PPIC_STATUSES } from "@/types/ppic";
 
@@ -35,6 +42,19 @@ export const SettingPage = () => {
 		savingMemberId,
 	} = usePanelMembers();
 	const [saveError, setSaveError] = useState(false);
+	const [search, setSearch] = useState("");
+	const [debouncedSearch, setDebouncedSearch] = useState("");
+	useEffect(() => {
+		const timeout = window.setTimeout(
+			() => setDebouncedSearch(search.trim().toLowerCase()),
+			250,
+		);
+		return () => window.clearTimeout(timeout);
+	}, [search]);
+	const filteredMembers =
+		members?.filter((member) =>
+			member.name.toLowerCase().includes(debouncedSearch),
+		) ?? [];
 	const statusOptions = [
 		{
 			value: PPIC_STATUSES[0],
@@ -154,6 +174,21 @@ export const SettingPage = () => {
 					Tentukan halaman yang boleh diakses oleh setiap pengguna.
 				</p>
 			</header>
+			<div className="mx-auto px-4 pb-4">
+				<div className="relative">
+					<Search
+						aria-hidden="true"
+						className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+					/>
+					<Input
+						aria-label="Search by name"
+						value={search}
+						onChange={(event) => setSearch(event.target.value)}
+						placeholder="Search by name"
+						className="pl-10"
+					/>
+				</div>
+			</div>
 			<div className="mx-auto p-4">
 				{saveError && (
 					<p className="mt-2 text-sm text-destructive" role="alert">
@@ -169,7 +204,7 @@ export const SettingPage = () => {
 						</TableRow>
 					</TableHeader>
 					<TableBody>
-						{members.map((member) => {
+						{filteredMembers.map((member) => {
 							const status =
 								statusOptions.find(
 									(option) => option.status === permissions[member.id],
