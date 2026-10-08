@@ -156,7 +156,9 @@ export const UbahManualPage = () => {
 				>
 					<DrawerContent className="[--drawer-inset:0px]! mx-auto max-w-lg rounded-t-3xl border-t border-border bg-background shadow-2xl">
 						<div className="flex-1 overflow-y-auto p-5 pb-8">
-							<Badge className="mb-3">Serial: {item.serial_number}</Badge>
+							<Badge className="mb-3 bg-accent">
+								Serial: {item.serial_number}
+							</Badge>
 							<DrawerTitle className="text-2xl font-bold">
 								{item.nama}
 							</DrawerTitle>
@@ -175,7 +177,7 @@ export const UbahManualPage = () => {
 							{selectedStatus && (
 								<div
 									role="alert"
-									className="mt-4 rounded-2xl border border-primary/30 bg-primary/10 p-4"
+									className="mt-4 rounded-2xl border border-accent/30 bg-accent/10 p-4"
 								>
 									<p className="font-bold">Ubah status barang?</p>
 									<p className="mt-1 text-sm text-muted-foreground">
@@ -198,7 +200,7 @@ export const UbahManualPage = () => {
 										</Button>
 										<Button
 											type="button"
-											className="flex-1"
+											className="flex-1 bg-accent"
 											disabled={saving}
 											onClick={save}
 										>

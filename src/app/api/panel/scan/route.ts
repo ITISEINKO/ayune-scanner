@@ -25,6 +25,11 @@ export async function POST(request: Request) {
 						label: "SEDANG DIPACKING",
 						value: STATUS_BARANG_SCAN.SEDANG_DIPACKING,
 					}
+				: status === "TERPASANG_DIGUNAKAN"
+					? {
+							label: "TERPASANG / DIGUNAKAN",
+							value: STATUS_BARANG_SCAN.TERPASANG_DIGUNAKAN,
+						}
 				: null;
 	if (!serialNumber) return error(400, "MISSING_SERIAL_NUMBER");
 	if (!target) return error(400, "INVALID_STATUS");

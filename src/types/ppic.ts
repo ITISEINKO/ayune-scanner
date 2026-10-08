@@ -1,6 +1,7 @@
 export const PPIC_STATUSES = [
 	"BARANG_DITERIMA",
 	"SEDANG_DIPACKING",
+	"TERPASANG_DIGUNAKAN",
 ] as const;
 
 export type PpicStatus = (typeof PPIC_STATUSES)[number];

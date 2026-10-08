@@ -21,7 +21,7 @@ export default function StatusPicker({
 	);
 
 	return (
-		<div className="mb-4 rounded-radius bg-card px-4 pb-2 pt-3.5">
+		<div className="mb-4 rounded-2xl bg-card px-4 pb-2 pt-3.5">
 			<div className="mb-1.5 flex items-center justify-between gap-2 border-b border-border pb-2.5">
 				<b className="text-[13px] font-bold">Choose new status</b>
 				<span className="text-xs text-muted-foreground">Tap to select</span>
@@ -39,7 +39,10 @@ export default function StatusPicker({
 							aria-disabled={isCurrent}
 							onClick={() => !isCurrent && onStatusChange?.(option.key)}
 							onKeyDown={(event) => {
-								if ((event.key === "Enter" || event.key === " ") && !isCurrent) {
+								if (
+									(event.key === "Enter" || event.key === " ") &&
+									!isCurrent
+								) {
 									event.preventDefault();
 									onStatusChange?.(option.key);
 								}
@@ -57,18 +60,19 @@ export default function StatusPicker({
 								<span
 									className={[
 										"absolute left-2.75 -top-3.5 h-7 w-0.5",
-										isDone || isCurrent ? "bg-primary" : "bg-border",
+										isDone || isCurrent ? "bg-accent " : "bg-border",
 									].join(" ")}
 								/>
 							)}
 							<span
 								className={[
-									"relative z-10 grid h-6 w-6 shrink-0 place-items-center rounded-full border-2 bg-card text-[11px] font-bold",
-									isDone && "border-primary bg-primary text-white",
-									isCurrent && "border-primary text-accent-foreground",
+									"relative z-10 grid h-6 w-6 shrink-0 place-items-center rounded-full border-2 text-[11px] font-bold",
+									isDone && "border-accent bg-accent text-white",
+									!isDone && "bg-card",
+									isCurrent && "border-accent text-accent-foreground",
 									!isDone && !isCurrent && !isTarget && "border-border",
 									isTarget && "border-dashed border-amber-400",
-									isCurrent && "shadow-[0_0_4px_4px_var(--accent)]",
+									isCurrent && "shadow-[0_0_4px_1px_var(--accent)]",
 								]
 									.filter(Boolean)
 									.join(" ")}
@@ -77,7 +81,7 @@ export default function StatusPicker({
 							</span>
 							<span>{option.label}</span>
 							{isCurrent && (
-								<em className="ml-auto rounded-full bg-accent px-2 py-0.5 text-xs font-semibold not-italic text-accent-foreground">
+								<em className="ml-auto rounded-full bg-accent px-2 py-0.5 text-xs font-semibold not-italic text-white">
 									Current
 								</em>
 							)}

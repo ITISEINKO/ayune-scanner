@@ -1,6 +1,8 @@
 import { TerpasangDigunakanPage } from "@/features/panel/TerpasangDigunakanPage";
+import { requirePpicStatusAccess } from "@/lib/session";
 
-const TerpasangDigunakan = () => {
+const TerpasangDigunakan = async () => {
+	await requirePpicStatusAccess("TERPASANG_DIGUNAKAN");
 	return <TerpasangDigunakanPage />;
 };
 

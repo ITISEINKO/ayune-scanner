@@ -538,3 +538,33 @@ Here is the custom field for the panel https://api.clickup.com/api/v2/list/11008
 }
 ]
 }
+
+## Adding a new PPIC panel status
+
+The panel status flow uses two different identifiers:
+
+- The ClickUp dropdown option ID belongs in `STATUS_BARANG_SCAN` in `src/lib/produksiPanel.ts`.
+- The application key (for example, `TERPASANG_DIGUNAKAN`) belongs in `PPIC_STATUSES` in `src/types/ppic.ts`.
+
+For a status that gets its own scan page, update these places:
+
+1. Add the ClickUp option ID and label to `STATUS_BARANG_SCAN` and `statusBarangScanOptions`.
+2. Add the application key to `PPIC_STATUSES`; this controls database permission validation, signed sessions, and API authorization.
+3. Add the key-to-route mapping in `ppicStatusPath`.
+4. Add the route under `src/app/<status-route>/page.tsx` and call `requirePpicStatusAccess("<STATUS_KEY>")` before rendering the page.
+5. Add the scan target to `src/app/api/panel/scan/route.ts`. The target must send the ClickUp option ID as the custom-field value.
+6. Add the route and icon branch to `src/components/bottomNavigation.tsx`.
+7. Add the status option to the admin list in `src/features/settings/index.tsx` so a super admin can assign it to a member.
+8. Create the client page in `src/features/panel/` using the existing scanner flow: trim the serial number, POST to `/api/panel/scan`, show the returned item, and keep the existing error handling.
+9. Add a path/status assertion to `src/lib/produksi.test.ts`, then run `pnpm test` and `pnpm exec tsc --noEmit --pretty false`.
+
+### Runtime flow
+
+1. A super admin assigns one allowed status to a channel member in Settings.
+2. The member receives that status in the signed PPIC session and is redirected by `ppicStatusPath`.
+3. The guarded page renders the scanner only if the session status matches the route.
+4. The scanner or manual input sends a serial number and application key to `/api/panel/scan`.
+5. The API re-checks the member's current permission, finds the ClickUp task by `CF_PANEL.SERIAL_NUMBER`, and updates `CF_PANEL.STATUS_BARANG_SCAN` with the mapped ClickUp option ID.
+6. A successful response opens the confirmation dialog; failures leave the ClickUp status unchanged.
+
+For `TERPASANG / DIGUNAKAN`, the application key is `TERPASANG_DIGUNAKAN` and the ClickUp option ID is `4f941328-79fb-4594-b67e-542b87ccd502`.
