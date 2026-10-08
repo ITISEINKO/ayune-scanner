@@ -54,7 +54,10 @@ export function Scanner({
 					if (!disabled) void (isScanning ? refocus() : start());
 				}}
 			>
-				<div id="barcode-reader" className="size-full [&_video]:size-full [&_video]:object-cover" />
+				<div
+					id="barcode-reader"
+					className="size-full [&_video]:size-full [&_video]:object-cover"
+				/>
 				<div className="pointer-events-none absolute inset-0 text-[#76695c]">
 					<span className="absolute top-7 left-15 size-5 rounded-tl-md border-t-2 border-l-2 border-[#76695c]" />
 					<span className="absolute top-7 right-15 size-5 rounded-tr-md border-t-2 border-r-2 border-[#76695c]" />
@@ -78,7 +81,7 @@ export function Scanner({
 				<Button
 					onClick={() => void start()}
 					disabled={disabled || isScanning}
-					className="h-11 min-h-0 text-sm"
+					className="h-13 min-h-0 text-sm"
 				>
 					<Camera className="mr-2 inline size-5" />
 					{isScanning ? "Kamera aktif" : "Buka scanner"}
@@ -88,7 +91,7 @@ export function Scanner({
 					onClick={() => void toggleTorch()}
 					disabled={!isScanning}
 					aria-label="Toggle flashlight"
-					className="h-11 min-h-0"
+					className="h-13 min-h-0"
 				>
 					{torchOn ? (
 						<FlashlightOff className="mx-auto size-5" />
