@@ -79,7 +79,12 @@ test.describe("PPIC role/status mutations", () => {
 
 	const authenticate = async (page: Page, role: PpicRole, status: PpicStatus | null) => {
 		const payload = Buffer.from(
-			JSON.stringify({ role, allowed_status: status }),
+			JSON.stringify({
+				user_id: users.admin,
+				role,
+				allowed_status: status,
+				refreshed_at: Date.now(),
+			}),
 		).toString("base64url");
 		const signature = createHmac("sha256", env("CLICKUP_CLIENT_SECRET"))
 			.update(payload)

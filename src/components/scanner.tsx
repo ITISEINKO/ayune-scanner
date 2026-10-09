@@ -58,12 +58,7 @@ export function Scanner({
 					id="barcode-reader"
 					className="size-full [&_video]:size-full [&_video]:object-cover"
 				/>
-				<div className="pointer-events-none absolute inset-0 text-[#76695c]">
-					<span className="absolute top-7 left-15 size-5 rounded-tl-md border-t-2 border-l-2 border-[#76695c]" />
-					<span className="absolute top-7 right-15 size-5 rounded-tr-md border-t-2 border-r-2 border-[#76695c]" />
-					<span className="absolute bottom-7 left-15 size-5 rounded-bl-md border-b-2 border-l-2 border-[#76695c]" />
-					<span className="absolute right-15 bottom-7 size-5 rounded-br-md border-r-2 border-b-2 border-[#76695c]" />
-				</div>
+
 				{!isScanning && (
 					<div className="absolute inset-0 flex flex-col items-center justify-center text-center text-sm text-[#76695c]">
 						<Camera className="mb-4 size-10" />

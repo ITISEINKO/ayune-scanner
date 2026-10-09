@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { cache } from "react";
 import { clickUpHeaders } from "@/lib/clickup";
 import {
-	getPpicPermission,
+	getPpicAccess,
 	isPpicStatus,
 	isPpicSuperAdmin,
 } from "@/lib/db";
@@ -17,6 +17,7 @@ import type { PpicRole, PpicStatus } from "@/types/ppic";
 import type { PanelMember } from "@/types/clickup";
 
 export const PPIC_SESSION_COOKIE = "ppic_session";
+export const PPIC_SESSION_REFRESH_TTL_MS = 5 * 60 * 1000;
 
 type ClickUpUserResponse = {
 	user?: { id?: string | number };
@@ -58,11 +59,17 @@ const sessionSignature = (payload: string) =>
 		: null;
 
 export const encodePpicSession = (
+	userId: string,
 	role: PpicRole,
 	allowedStatus: PpicStatus | null,
 ) => {
 	const payload = Buffer.from(
-		JSON.stringify({ role, allowed_status: allowedStatus }),
+		JSON.stringify({
+			user_id: userId,
+			role,
+			allowed_status: allowedStatus,
+			refreshed_at: Date.now(),
+		}),
 	).toString("base64url");
 	const signature = sessionSignature(payload);
 	return signature ? `${payload}.${signature}` : null;
@@ -84,16 +91,35 @@ export const ppicSession = async () => {
 	try {
 		const session = JSON.parse(
 			Buffer.from(payload, "base64url").toString("utf8"),
-		) as { role?: unknown; allowed_status?: unknown };
+		) as {
+			user_id?: unknown;
+			role?: unknown;
+			allowed_status?: unknown;
+			refreshed_at?: unknown;
+		};
+		if (
+			typeof session.user_id !== "string" ||
+			!session.user_id ||
+			typeof session.refreshed_at !== "number" ||
+			!Number.isFinite(session.refreshed_at)
+		)
+			return null;
 		if (session.role === "SUPER_ADMIN")
-			return { role: "SUPER_ADMIN" as const, allowed_status: null };
+			return {
+				user_id: session.user_id,
+				role: "SUPER_ADMIN" as const,
+				allowed_status: null,
+				refreshed_at: session.refreshed_at,
+			};
 		if (
 			session.role === "MEMBER" &&
 			(session.allowed_status === null || isPpicStatus(session.allowed_status))
 		)
 			return {
+				user_id: session.user_id,
 				role: "MEMBER" as const,
 				allowed_status: session.allowed_status,
+				refreshed_at: session.refreshed_at,
 			};
 	} catch {
 		return null;
@@ -102,16 +128,22 @@ export const ppicSession = async () => {
 };
 
 export const ppicLoginState = async (userId: string) => {
-	if (await isPpicSuperAdmin(userId))
+	const access = await getPpicAccess(userId);
+	if (access?.role === "SUPER_ADMIN")
 		return {
 			role: "SUPER_ADMIN" as const,
 			allowed_status: null,
 			path: "/settings",
 		};
-	const allowedStatus = (await getPpicPermission(userId))?.allowed_status;
+	const allowedStatus =
+		access?.role === "MEMBER" &&
+		Number(access.active) === 1 &&
+		isPpicStatus(access.allowed_status)
+			? access.allowed_status
+			: null;
 	return {
 		role: "MEMBER" as const,
-		allowed_status: isPpicStatus(allowedStatus) ? allowedStatus : null,
+		allowed_status: allowedStatus,
 		path: ppicStatusPath(allowedStatus),
 	};
 };
@@ -146,10 +178,15 @@ export const requireSuperAdmin = async () => {
 
 export const requireFreshPpicStatusAccess = async (status: string) => {
 	if (!isPpicStatus(status)) redirect("/unauthorized");
-	const userId = await clickUpUserId();
+	const userId = (await ppicSession())?.user_id ?? (await clickUpUserId());
 	if (!userId) redirect("/login");
-	if (await isPpicSuperAdmin(userId)) return;
-	if ((await getPpicPermission(userId))?.allowed_status !== status)
+	const access = await getPpicAccess(userId);
+	if (access?.role === "SUPER_ADMIN") return;
+	if (
+		access?.role !== "MEMBER" ||
+		Number(access.active) !== 1 ||
+		access.allowed_status !== status
+	)
 		redirect("/unauthorized");
 };
 
