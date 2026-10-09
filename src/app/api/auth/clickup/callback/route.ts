@@ -5,6 +5,7 @@ import {
 	PPIC_SESSION_COOKIE,
 	ppicLoginState,
 } from "@/lib/session";
+import { PANEL_LIST_ID } from "@/lib/produksiPanel";
 
 const loginError = (request: NextRequest, error = "clickup") =>
 	NextResponse.redirect(new URL(`/login?error=${error}`, request.url));
@@ -30,8 +31,8 @@ export async function GET(request: NextRequest) {
 	const clientSecret = process.env.CLICKUP_CLIENT_SECRET;
 	const redirectUri = process.env.CLICKUP_REDIRECT_URI;
 	const teamId = process.env.CLICKUP_TEAM_ID;
-	const listId = process.env.CLICKUP_PRODUKSI_LIST_ID;
-	if (!clientId || !clientSecret || !redirectUri || !teamId || !listId)
+	const listId = process.env.CLICKUP_PPIC_PANEL_LIST_ID || PANEL_LIST_ID;
+	if (!clientId || !clientSecret || !redirectUri || !teamId)
 		return new NextResponse("ClickUp OAuth is not configured.", { status: 500 });
 
 	let tokenResponse: Response;
