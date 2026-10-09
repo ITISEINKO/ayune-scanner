@@ -17,7 +17,7 @@ import type { PpicRole, PpicStatus } from "@/types/ppic";
 import type { PanelMember } from "@/types/clickup";
 
 export const PPIC_SESSION_COOKIE = "ppic_session";
-export const PPIC_SESSION_REFRESH_TTL_MS = 5 * 60 * 1000;
+export const PPIC_SESSION_REFRESH_TTL_MS = 30 * 1000;
 
 type ClickUpUserResponse = {
 	user?: { id?: string | number };
@@ -49,6 +49,26 @@ const clickUpUserIdForToken = cache(async (token: string) => {
 export const clickUpUserId = async () => {
 	const token = await clickUpToken();
 	return token ? clickUpUserIdForToken(token) : null;
+};
+
+export const clickUpEmail = async () => {
+	const token = await clickUpToken();
+	if (!token) return null;
+	try {
+		const response = await fetch("https://api.clickup.com/api/v2/user", {
+			headers: clickUpHeaders(token),
+			cache: "no-store",
+		});
+		if (!response.ok) return null;
+		const body = (await response.json()) as {
+			user?: { email?: unknown };
+			email?: unknown;
+		};
+		const email = body.user?.email ?? body.email;
+		return typeof email === "string" ? email : null;
+	} catch {
+		return null;
+	}
 };
 
 const sessionSignature = (payload: string) =>

@@ -1,45 +1,38 @@
 "use client";
 
 import {
-	Cog,
-	BadgeCheck,
+	FolderKanban,
+	History,
 	LogOut,
-	PackageCheck,
-	PackageOpen,
 	Search,
-	Settings2,
+	ScanLine,
+	User,
+	Users,
 } from "lucide-react";
 import { Fragment } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { ppicStatusPath } from "@/lib/produksiPanel";
 import type { PpicRole, PpicStatus } from "@/types/ppic";
 
 const superAdminItems = [
-	{ href: "/scan-to-find", label: "Find", icon: Search },
-	{ href: "/ubah-manual", label: "Manual", icon: Settings2 },
-	{ href: "/settings", label: "Settings", icon: Cog },
+	{ href: "/projects", label: "Project", icon: FolderKanban },
+	{ href: "/ubah-manual", label: "Scan", icon: ScanLine },
+	{ href: "/settings", label: "Member", icon: Users },
+	{ href: "/profile", label: "Profile", icon: User },
 ];
 const memberItems = (allowedStatus: PpicStatus | null) => [
-	{ href: "/scan-to-find", label: "Find", icon: Search },
 	...(allowedStatus
 		? [
 				{
-					href:
-						allowedStatus === "BARANG_DITERIMA"
-							? "/barang-diterima"
-							: allowedStatus === "SEDANG_DIPACKING"
-								? "/sedang-dipacking"
-								: "/terpasang-digunakan",
+					href: ppicStatusPath(allowedStatus),
 					label: "Scan",
-					icon:
-						allowedStatus === "BARANG_DITERIMA"
-							? PackageCheck
-							: allowedStatus === "SEDANG_DIPACKING"
-								? PackageOpen
-								: BadgeCheck,
+					icon: Search,
 				},
 			]
 		: []),
+	{ href: "/history", label: "History", icon: History },
+	{ href: "/profile", label: "Profile", icon: User },
 ];
 
 const getNavigationItemsByRole = (
@@ -69,7 +62,7 @@ export function BottomNavigation({
 		>
 			{navigationItems.map(({ href, label, icon: Icon }, index) => {
 				const active = pathname === href;
-				const className = `flex min-w-0 flex-1 items-center justify-center gap-2 rounded-md px-3 py-2.5 text-md font-medium transition-colors ${
+				const className = `flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-md px-3 py-2 text-xs font-medium transition-colors ${
 					active ? "bg-accent text-white" : "text-white/80 hover:text-white"
 				}`;
 				const content = (

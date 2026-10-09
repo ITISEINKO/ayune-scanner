@@ -12,10 +12,14 @@ export default async function AdminLayout({
 	return (
 		<>
 			{children}
-			{(!session ||
-				Date.now() - session.refreshed_at >= PPIC_SESSION_REFRESH_TTL_MS) && (
-				<SessionRefresh />
-			)}
+			<SessionRefresh
+				refreshAfter={Math.max(
+					0,
+					PPIC_SESSION_REFRESH_TTL_MS -
+						(Date.now() - (session?.refreshed_at ?? 0)),
+				)}
+				refreshedAt={session?.refreshed_at ?? 0}
+			/>
 			<BottomNavigation role="SUPER_ADMIN" allowedStatus={null} />
 		</>
 	);

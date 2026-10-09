@@ -1,20 +1,29 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
-export function SessionRefresh() {
+export function SessionRefresh({
+	refreshAfter,
+	refreshedAt,
+}: {
+	refreshAfter: number;
+	refreshedAt: number;
+}) {
 	const pathname = usePathname();
 	const router = useRouter();
-	const refreshed = useRef(false);
 
 	useEffect(() => {
-		if (refreshed.current || pathname === "/login") return;
-		refreshed.current = true;
-		void fetch("/api/auth/refresh", { cache: "no-store" }).then((response) => {
-			if (response.ok) router.refresh();
-		});
-	}, [pathname, router]);
+		if (pathname === "/login") return;
+		const timeout = window.setTimeout(() => {
+			void fetch("/api/auth/refresh", { cache: "no-store" }).then(
+				(response) => {
+					if (response.ok) router.refresh();
+				},
+			);
+		}, refreshAfter);
+		return () => window.clearTimeout(timeout);
+	}, [pathname, refreshAfter, refreshedAt, router]);
 
 	return null;
 }

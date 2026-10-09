@@ -30,8 +30,7 @@ export async function GET(request: NextRequest) {
 	const clientSecret = process.env.CLICKUP_CLIENT_SECRET;
 	const redirectUri = process.env.CLICKUP_REDIRECT_URI;
 	const teamId = process.env.CLICKUP_TEAM_ID;
-	const listId = process.env.CLICKUP_PRODUKSI_LIST_ID;
-	if (!clientId || !clientSecret || !redirectUri || !teamId || !listId)
+	if (!clientId || !clientSecret || !redirectUri || !teamId)
 		return new NextResponse("ClickUp OAuth is not configured.", { status: 500 });
 
 	let tokenResponse: Response;
@@ -58,15 +57,18 @@ export async function GET(request: NextRequest) {
 	};
 	if (typeof token !== "string" || !token) return loginError(request);
 
-	let userResponse: Response;
-	try {
-		userResponse = await fetch("https://api.clickup.com/api/v2/user", {
+	const [userResult, teamsResult] = await Promise.allSettled([
+		fetch("https://api.clickup.com/api/v2/user", {
 			headers: clickUpHeaders(token),
 			cache: "no-store",
-		});
-	} catch {
-		return loginError(request);
-	}
+		}),
+		fetch("https://api.clickup.com/api/v2/team", {
+			headers: clickUpHeaders(token),
+			cache: "no-store",
+		}),
+	]);
+	if (userResult.status === "rejected") return loginError(request);
+	const userResponse = userResult.value;
 	if (!userResponse.ok) return loginError(request);
 
 	let userId: string | null = null;
@@ -82,15 +84,8 @@ export async function GET(request: NextRequest) {
 	}
 	if (!userId) return unauthorized(request);
 
-	let teamsResponse: Response;
-	try {
-		teamsResponse = await fetch("https://api.clickup.com/api/v2/team", {
-			headers: clickUpHeaders(token),
-			cache: "no-store",
-		});
-	} catch {
-		return unauthorized(request);
-	}
+	if (teamsResult.status === "rejected") return unauthorized(request);
+	const teamsResponse = teamsResult.value;
 	if (!teamsResponse.ok) return unauthorized(request);
 	let teams: unknown;
 	try {
@@ -108,17 +103,6 @@ export async function GET(request: NextRequest) {
 				String(team.id) === teamId,
 		);
 	if (!hasIseinko) return unauthorized(request);
-
-	let listResponse: Response;
-	try {
-		listResponse = await fetch(
-			`https://api.clickup.com/api/v2/list/${encodeURIComponent(listId)}`,
-			{ headers: clickUpHeaders(token), cache: "no-store" },
-		);
-	} catch {
-		return unauthorized(request);
-	}
-	if (!listResponse.ok) return unauthorized(request);
 
 	let loginState: Awaited<ReturnType<typeof ppicLoginState>>;
 	try {
