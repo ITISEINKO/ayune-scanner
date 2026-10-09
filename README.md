@@ -1,10 +1,3 @@
-# Production Scanner
+# PPIC Panel Scanner
 
-`/scan` opens the matching Produksi task in ClickUp after a barcode scan.
-
-Required environment variables:
-
-```env
-CLICKUP_TOKEN=
-CLICKUP_PRODUKSI_LIST_ID=1100830000000321
-```
+Scans PPIC Panel List items and updates an authorized panel status in ClickUp.

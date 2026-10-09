@@ -35,8 +35,6 @@ To-do list
   - Assign exactly one status option per user.
   - Allow only users with role SUPER_ADMIN in ppic_permissions.
 - [ ] Enforce permissions on the server first.
-  - Protect /api/produksi/scan.
-  - Protect /api/produksi/advance.
   - Protect /api/find-task.
   - Validate that the requested status is allowed for the authenticated user.
   - Example:
