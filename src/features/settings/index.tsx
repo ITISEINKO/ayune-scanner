@@ -177,7 +177,7 @@ export const SettingPage = () => {
 						<p className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
 							Pengaturan akses
 						</p>
-						<h1 className="text-2xl font-black capitalize tracking-tight">
+						<h1 className="text-xl font-black capitalize tracking-tight">
 							Akses halaman PPIC
 						</h1>
 					</div>

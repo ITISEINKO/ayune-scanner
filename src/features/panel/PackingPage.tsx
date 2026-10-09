@@ -79,7 +79,7 @@ export const PackingPage = () => {
 						<p className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
 							Packing barang
 						</p>
-						<h1 className="text-2xl font-black capitalize tracking-tight">
+						<h1 className="text-xl font-black capitalize tracking-tight">
 							Scan barang dipacking
 						</h1>
 					</div>

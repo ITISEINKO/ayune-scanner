@@ -16,10 +16,10 @@ import { ppicStatusPath } from "@/lib/produksiPanel";
 import type { PpicRole, PpicStatus } from "@/types/ppic";
 
 const superAdminItems = [
-	{ href: "/projects", label: "Project", icon: FolderKanban },
-	{ href: "/ubah-manual", label: "Scan", icon: ScanLine },
-	{ href: "/settings", label: "Member", icon: Users },
-	{ href: "/profile", label: "Profile", icon: User },
+	{ href: "/admin", label: "Projects", icon: FolderKanban },
+	{ href: "/admin/ubah-manual", label: "Scan", icon: ScanLine },
+	{ href: "/admin/settings", label: "Member", icon: Users },
+	{ href: "/admin/profile", label: "Profile", icon: User },
 ];
 const memberItems = (allowedStatus: PpicStatus | null) => [
 	...(allowedStatus

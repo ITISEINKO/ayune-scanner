@@ -85,7 +85,7 @@ export const ScanToFindPage = ({ role }: { role: PpicRole }) => {
 						<p className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
 							{role === "SUPER_ADMIN" ? "PPIC admin" : "PPIC member"}
 						</p>
-						<h1 className="text-2xl font-black tracking-tight">
+						<h1 className="text-xl font-black tracking-tight">
 							Buka Task PPIC
 						</h1>
 					</div>

@@ -81,7 +81,7 @@ export const ProjectDetailPage = () => {
 		<main className="mx-auto min-h-dvh max-w-lg bg-muted/30 pb-28">
 			<header className="sticky top-0 z-20 flex items-center gap-3 border-b bg-card px-4 py-3">
 				<Link
-					href="/projects"
+					href="/admin"
 					aria-label="Kembali ke project"
 					className="-ml-2 inline-flex size-10 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
 				>

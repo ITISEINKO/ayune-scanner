@@ -180,7 +180,7 @@ test.describe("PPIC role/status mutations", () => {
 			expect(state).toMatchObject({ role: "SUPER_ADMIN", active: 1 });
 			expect((await panelState(page)).permissions[users.barangMember]).toBeNull();
 
-		for (const path of ["/settings", "/barang-diterima", "/sedang-dipacking"]) {
+		for (const path of ["/admin/settings", "/barang-diterima", "/sedang-dipacking"]) {
 			const response = await page.goto(path);
 			expect(response?.status()).toBe(200);
 		}

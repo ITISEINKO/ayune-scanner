@@ -79,7 +79,7 @@ export const TerpasangDigunakanPage = () => {
 						<p className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
 							Pemasangan barang
 						</p>
-						<h1 className="text-2xl font-black capitalize tracking-tight">
+						<h1 className="text-xl font-black capitalize tracking-tight">
 							terpasang / digunakan
 						</h1>
 					</div>

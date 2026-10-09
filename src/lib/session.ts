@@ -3,11 +3,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import { clickUpHeaders } from "@/lib/clickup";
-import {
-	getPpicAccess,
-	isPpicStatus,
-	isPpicSuperAdmin,
-} from "@/lib/db";
+import { getPpicAccess, isPpicStatus, isPpicSuperAdmin } from "@/lib/db";
 import {
 	CLICKUP_TEAM_ID,
 	CLICKUP_PPIC_CHANNEL_ID,
@@ -17,7 +13,7 @@ import type { PpicRole, PpicStatus } from "@/types/ppic";
 import type { PanelMember } from "@/types/clickup";
 
 export const PPIC_SESSION_COOKIE = "ppic_session";
-export const PPIC_SESSION_REFRESH_TTL_MS = 30 * 1000;
+export const PPIC_SESSION_REFRESH_TTL_MS = 15 * 60 * 1000;
 
 type ClickUpUserResponse = {
 	user?: { id?: string | number };
@@ -153,7 +149,7 @@ export const ppicLoginState = async (userId: string) => {
 		return {
 			role: "SUPER_ADMIN" as const,
 			allowed_status: null,
-			path: "/settings",
+			path: "/admin",
 		};
 	const allowedStatus =
 		access?.role === "MEMBER" &&
@@ -174,9 +170,7 @@ export const postLoginPathForUser = async (userId: string) =>
 export const postLoginPath = async () => {
 	const session = await ppicSession();
 	if (session)
-		return session.role === "SUPER_ADMIN"
-			? "/settings"
-			: "/projects";
+		return session.role === "SUPER_ADMIN" ? "/admin/projects" : "/projects";
 	const userId = await clickUpUserId();
 	return userId ? postLoginPathForUser(userId) : "/login";
 };
@@ -214,10 +208,7 @@ export const requirePpicStatusAccess = async (status: string) => {
 	if (!isPpicStatus(status)) redirect("/unauthorized");
 	const session = await ppicSession();
 	if (session) {
-		if (
-			session.role === "SUPER_ADMIN" ||
-			session.allowed_status === status
-		)
+		if (session.role === "SUPER_ADMIN" || session.allowed_status === status)
 			return;
 		redirect("/unauthorized");
 	}
