@@ -164,7 +164,7 @@ export const ppicLoginState = async (userId: string) => {
 	return {
 		role: "MEMBER" as const,
 		allowed_status: allowedStatus,
-		path: ppicStatusPath(allowedStatus),
+		path: "/projects",
 	};
 };
 
@@ -176,7 +176,7 @@ export const postLoginPath = async () => {
 	if (session)
 		return session.role === "SUPER_ADMIN"
 			? "/settings"
-			: ppicStatusPath(session.allowed_status);
+			: "/projects";
 	const userId = await clickUpUserId();
 	return userId ? postLoginPathForUser(userId) : "/login";
 };
