@@ -62,12 +62,16 @@ export function BottomNavigation({
 		>
 			{navigationItems.map(({ href, label, icon: Icon }, index) => {
 				const active = pathname === href;
-				const className = `flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-md px-3 py-2 text-xs font-medium transition-colors ${
-					active ? "bg-accent text-white" : "text-white/80 hover:text-white"
+				const className = `flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-md px-3 py-2 text-xs text-white ${
+					active ? "font-bold" : "font-medium"
 				}`;
 				const content = (
 					<>
-						<Icon aria-hidden="true" className="size-4 shrink-0" />
+						<Icon
+							aria-hidden="true"
+							className="size-4 shrink-0"
+							strokeWidth={active ? 3 : 2}
+						/>
 						<span>{label}</span>
 					</>
 				);

@@ -66,7 +66,7 @@ export const ChooseProjectPage = () => {
 				<section aria-labelledby="ongoing-projects">
 					<h2
 						id="ongoing-projects"
-						className="mb-3 font-mono text-sm font-medium tracking-[0.18em] text-muted-foreground uppercase"
+						className="mb-3  text-sm font-medium tracking-[0.18em] text-muted-foreground uppercase"
 					>
 						Ongoing · {projects.length} project
 					</h2>
@@ -76,7 +76,7 @@ export const ChooseProjectPage = () => {
 								key={project.code}
 								className="rounded-2xl border bg-card p-4 text-card-foreground shadow-sm"
 							>
-								<div className="flex items-baseline justify-between gap-4 font-mono text-sm font-semibold">
+								<div className="flex items-baseline justify-between gap-4  text-sm font-semibold">
 									<span>{project.code}</span>
 									<span className="font-medium text-muted-foreground">
 										{project.progress}%

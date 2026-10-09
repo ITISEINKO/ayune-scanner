@@ -22,6 +22,17 @@ const waitingStages = [
 	{ name: "Finishing", total: 2 },
 ];
 
+const activityLog = [
+	["00:51", "Gilang", "Countertop Panel", "Packing"],
+	["00:11", "Fajar", "Front Edge Panel", "QC Final"],
+	["23:08", "Fajar", "Countertop Panel", "QC Final"],
+	["22:25", "Eka", "Front Edge Panel", "Assembly"],
+	["22:22", "Eka", "Back Panel", "Assembly"],
+	["22:16", "Eka", "Countertop Panel", "Assembly"],
+	["22:14", "Gilang", "Right Side Panel", "Packing"],
+	["20:55", "Dedi", "Front Edge Panel", "QC 1"],
+];
+
 const components = [
 	{
 		name: "Left Side Panel",
@@ -203,9 +214,6 @@ export const ProjectDetailPage = () => {
 						<h2 className="text-xs tracking-[0.2em] text-muted-foreground uppercase">
 							Level 3 · Komponen
 						</h2>
-						<span className="flex size-7 items-center justify-center rounded-full border border-destructive text-xs font-bold text-destructive">
-							{components.length}
-						</span>
 					</div>
 					<Tabs
 						defaultValue="all"
@@ -300,6 +308,30 @@ export const ProjectDetailPage = () => {
 						<Clock3 aria-hidden="true" className="size-4" />
 						Menunggu update tahap berikutnya
 					</p>
+				</section>
+
+				<section className="overflow-hidden rounded-xl border bg-card shadow-sm">
+					<div className="flex items-center justify-between px-4 py-3">
+						<h2 className=" text-xs tracking-[0.2em] text-muted-foreground uppercase">
+							Log aktivitas
+						</h2>
+					</div>
+					<ul className="divide-y border-t" aria-label="Log aktivitas terbaru">
+						{activityLog.map(([time, member, component, stage]) => (
+							<li
+								key={`${time}-${member}-${component}`}
+								className="grid grid-cols-[3.5rem_minmax(0,1fr)] gap-2 px-4 py-2 text-xs"
+							>
+								<time className=" text-muted-foreground">{time}</time>
+								<p className="min-w-0 truncate">
+									<span className="font-bold">{member}</span>
+									<span className="text-muted-foreground"> · </span>
+									{component} <span className="text-muted-foreground">→</span>{" "}
+									{stage}
+								</p>
+							</li>
+						))}
+					</ul>
 				</section>
 			</div>
 		</main>
