@@ -76,7 +76,7 @@ export const SettingPage = () => {
 			status: PPIC_STATUSES[2],
 			label: "Terpasang / Digunakan",
 			icon: BadgeCheck,
-			variant: "green",
+			variant: "purple",
 		},
 		{
 			value: "INACTIVE",
@@ -124,7 +124,11 @@ export const SettingPage = () => {
 						Tentukan halaman yang boleh diakses oleh setiap pengguna.
 					</p>
 				</header>
-				<div className="mx-auto p-4" role="status" aria-label="Loading channel members">
+				<div
+					className="mx-auto p-4"
+					role="status"
+					aria-label="Loading channel members"
+				>
 					<Table>
 						<TableHeader>
 							<TableRow>

@@ -11,7 +11,7 @@ export async function GET() {
 	if (!userId) return NextResponse.json({ ok: false }, { status: 401 });
 
 	const state = await ppicLoginState(userId);
-	const session = encodePpicSession(state.role, state.allowed_status);
+	const session = encodePpicSession(userId, state.role, state.allowed_status);
 	if (!session)
 		return NextResponse.json({ ok: false }, { status: 500 });
 

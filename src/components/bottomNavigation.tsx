@@ -40,8 +40,16 @@ const memberItems = (allowedStatus: PpicStatus | null) => [
 				},
 			]
 		: []),
-	{ href: "/api/auth/logout", label: "Logout", icon: LogOut },
 ];
+
+const getNavigationItemsByRole = (
+	role: PpicRole | null,
+	allowedStatus: PpicStatus | null,
+) => {
+	if (role === "SUPER_ADMIN") return superAdminItems;
+	if (role === "MEMBER") return memberItems(allowedStatus);
+	return [{ href: "/api/auth/logout", label: "Logout", icon: LogOut }];
+};
 
 export function BottomNavigation({
 	role,
@@ -52,12 +60,7 @@ export function BottomNavigation({
 }) {
 	const pathname = usePathname();
 	if (pathname === "/login") return null;
-	const navigationItems =
-		role === "SUPER_ADMIN"
-			? superAdminItems
-			: role === "MEMBER"
-				? memberItems(allowedStatus)
-				: [{ href: "/api/auth/logout", label: "Logout", icon: LogOut }];
+	const navigationItems = getNavigationItemsByRole(role, allowedStatus);
 
 	return (
 		<nav

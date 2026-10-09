@@ -129,6 +129,7 @@ export async function GET(request: NextRequest) {
 
 	const response = NextResponse.redirect(new URL(loginState.path, request.url));
 	const session = encodePpicSession(
+		userId,
 		loginState.role,
 		loginState.allowed_status,
 	);

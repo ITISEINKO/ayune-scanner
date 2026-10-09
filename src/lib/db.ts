@@ -20,6 +20,20 @@ export const db = createClient({
 
 export { isPpicRole, isPpicStatus } from "@/types/ppic";
 
+export const getPpicAccess = async (clickupUserId: string) => {
+	const result = await db.execute({
+		sql: `
+			SELECT role, allowed_status, active
+			FROM ppic_permissions
+			WHERE clickup_user_id = ?
+			LIMIT 1
+		`,
+		args: [clickupUserId],
+	});
+
+	return result.rows[0] ?? null;
+};
+
 export const isPpicSuperAdmin = async (clickupUserId: string) => {
 	const result = await db.execute({
 		sql: `
