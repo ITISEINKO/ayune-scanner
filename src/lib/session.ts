@@ -11,8 +11,10 @@ import {
 } from "@/lib/produksiPanel";
 import type { PpicRole, PpicStatus } from "@/types/ppic";
 import type { PanelMember } from "@/types/clickup";
+import type { SelectedProject } from "@/types/project";
 
 export const PPIC_SESSION_COOKIE = "ppic_session";
+export const PPIC_SELECTED_PROJECT_COOKIE = "ppic_selected_project";
 export const PPIC_SESSION_REFRESH_TTL_MS = 15 * 60 * 1000;
 
 type ClickUpUserResponse = {
@@ -90,6 +92,51 @@ export const encodePpicSession = (
 	const signature = sessionSignature(payload);
 	return signature ? `${payload}.${signature}` : null;
 };
+
+export const encodeSelectedProject = (userId: string, project: SelectedProject) => {
+	const payload = Buffer.from(
+		JSON.stringify({ user_id: userId, ...project }),
+	).toString("base64url");
+	const signature = sessionSignature(payload);
+	return signature ? `${payload}.${signature}` : null;
+};
+
+export const selectedProject = async (userId: string): Promise<SelectedProject | null> => {
+	const value = (await cookies()).get(PPIC_SELECTED_PROJECT_COOKIE)?.value;
+	if (!value) return null;
+	const [payload, signature] = value.split(".");
+	const expected = payload ? sessionSignature(payload) : null;
+	if (!signature || !expected) return null;
+	const actualBuffer = Buffer.from(signature);
+	const expectedBuffer = Buffer.from(expected);
+	if (
+		actualBuffer.length !== expectedBuffer.length ||
+		!timingSafeEqual(actualBuffer, expectedBuffer)
+	)
+		return null;
+	try {
+		const selected = JSON.parse(
+			Buffer.from(payload, "base64url").toString("utf8"),
+		) as { user_id?: unknown } & Partial<SelectedProject>;
+		return (
+			selected.user_id === userId &&
+			typeof selected.task_id === "string" &&
+			(typeof selected.name === "string" || selected.name === null) &&
+			(typeof selected.custom_id === "string" || selected.custom_id === null)
+		)
+			? {
+				task_id: selected.task_id,
+				name: selected.name,
+				custom_id: selected.custom_id,
+			}
+			: null;
+	} catch {
+		return null;
+	}
+};
+
+export const selectedProjectTaskId = async (userId: string) =>
+	(await selectedProject(userId))?.task_id ?? null;
 
 export const ppicSession = async () => {
 	const value = (await cookies()).get(PPIC_SESSION_COOKIE)?.value;
@@ -195,13 +242,14 @@ export const requireFreshPpicStatusAccess = async (status: string) => {
 	const userId = (await ppicSession())?.user_id ?? (await clickUpUserId());
 	if (!userId) redirect("/login");
 	const access = await getPpicAccess(userId);
-	if (access?.role === "SUPER_ADMIN") return;
+	if (access?.role === "SUPER_ADMIN") return userId;
 	if (
 		access?.role !== "MEMBER" ||
 		Number(access.active) !== 1 ||
 		access.allowed_status !== status
 	)
 		redirect("/unauthorized");
+	return userId;
 };
 
 export const requirePpicStatusAccess = async (status: string) => {
@@ -213,6 +261,14 @@ export const requirePpicStatusAccess = async (status: string) => {
 		redirect("/unauthorized");
 	}
 	await requireFreshPpicStatusAccess(status);
+};
+
+export const requireSelectedMemberProject = async () => {
+	const session = await ppicSession();
+	if (!session || session.role !== "MEMBER") redirect("/unauthorized");
+	const project = await selectedProject(session.user_id);
+	if (!project) redirect("/projects");
+	return project;
 };
 
 export const panelChannelMembers = async (): Promise<PanelMembersResult> => {

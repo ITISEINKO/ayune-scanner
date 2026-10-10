@@ -6,6 +6,8 @@ export type ClickUpCustomField = {
 
 export type ClickUpTask = {
 	id: string;
+	parent?: string | null;
+	top_level_parent?: string | null;
 	custom_id?: string;
 	url?: string;
 	name?: string;

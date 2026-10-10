@@ -1,9 +1,10 @@
-import { PackingPage } from "@/features/panel/PackingPage";
-import { requirePpicStatusAccess } from "@/lib/session";
+import { PackingPage } from "@/features/member/PackingPage";
+import { requirePpicStatusAccess, requireSelectedMemberProject } from "@/lib/session";
 
 const Packing = async () => {
+	const project = await requireSelectedMemberProject();
 	await requirePpicStatusAccess("SEDANG_DIPACKING");
-	return <PackingPage />;
+	return <PackingPage project={project} />;
 };
 
 export default Packing;

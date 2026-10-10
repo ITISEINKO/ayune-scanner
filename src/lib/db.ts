@@ -4,7 +4,7 @@ import {
 	isPpicStatus,
 	PPIC_STATUSES,
 } from "@/types/ppic";
-import type { PpicRole, PpicStatus } from "@/types/ppic";
+import type { PpicRole, PpicScanHistory, PpicStatus } from "@/types/ppic";
 
 const url = process.env.TURSO_DATABASE_URL;
 const authToken = process.env.TURSO_AUTH_TOKEN;
@@ -154,4 +154,44 @@ export const savePpicRole = async (
 		`,
 		args: [userId, PPIC_STATUSES[0], updatedBy, role],
 	});
+};
+
+export const savePpicScanHistory = async (
+	userId: string,
+	serialNumber: string,
+	status: PpicStatus,
+	taskName: string,
+) =>
+	db.execute({
+		sql: `
+			INSERT INTO ppic_scan_history (
+				clickup_user_id,
+				serial_number,
+				status,
+				task_name
+			)
+			VALUES (?, ?, ?, ?)
+		`,
+		args: [userId, serialNumber, status, taskName],
+	});
+
+export const getPpicScanHistory = async (
+	userId: string,
+): Promise<PpicScanHistory[]> => {
+	const result = await db.execute({
+		sql: `
+			SELECT serial_number, status, task_name, scanned_at
+			FROM ppic_scan_history
+			WHERE clickup_user_id = ?
+			ORDER BY scanned_at DESC, id DESC
+		`,
+		args: [userId],
+	});
+
+	return result.rows.map((row) => ({
+		serialNumber: String(row.serial_number),
+		status: String(row.status) as PpicStatus,
+		taskName: String(row.task_name),
+		scannedAt: String(row.scanned_at),
+	}));
 };

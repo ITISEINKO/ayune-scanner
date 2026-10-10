@@ -1,11 +1,13 @@
-import { BadgeCheck, LogOut, Mail, ShieldCheck, UserRound } from "lucide-react";
-import { clickUpEmail, ppicSession } from "@/lib/session";
+"use client";
 
-export const ProfilePage = async () => {
-	const [session, email] = await Promise.all([ppicSession(), clickUpEmail()]);
-	const role = session?.role.replaceAll("_", " ") ?? "Not available";
+import { BadgeCheck, LogOut, Mail, ShieldCheck, UserRound } from "lucide-react";
+import { useProfile } from "@/hooks/use-profile";
+
+export const ProfilePage = () => {
+	const { data: profile } = useProfile();
+	const role = profile?.role?.replaceAll("_", " ") ?? "Not available";
 	const allowedStatus =
-		session?.allowed_status?.replaceAll("_", " ") ?? "No scan access";
+		profile?.allowedStatus?.replaceAll("_", " ") ?? "No scan access";
 
 	return (
 		<main className="mx-auto min-h-screen max-w-lg bg-muted/30   pb-28">
@@ -41,7 +43,7 @@ export const ProfilePage = async () => {
 					<div className="min-w-0">
 						<p className="text-xs text-muted-foreground">Email</p>
 						<p className="truncate text-sm font-semibold">
-							{email ?? "Email unavailable"}
+							{profile?.email ?? "Email unavailable"}
 						</p>
 					</div>
 				</div>

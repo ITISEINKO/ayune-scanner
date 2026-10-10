@@ -3,6 +3,7 @@ import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { cn } from "@/lib/utils";
+import ReactQueryProvider from "@/providers/ReactQueryProviders";
 
 const jakartaSans = Plus_Jakarta_Sans({
 	subsets: ["latin"],
@@ -34,7 +35,7 @@ export default async function RootLayout({
 	return (
 		<html lang="en" className={cn("light", "font-sans", jakartaSans.variable)}>
 			<body>
-				{children}
+				<ReactQueryProvider>{children}</ReactQueryProvider>
 				<Toaster position="top-center" />
 			</body>
 		</html>

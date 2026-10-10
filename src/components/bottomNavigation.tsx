@@ -21,39 +21,27 @@ const superAdminItems = [
 	{ href: "/admin/settings", label: "Member", icon: Users },
 	{ href: "/admin/profile", label: "Profile", icon: User },
 ];
-const memberItems = (allowedStatus: PpicStatus | null) => [
-	...(allowedStatus
-		? [
-				{
-					href: ppicStatusPath(allowedStatus),
-					label: "Scan",
-					icon: Search,
-				},
-			]
-		: []),
+const memberItems = [
+	{ href: "/projects", label: "Projects", icon: FolderKanban },
 	{ href: "/history", label: "History", icon: History },
 	{ href: "/profile", label: "Profile", icon: User },
 ];
 
-const getNavigationItemsByRole = (
-	role: PpicRole | null,
-	allowedStatus: PpicStatus | null,
-) => {
+const getNavigationItemsByRole = (role: PpicRole | null) => {
 	if (role === "SUPER_ADMIN") return superAdminItems;
-	if (role === "MEMBER") return memberItems(allowedStatus);
+	if (role === "MEMBER") return memberItems;
 	return [{ href: "/api/auth/logout", label: "Logout", icon: LogOut }];
 };
 
 export function BottomNavigation({
 	role,
-	allowedStatus,
 }: {
 	role: PpicRole | null;
 	allowedStatus: PpicStatus | null;
 }) {
 	const pathname = usePathname();
 	if (pathname === "/login") return null;
-	const navigationItems = getNavigationItemsByRole(role, allowedStatus);
+	const navigationItems = getNavigationItemsByRole(role);
 
 	return (
 		<nav
@@ -63,7 +51,7 @@ export function BottomNavigation({
 			{navigationItems.map(({ href, label, icon: Icon }, index) => {
 				const active = pathname === href;
 				const className = `flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-md px-3 py-2 text-xs text-white ${
-					active ? "font-bold" : "font-medium"
+					active ? "font-bold bg-white/10" : "font-medium"
 				}`;
 				const content = (
 					<>

@@ -38,7 +38,7 @@ test('configured active member reaches only its assigned panel', async ({
 	]);
 
 	await page.goto('/');
-	await expect(page).toHaveURL(/\/barang-diterima$/);
+	await expect(page).toHaveURL(/\/projects$/);
 	await page.goto('/sedang-dipacking');
 	await expect(page).toHaveURL(/\/unauthorized$/);
 
@@ -46,7 +46,7 @@ test('configured active member reaches only its assigned panel', async ({
 		data: { serial_number: '__playwright_missing_serial__', status: 'BARANG_DITERIMA' },
 		maxRedirects: 0,
 	});
-	expect(allowed.status()).toBe(404);
+	expect(allowed.status()).toBe(409);
 
 	const denied = await page.request.post('/api/panel/scan', {
 		data: { serial_number: '__playwright_missing_serial__', status: 'SEDANG_DIPACKING' },

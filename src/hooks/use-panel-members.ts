@@ -1,7 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import * as Ably from "ably";
+import { useEffect } from "react";
+import {
+	queryOptions,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "@tanstack/react-query";
 import type { PanelMember } from "@/types/clickup";
+import {
+	isPpicRole,
+	isPpicStatus,
+} from "@/types/ppic";
 import type { PpicRole, PpicStatus } from "@/types/ppic";
 
 const loadMembers = async () => {
@@ -19,116 +30,110 @@ const loadMembers = async () => {
 	};
 };
 
-let cachedMembers: Awaited<ReturnType<typeof loadMembers>> | null = null;
-let membersRequest: ReturnType<typeof loadMembers> | null = null;
+const panelMembersQuery = queryOptions({
+	queryKey: ["panel-members"],
+	queryFn: loadMembers,
+	staleTime: Infinity,
+	gcTime: 30 * 60 * 1000,
+	refetchOnMount: false,
+	refetchOnReconnect: false,
+	refetchOnWindowFocus: false,
+});
 
 export function usePanelMembers() {
-	const [members, setMembers] = useState<PanelMember[] | null>(
-		() => cachedMembers?.members ?? null,
-	);
-	const [roles, setRoles] = useState<Record<string, PpicRole>>(
-		() => cachedMembers?.roles ?? {},
-	);
-	const [permissions, setPermissions] = useState<
-		Record<string, PpicStatus | null>
-	>(() => cachedMembers?.permissions ?? {});
-	const [loading, setLoading] = useState(() => !cachedMembers);
-	const [error, setError] = useState(false);
-	const [savingMemberId, setSavingMemberId] = useState<string | null>(null);
+	const queryClient = useQueryClient();
+	const query = useQuery(panelMembersQuery);
+	const update = useMutation({
+		mutationFn: async (
+			body:
+				| { user_id: string; role: PpicRole }
+				| { user_id: string; allowed_status: PpicStatus | null },
+		) => {
+			const response = await fetch("/api/panel/members", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(body),
+			});
+			if (!response.ok) throw new Error("permission");
+			return body;
+		},
+		onSuccess: (body) => {
+			queryClient.setQueryData<Awaited<ReturnType<typeof loadMembers>>>(
+				panelMembersQuery.queryKey,
+				(data) => {
+					if (!data) return data;
+					if ("role" in body)
+						return {
+							...data,
+							roles: { ...data.roles, [body.user_id]: body.role },
+							permissions: { ...data.permissions, [body.user_id]: null },
+						};
+					return {
+						...data,
+						permissions: {
+							...data.permissions,
+							[body.user_id]: body.allowed_status,
+						},
+					};
+				},
+			);
+		},
+	});
 
 	useEffect(() => {
-		if (cachedMembers) return;
-		membersRequest ??= loadMembers().then((data) => {
-			cachedMembers = data;
-			return data;
+		let closed = false;
+		const realtime = new Ably.Realtime({ authUrl: "/api/ably/token" });
+		const channel = realtime.channels.get("ppic:settings");
+		const onMemberUpdated = (message: Ably.InboundMessage) => {
+			const data = message.data;
+			if (!data || typeof data !== "object" || !("userId" in data)) return;
+			const userId = data.userId;
+			if (typeof userId !== "string") return;
+			queryClient.setQueryData<Awaited<ReturnType<typeof loadMembers>>>(
+				panelMembersQuery.queryKey,
+				(current) => {
+					if (!current) return current;
+					if ("role" in data && isPpicRole(data.role))
+						return {
+							...current,
+							roles: { ...current.roles, [userId]: data.role },
+							permissions: { ...current.permissions, [userId]: null },
+						};
+					if (
+						"allowedStatus" in data &&
+						(data.allowedStatus === null || isPpicStatus(data.allowedStatus))
+					)
+						return {
+							...current,
+							permissions: {
+								...current.permissions,
+								[userId]: data.allowedStatus,
+							},
+						};
+					return current;
+				},
+			);
+		};
+		void channel.subscribe("member-updated", onMemberUpdated).catch((error) => {
+			if (!closed) console.error(error);
 		});
-		membersRequest
-			.then((data) => {
-				setMembers(data.members);
-				setRoles(data.roles);
-				setPermissions(data.permissions);
-			})
-			.catch(() => {
-				membersRequest = null;
-				setError(true);
-			})
-			.finally(() => setLoading(false));
-	}, []);
-
-	const updateRole = useCallback(
-		async (userId: string, role: PpicRole) => {
-			setSavingMemberId(userId);
-			try {
-				const response = await fetch("/api/panel/members", {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({
-						user_id: userId,
-						role,
-					}),
-				});
-				if (!response.ok) throw new Error("permission");
-				setRoles((roles) => {
-					const updatedRoles = { ...roles, [userId]: role };
-					if (cachedMembers) cachedMembers = { ...cachedMembers, roles: updatedRoles };
-					return updatedRoles;
-				});
-				setPermissions((permissions) => {
-					const updatedPermissions = { ...permissions, [userId]: null };
-					if (cachedMembers)
-						cachedMembers = {
-							...cachedMembers,
-							permissions: updatedPermissions,
-						};
-					return updatedPermissions;
-				});
-			} finally {
-				setSavingMemberId(null);
-			}
-		},
-		[],
-	);
-
-	const updatePermission = useCallback(
-		async (userId: string, allowedStatus: PpicStatus | null) => {
-			setSavingMemberId(userId);
-			try {
-				const response = await fetch("/api/panel/members", {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({
-						user_id: userId,
-						allowed_status: allowedStatus,
-					}),
-				});
-				if (!response.ok) throw new Error("permission");
-				setPermissions((permissions) => {
-					const updatedPermissions = {
-						...permissions,
-						[userId]: allowedStatus,
-					};
-					if (cachedMembers)
-						cachedMembers = {
-							...cachedMembers,
-							permissions: updatedPermissions,
-						};
-					return updatedPermissions;
-				});
-			} finally {
-				setSavingMemberId(null);
-			}
-		},
-		[],
-	);
+		return () => {
+			closed = true;
+			channel.unsubscribe("member-updated", onMemberUpdated);
+			realtime.close();
+		};
+	}, [queryClient]);
 
 	return {
-		members,
-		roles,
-		permissions,
-		loading,
-		error,
-		updateRole,
-		updatePermission,
-		savingMemberId,
+		members: query.data?.members ?? null,
+		roles: query.data?.roles ?? {},
+		permissions: query.data?.permissions ?? {},
+		loading: query.isLoading,
+		error: query.isError,
+		updateRole: (userId: string, role: PpicRole) =>
+			update.mutateAsync({ user_id: userId, role }),
+		updatePermission: (userId: string, allowedStatus: PpicStatus | null) =>
+			update.mutateAsync({ user_id: userId, allowed_status: allowedStatus }),
+		savingMemberId: update.isPending ? (update.variables?.user_id ?? null) : null,
 	};
 }

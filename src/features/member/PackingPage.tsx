@@ -1,8 +1,10 @@
 "use client";
 
 import { type SubmitEvent, useRef, useState } from "react";
-import { ArrowLeft, Barcode } from "lucide-react";
+import { Barcode } from "lucide-react";
 import { toast } from "sonner";
+import { ProjectScope } from "@/components/projectScope";
+import { MemberScanHeader } from "@/components/memberScanHeader";
 import { Scanner } from "@/components/scanner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,8 +18,9 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import type { SelectedProject } from "@/types/project";
 
-export const PackingPage = () => {
+export const PackingPage = ({ project }: { project: SelectedProject }) => {
 	const busy = useRef(false);
 	const [serialNumber, setSerialNumber] = useState("");
 	const [scanning, setScanning] = useState(false);
@@ -28,7 +31,12 @@ export const PackingPage = () => {
 			SERIAL_NUMBER_NOT_FOUND: "Serial number tidak ditemukan.",
 			DUPLICATE_SERIAL_NUMBER: "Serial number terdaftar lebih dari satu kali.",
 			CLICKUP_STATUS_UPDATE_FAILED: "Status Barang Scan gagal diperbarui.",
+			SCAN_HISTORY_SAVE_FAILED:
+				"Status sudah diubah, tetapi riwayat belum tersimpan. Scan ulang serial ini.",
 			RATE_LIMITED: "Terlalu banyak permintaan. Coba lagi sebentar.",
+			NO_SELECTED_PROJECT: "Pilih project sebelum mulai scan.",
+			SERIAL_NOT_IN_SELECTED_PROJECT: "Serial number bukan bagian dari project aktif.",
+			INVALID_TASK_HIERARCHY: "Data hierarchy serial tidak valid.",
 			UNAUTHORIZED: "Sesi login sudah berakhir. Silakan login kembali.",
 		})[error ?? ""] ?? "Status barang tidak dapat diperbarui.";
 
@@ -70,25 +78,12 @@ export const PackingPage = () => {
 
 	return (
 		<main className="mx-auto min-h-dvh max-w-lg p-4 pb-28">
-			<header className="mb-7">
-				<div className="flex items-center gap-4">
-					<div className="size-19 shrink-0 overflow-hidden">
-						<img src="/icon.svg" alt="" className="size-full" />
-					</div>
-					<div>
-						<p className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
-							Packing barang
-						</p>
-						<h1 className="text-xl font-black capitalize tracking-tight">
-							Scan barang dipacking
-						</h1>
-					</div>
-				</div>
-				<p className="mt-2 text-sm text-muted-foreground">
-					Scan Serial Number untuk mengubah Status Barang Scan menjadi Sedang
-					Dipacking.
-				</p>
-			</header>
+			<MemberScanHeader
+				section="Packing barang"
+				title="Scan barang dipacking"
+				status="SEDANG DIPACKING"
+			/>
+			<ProjectScope project={project} />
 
 			<Scanner onDetected={pack} autoStart disabled={scanning} />
 			<div className="mt-4 rounded-3xl border border-border/30 shadow-[0_8px_24px_-14px_rgb(31_26_20/0.24)] bg-card p-4 text-card-foreground">

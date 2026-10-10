@@ -1,4 +1,4 @@
-import { ChooseProjectPage } from "@/features/project";
+import { ChooseProjectPage } from "@/features/member/MemberProjects";
 
 const ChooseProject = () => {
 	return <ChooseProjectPage />;

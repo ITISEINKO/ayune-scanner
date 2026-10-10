@@ -19,6 +19,13 @@ export type PpicPermission = {
 	role: PpicRole;
 };
 
+export type PpicScanHistory = {
+	serialNumber: string;
+	status: PpicStatus;
+	taskName: string;
+	scannedAt: string;
+};
+
 export const isPpicStatus = (value: unknown): value is PpicStatus =>
 	typeof value === "string" && PPIC_STATUSES.includes(value as PpicStatus);
 

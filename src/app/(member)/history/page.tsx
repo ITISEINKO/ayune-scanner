@@ -1,8 +1,11 @@
-import { HistoryPage } from "@/features/history";
-import React from "react";
+import { HistoryMemberPage } from "@/features/member/HistoryMemberPage";
+import { getPpicScanHistory } from "@/lib/db";
+import { clickUpUserId, ppicSession, requireClickUpToken } from "@/lib/session";
 
-const History = () => {
-	return <HistoryPage />;
+const HistoryMember = async () => {
+	await requireClickUpToken();
+	const userId = (await ppicSession())?.user_id ?? (await clickUpUserId());
+	return <HistoryMemberPage history={userId ? await getPpicScanHistory(userId) : []} />;
 };
 
-export default History;
+export default HistoryMember;

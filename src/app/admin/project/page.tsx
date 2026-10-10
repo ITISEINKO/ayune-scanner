@@ -1,4 +1,4 @@
-import { ProjectDetailPage } from "@/features/project/ProjectDetailPage";
+import { ProjectDetailPage } from "@/features/admin/ProjectDetailPage";
 
 export default function ProjectDetail() {
 	return <ProjectDetailPage />;

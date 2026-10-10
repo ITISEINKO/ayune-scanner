@@ -9,6 +9,7 @@ import {
 	savePpicPermission,
 	savePpicRole,
 } from "@/lib/db";
+import { getAbly } from "@/lib/ably";
 import { clickUpUserId, panelChannelMembers } from "@/lib/session";
 
 const accessError = (status: 401 | 403 | 502) =>
@@ -99,11 +100,21 @@ export async function POST(request: Request) {
 		else if (allowedStatus === null)
 			await deactivatePpicPermission(userId, updatedBy);
 		else await savePpicPermission(userId, allowedStatus!, updatedBy);
-		return NextResponse.json({ ok: true });
 	} catch {
 		return NextResponse.json(
 			{ ok: false, error: "DATABASE_ERROR" },
 			{ status: 502 },
 		);
 	}
+	try {
+		await getAbly().channels.get("ppic:settings").publish("member-updated", {
+			userId,
+			...(isRoleUpdate
+				? { role, allowedStatus: null }
+				: { allowedStatus }),
+		});
+	} catch (error) {
+		console.error("Ably settings update failed", error);
+	}
+	return NextResponse.json({ ok: true });
 }
