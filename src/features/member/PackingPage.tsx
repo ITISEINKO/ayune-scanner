@@ -1,7 +1,6 @@
 "use client";
 
-import { type SubmitEvent, useRef, useState } from "react";
-import { Barcode } from "lucide-react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { ProjectScope } from "@/components/projectScope";
 import { MemberScanHeader } from "@/components/memberScanHeader";
@@ -17,12 +16,10 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import type { SelectedProject } from "@/types/project";
 
 export const PackingPage = ({ project }: { project: SelectedProject }) => {
 	const busy = useRef(false);
-	const [serialNumber, setSerialNumber] = useState("");
 	const [scanning, setScanning] = useState(false);
 	const [packedItem, setPackedItem] = useState<string | null>(null);
 	const messageFor = (error?: string) =>
@@ -45,7 +42,6 @@ export const PackingPage = ({ project }: { project: SelectedProject }) => {
 		if (!code || busy.current) return;
 		busy.current = true;
 		setScanning(true);
-		setSerialNumber("");
 		try {
 			const response = await fetch("/api/panel/scan", {
 				method: "POST",
@@ -71,11 +67,6 @@ export const PackingPage = ({ project }: { project: SelectedProject }) => {
 		}
 	};
 
-	const submit = (event: SubmitEvent<HTMLFormElement>) => {
-		event.preventDefault();
-		void pack(serialNumber);
-	};
-
 	return (
 		<main className="mx-auto min-h-dvh max-w-lg p-4 pb-28">
 			<MemberScanHeader
@@ -86,43 +77,6 @@ export const PackingPage = ({ project }: { project: SelectedProject }) => {
 			<ProjectScope project={project} />
 
 			<Scanner onDetected={pack} autoStart disabled={scanning} />
-			<div className="mt-4 rounded-3xl border border-border/30 shadow-[0_8px_24px_-14px_rgb(31_26_20/0.24)] bg-card p-4 text-card-foreground">
-				<form onSubmit={submit}>
-					<label
-						htmlFor="serial-number"
-						className="mb-2 block text-sm font-semibold text-muted-foreground"
-					>
-						Input Serial Number manual
-					</label>
-					<div className="flex gap-2">
-						<div className="relative flex-1">
-							<Barcode
-								aria-hidden="true"
-								className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-muted-foreground"
-							/>
-							<Input
-								id="serial-number"
-								className="pl-11"
-								value={serialNumber}
-								onChange={(event) => setSerialNumber(event.target.value)}
-								placeholder="Masukkan Serial Number"
-								autoComplete="off"
-								disabled={scanning}
-							/>
-						</div>
-						<Button type="submit" disabled={!serialNumber.trim() || scanning}>
-							{scanning ? (
-								<>
-									<span aria-hidden="true" className="loader" />
-									<span className="sr-only">Memproses Serial Number</span>
-								</>
-							) : (
-								"Proses"
-							)}
-						</Button>
-					</div>
-				</form>
-			</div>
 			<Dialog
 				open={Boolean(packedItem)}
 				onOpenChange={(open) => !open && setPackedItem(null)}

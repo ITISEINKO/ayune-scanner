@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
 	Camera,
 	Flashlight,
 	FlashlightOff,
 	InfoIcon,
+	Keyboard,
 	ScanBarcode,
 } from "lucide-react";
 import { useBarcodeScanner } from "@/hooks/use-barcode-scanner";
@@ -18,20 +19,81 @@ type Props = {
 	disabled?: boolean;
 };
 
+type ScanMode = "camera" | "keyboard";
+
 export function Scanner({
 	onDetected,
 	autoStart = false,
 	disabled = false,
 }: Props) {
+	const [mode, setMode] = useState<ScanMode>("camera");
+	const keyboardBuffer = useRef("");
+	const keyboardInput = useRef<HTMLInputElement>(null);
+	const keyboardSubmitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const handleDetected = useCallback(
+		(value: string) => onDetected(value.replace(/♪+$/g, "")),
+		[onDetected],
+	);
 	const { start, stop, toggleTorch, refocus, isScanning, torchOn, error } =
-		useBarcodeScanner("barcode-reader", onDetected);
+		useBarcodeScanner("barcode-reader", handleDetected);
+	const submitKeyboardValue = useCallback(() => {
+		if (keyboardSubmitTimer.current) clearTimeout(keyboardSubmitTimer.current);
+		const value = (keyboardBuffer.current || keyboardInput.current?.value || "").trim();
+		keyboardBuffer.current = "";
+		if (keyboardInput.current) keyboardInput.current.value = "";
+		if (value) handleDetected(value);
+	}, [handleDetected]);
 	useEffect(() => {
-		if (disabled) {
+		if (disabled || mode === "keyboard") {
 			void stop();
 			return;
 		}
 		if (autoStart) void start();
-	}, [autoStart, disabled, start, stop]);
+	}, [autoStart, disabled, mode, start, stop]);
+
+	useEffect(() => {
+		if (mode !== "keyboard" || disabled) return;
+		const handleKeyDown = (event: KeyboardEvent) => {
+			if (
+				event.isComposing ||
+				event.ctrlKey ||
+				event.altKey ||
+				event.metaKey ||
+				(event.target instanceof HTMLElement &&
+					event.target.isContentEditable)
+			)
+				return;
+
+			if (event.key === "Enter") {
+				const value = keyboardBuffer.current.replace(/♪+$/g, "");
+				keyboardBuffer.current = "";
+				if (keyboardInput.current) keyboardInput.current.value = "";
+				if (value) {
+					event.preventDefault();
+					handleDetected(value);
+				}
+				return;
+			}
+
+			// Barcode scanners send printable characters; ignore icons and control keys.
+			if (event.key.length === 1 && /^[\x20-\x7e]$/.test(event.key))
+				keyboardBuffer.current += event.key;
+		};
+		window.addEventListener("keydown", handleKeyDown, true);
+		return () => window.removeEventListener("keydown", handleKeyDown, true);
+	}, [disabled, handleDetected, mode]);
+
+	useEffect(() => {
+		keyboardBuffer.current = "";
+		if (mode === "keyboard" && !disabled) keyboardInput.current?.focus();
+	}, [mode, disabled]);
+
+	useEffect(
+		() => () => {
+			if (keyboardSubmitTimer.current) clearTimeout(keyboardSubmitTimer.current);
+		},
+		[],
+	);
 
 	return (
 		<section className="rounded-2xl border border-border/30 bg-card p-4 text-card-foreground shadow-[0_8px_24px_-14px_rgb(31_26_20/0.24)]">
@@ -48,10 +110,29 @@ export function Scanner({
 					aria-hidden="true"
 				/>
 			</div>
+			<div className="mb-3 grid grid-cols-2 gap-2 rounded-xl bg-muted p-1">
+				<Button
+					variant={mode === "camera" ? "default" : "ghost"}
+					onClick={() => setMode("camera")}
+					disabled={disabled}
+					className="h-10 min-h-0"
+				>
+					<Camera className="mr-2 size-4" /> Kamera
+				</Button>
+				<Button
+					variant={mode === "keyboard" ? "default" : "ghost"}
+					onClick={() => setMode("keyboard")}
+					disabled={disabled}
+					className="h-10 min-h-0"
+				>
+					<Keyboard className="mr-2 size-4" /> Keyboard
+				</Button>
+			</div>
 			<div
-				className="relative w-full aspect-[1.9] cursor-pointer overflow-hidden rounded-2xl bg-muted"
+				className={`relative w-full aspect-[1.9] overflow-hidden rounded-2xl bg-muted ${mode === "camera" ? "cursor-pointer" : ""}`}
 				onPointerDown={() => {
-					if (!disabled) void (isScanning ? refocus() : start());
+					if (mode === "camera" && !disabled)
+						void (isScanning ? refocus() : start());
 				}}
 			>
 				<div
@@ -59,12 +140,36 @@ export function Scanner({
 					className="size-full [&_video]:size-full [&_video]:object-cover"
 				/>
 
-				{!isScanning && (
+				{mode === "keyboard" ? (
+					<div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center text-sm text-[#76695c]">
+						<Keyboard className="mb-4 size-10" />
+						<input
+							ref={keyboardInput}
+							aria-label="Input scan keyboard"
+							placeholder="Klik di sini, lalu scan barcode"
+							className="h-11 w-full rounded-xl border border-border bg-background px-3 text-center text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-3 focus-visible:ring-ring/30"
+							onInput={() => {
+								if (keyboardSubmitTimer.current)
+									clearTimeout(keyboardSubmitTimer.current);
+								keyboardSubmitTimer.current = setTimeout(
+									submitKeyboardValue,
+									150,
+								);
+							}}
+							onBlur={(event) => {
+								event.currentTarget.placeholder = "Klik di sini untuk mengaktifkan scanner";
+							}}
+							onFocus={(event) => {
+								event.currentTarget.placeholder = "Siap menerima scan dari keyboard";
+							}}
+						/>
+					</div>
+				) : !isScanning ? (
 					<div className="absolute inset-0 flex flex-col items-center justify-center text-center text-sm text-[#76695c]">
 						<Camera className="mb-4 size-10" />
 						<span>Siap untuk membuka kamera</span>
 					</div>
-				)}
+				) : null}
 			</div>
 			{error && (
 				<Alert variant="destructive" className="mt-3">
@@ -72,7 +177,7 @@ export function Scanner({
 					<AlertDescription>{error}</AlertDescription>
 				</Alert>
 			)}
-			<div className="mt-2 grid grid-cols-[1.28fr_1fr] gap-2.5">
+			{mode === "camera" && <div className="mt-2 grid grid-cols-[1.28fr_1fr] gap-2.5">
 				<Button
 					onClick={() => void start()}
 					disabled={disabled || isScanning}
@@ -94,7 +199,7 @@ export function Scanner({
 						<Flashlight className="mx-auto size-5" />
 					)}
 				</Button>
-			</div>
+			</div>}
 		</section>
 	);
 }

@@ -10,14 +10,26 @@ export const panelListId = () =>
 export const inProgressProjects = async (token: string) => {
 	const cached = projectCache.get(token);
 	if (cached && cached.expires > Date.now()) return cached.tasks;
-	const query = new URLSearchParams();
-	query.append("statuses[]", "in progress");
-	const response = await fetch(
-		`https://api.clickup.com/api/v2/list/${panelListId()}/task?${query}`,
-		{ headers: clickUpHeaders(token), cache: "no-store" },
-	);
-	if (!response.ok) throw new Error(response.status === 429 ? "RATE_LIMITED" : "CLICKUP_ERROR");
-	const { tasks = [] } = (await response.json()) as { tasks?: ClickUpTask[] };
+	const tasks: ClickUpTask[] = [];
+	for (let page = 0; ; page += 1) {
+		const query = new URLSearchParams({
+			"statuses[]": "in progress",
+			subtasks: "true",
+			page: String(page),
+		});
+		const response = await fetch(
+			`https://api.clickup.com/api/v2/list/${panelListId()}/task?${query}`,
+			{ headers: clickUpHeaders(token), cache: "no-store" },
+		);
+		if (!response.ok)
+			throw new Error(response.status === 429 ? "RATE_LIMITED" : "CLICKUP_ERROR");
+		const data = (await response.json()) as {
+			tasks?: ClickUpTask[];
+			last_page?: boolean;
+		};
+		tasks.push(...(data.tasks ?? []).filter((task) => !task.parent));
+		if (data.last_page || !(data.tasks?.length ?? 0)) break;
+	}
 	// shortcut: this cache is per server instance; use a shared cache only if multi-instance ClickUp traffic becomes material.
 	projectCache.set(token, { tasks, expires: Date.now() + 60_000 });
 	return tasks;

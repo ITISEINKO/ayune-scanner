@@ -1,7 +1,6 @@
 "use client";
 
-import { type SubmitEvent, useRef, useState } from "react";
-import { ArrowLeft, Barcode } from "lucide-react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Scanner } from "@/components/scanner";
 import StatusPicker from "@/components/statusPicker";
@@ -13,12 +12,10 @@ import {
 	DrawerDescription,
 	DrawerTitle,
 } from "@/components/ui/drawer";
-import { Input } from "@/components/ui/input";
 import { statusBarangScanOptions } from "@/lib/produksiPanel";
 
 export const UbahManualPage = () => {
 	const finding = useRef(false);
-	const [serialNumber, setSerialNumber] = useState("");
 	const [item, setItem] = useState<Record<string, string> | null>(null);
 	const [selectedStatus, setSelectedStatus] = useState("");
 	const [loading, setLoading] = useState(false);
@@ -40,7 +37,6 @@ export const UbahManualPage = () => {
 		if (!code || finding.current) return;
 		finding.current = true;
 		setLoading(true);
-		setSerialNumber("");
 		try {
 			const response = await fetch(
 				`/api/panel/manual?serial_number=${encodeURIComponent(code)}`,
@@ -59,10 +55,6 @@ export const UbahManualPage = () => {
 			finding.current = false;
 			setLoading(false);
 		}
-	};
-	const submit = (event: SubmitEvent<HTMLFormElement>) => {
-		event.preventDefault();
-		void findItem(serialNumber);
 	};
 	const save = async () => {
 		if (!item || !selectedStatus) return;
@@ -113,39 +105,6 @@ export const UbahManualPage = () => {
 			</header>
 
 			<Scanner onDetected={findItem} disabled={Boolean(item) || loading} />
-			<div className="mt-4 rounded-3xl border border-border/30 bg-card p-4 text-card-foreground shadow-[0_8px_24px_-14px_rgb(31_26_20/0.24)]">
-				<form onSubmit={submit}>
-					<label
-						htmlFor="serial-number"
-						className="mb-2 block text-sm font-semibold text-muted-foreground"
-					>
-						Input Serial Number manual
-					</label>
-					<div className="flex gap-2">
-						<div className="relative flex-1">
-							<Barcode
-								aria-hidden="true"
-								className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-muted-foreground"
-							/>
-							<Input
-								id="serial-number"
-								className="pl-11"
-								value={serialNumber}
-								onChange={(event) => setSerialNumber(event.target.value)}
-								placeholder="Masukkan Serial Number"
-								autoComplete="off"
-								disabled={Boolean(item) || loading}
-							/>
-						</div>
-						<Button
-							type="submit"
-							disabled={!serialNumber.trim() || Boolean(item) || loading}
-						>
-							{loading ? "Mencari..." : "Cari"}
-						</Button>
-					</div>
-				</form>
-			</div>
 
 			{item && (
 				<Drawer

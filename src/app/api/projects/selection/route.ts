@@ -1,5 +1,8 @@
 import { after, NextResponse } from "next/server";
-import { preloadProjectSerialCache } from "@/lib/projectSerialCache";
+import {
+	clearProjectSerialCache,
+	preloadProjectSerialCache,
+} from "@/lib/projectSerialCache";
 import { inProgressProjects } from "@/lib/projects";
 import { ppicStatusPath } from "@/lib/produksiPanel";
 import {
@@ -66,6 +69,7 @@ export async function POST(request: Request) {
 		selectionCookie(response, cookie);
 		after(async () => {
 			try {
+				await clearProjectSerialCache(project.id);
 				await preloadProjectSerialCache(token, project);
 			} catch (error) {
 				console.error("Project serial cache preload failed", {

@@ -64,6 +64,14 @@ export const projectSerialCache = async (mainTaskId: string) => {
 	}
 };
 
+export const clearProjectSerialCache = async (mainTaskId: string) => {
+	await ensureSchema();
+	await db.execute({
+		sql: "DELETE FROM ppic_project_serial_cache WHERE main_task_id = ?",
+		args: [mainTaskId],
+	});
+};
+
 const saveCache = async (mainTaskId: string, cache: ProjectSerialCache) => {
 	await ensureSchema();
 	// shortcut: one JSON value per project is suited to current panel counts; normalize serials into rows if projects become too large for a single cache record.
@@ -119,19 +127,12 @@ export const preloadProjectSerialCache = async (token: string, project: ClickUpT
 	const entries: Record<string, ProjectSerialCacheEntry> = {};
 	const duplicateSerials = new Set<string>();
 	let page = 0;
-	let sawRelatedTask = false;
+	let sawProjectTask = false;
 	for (;;) {
 		const query = new URLSearchParams({
-			include_closed: "true",
 			subtasks: "true",
+			"statuses[]": "in progress",
 			page: String(page),
-			custom_fields: JSON.stringify([
-				{
-					field_id: CF_PANEL.RELATED_ORDER_NUMBER,
-					operator: "==",
-					value: relatedOrderNumber,
-				},
-			]),
 		});
 		const response = await fetch(
 			`https://api.clickup.com/api/v2/list/${panelListId()}/task?${query}`,
@@ -144,8 +145,13 @@ export const preloadProjectSerialCache = async (token: string, project: ClickUpT
 		};
 		for (const task of data.tasks ?? []) {
 			const serialNumber = serialNumberOf(task);
-			if (!serialNumber || taskProjectScope(task, project.id) !== "MATCH") continue;
-			sawRelatedTask = true;
+			if (
+				!serialNumber ||
+				fieldValue(task, CF_PANEL.RELATED_ORDER_NUMBER) !== relatedOrderNumber ||
+				taskProjectScope(task, project.id) !== "MATCH"
+			)
+				continue;
+			sawProjectTask = true;
 			if (entries[serialNumber]) {
 				duplicateSerials.add(serialNumber);
 				continue;
@@ -160,7 +166,7 @@ export const preloadProjectSerialCache = async (token: string, project: ClickUpT
 		page += 1;
 	}
 	for (const serialNumber of duplicateSerials) delete entries[serialNumber];
-	if (!sawRelatedTask) return false;
+	if (!sawProjectTask) return false;
 	await saveCache(project.id, {
 		complete: true,
 		entries,
