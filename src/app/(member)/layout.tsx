@@ -19,11 +19,9 @@ export default async function MemberLayout({
 						(Date.now() - (session?.refreshed_at ?? 0)),
 				)}
 				refreshedAt={session?.refreshed_at ?? 0}
+				userId={session?.user_id ?? null}
 			/>
-			<BottomNavigation
-				role={session?.role ?? null}
-				allowedStatuses={session?.allowed_status ?? null}
-			/>
+			<BottomNavigation role={session?.role ?? null} />
 		</>
 	);
 }

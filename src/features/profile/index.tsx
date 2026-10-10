@@ -1,14 +1,13 @@
 "use client";
 
 import { BadgeCheck, LogOut, Mail, ShieldCheck, UserRound } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { useProfile } from "@/hooks/use-profile";
 
 export const ProfilePage = () => {
 	const { data: profile } = useProfile();
 	const role = profile?.role?.replaceAll("_", " ") ?? "Not available";
-	const allowedStatuses =
-		profile?.allowedStatuses?.map((status) => status.replaceAll("_", " ")).join(", ") ??
-			"No scan access";
+	const allowedStatuses = profile?.allowedStatuses ?? [];
 
 	return (
 		<main className="mx-auto min-h-screen max-w-lg bg-muted/30   pb-28">
@@ -57,9 +56,23 @@ export const ProfilePage = () => {
 				</div>
 				<div className="flex items-center gap-3 rounded-xl   p-4 ">
 					<BadgeCheck aria-hidden="true" className="size-5 text-primary" />
-					<div>
+					<div className="min-w-0">
 						<p className="text-xs text-muted-foreground">Allowed status</p>
-						<p className="text-sm font-semibold">{allowedStatuses}</p>
+						{allowedStatuses.length ? (
+							<div className="mt-2 flex flex-wrap gap-1.5">
+								{allowedStatuses.map((status) => (
+									<Badge
+										key={status}
+										variant="secondary"
+										className="h-6 px-2 bg-accent/30 text-xs text-muted-foreground"
+									>
+										{status.replaceAll("_", " ")}
+									</Badge>
+								))}
+							</div>
+						) : (
+							<p className="text-sm font-semibold">No scan access</p>
+						)}
 					</div>
 				</div>
 				<a

@@ -7,9 +7,9 @@ const projectCache = new Map<string, { expires: number; tasks: ClickUpTask[] }>(
 export const panelListId = () =>
 	process.env.CLICKUP_PPIC_PANEL_LIST_ID || PANEL_LIST_ID;
 
-export const inProgressProjects = async (token: string) => {
+export const inProgressProjects = async (token: string, refresh = false) => {
 	const cached = projectCache.get(token);
-	if (cached && cached.expires > Date.now()) return cached.tasks;
+	if (!refresh && cached && cached.expires > Date.now()) return cached.tasks;
 	const tasks: ClickUpTask[] = [];
 	for (let page = 0; ; page += 1) {
 		const query = new URLSearchParams({

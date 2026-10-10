@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, ChevronLeft, Search } from "lucide-react";
+import { ArrowRight, RefreshCw, Search } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useSelectProject } from "@/hooks/use-project-selection";
 import { useProjects } from "@/hooks/use-projects";
@@ -21,7 +22,9 @@ export const ChooseProjectPage = ({
 	const {
 		data: projects = [],
 		isLoading: loading,
+		isFetching,
 		isError: error,
+		sync,
 	} = useProjects();
 	const visibleProjects = projects.filter((project) =>
 		`${project.custom_id ?? ""} ${project.name ?? ""}`
@@ -35,6 +38,10 @@ export const ChooseProjectPage = ({
 			onError: () => toast.error("Project tidak dapat dipilih. Coba lagi."),
 		});
 	};
+	const syncProjects = () =>
+		void sync().catch(() =>
+			toast.error("Project tidak dapat diperbarui. Coba lagi."),
+		);
 
 	return (
 		<main className="mx-auto min-h-dvh max-w-lg bg-background pb-8">
@@ -53,6 +60,15 @@ export const ChooseProjectPage = ({
 							Pilih project
 						</h1>
 					</div>
+					<Button
+						variant="secondary"
+						size="sm"
+						onClick={syncProjects}
+						disabled={isFetching}
+					>
+						<RefreshCw className={isFetching ? "animate-spin" : ""} />
+						Sync
+					</Button>
 				</div>
 				<div className="relative z-10 mt-4">
 					<Search

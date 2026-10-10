@@ -1,10 +1,10 @@
 "use client";
 
-import { queryOptions, useQuery } from "@tanstack/react-query";
+import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ClickUpTask } from "@/types/clickup";
 
-const loadProjects = async () => {
-	const response = await fetch("/api/projects");
+const loadProjects = async (refresh = false) => {
+	const response = await fetch(`/api/projects${refresh ? "?refresh=1" : ""}`);
 	const result = (await response.json()) as { tasks?: ClickUpTask[] };
 	if (!response.ok) throw new Error("projects");
 	return result.tasks ?? [];
@@ -12,12 +12,24 @@ const loadProjects = async () => {
 
 const projectsQuery = queryOptions({
 	queryKey: ["projects"],
-	queryFn: loadProjects,
+	queryFn: () => loadProjects(),
 	staleTime: Infinity,
-	gcTime: 30 * 60 * 1000,
+	gcTime: Infinity,
 	refetchOnMount: false,
 	refetchOnReconnect: false,
 	refetchOnWindowFocus: false,
 });
 
-export const useProjects = () => useQuery(projectsQuery);
+export const useProjects = () => {
+	const queryClient = useQueryClient();
+	const query = useQuery(projectsQuery);
+	return {
+		...query,
+		sync: () =>
+			queryClient.fetchQuery({
+				...projectsQuery,
+				queryFn: () => loadProjects(true),
+				staleTime: 0,
+			}),
+	};
+};

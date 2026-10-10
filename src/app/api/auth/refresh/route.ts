@@ -15,7 +15,7 @@ export async function GET() {
 	if (!session)
 		return NextResponse.json({ ok: false }, { status: 500 });
 
-	const response = NextResponse.json({ ok: true });
+	const response = NextResponse.json({ ok: true, path: state.path });
 	response.headers.set("Cache-Control", "no-store");
 	response.cookies.set(PPIC_SESSION_COOKIE, session, {
 		httpOnly: true,

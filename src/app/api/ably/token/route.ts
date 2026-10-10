@@ -4,14 +4,19 @@ import { ppicSession } from "@/lib/session";
 
 export async function GET() {
 	const session = await ppicSession();
-	if (session?.role !== "SUPER_ADMIN")
+	if (!session)
 		return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
 
 	try {
 		return NextResponse.json(
 			await getAbly().auth.createTokenRequest({
 				clientId: session.user_id,
-				capability: { "ppic:settings": ["subscribe"] },
+				capability: {
+					[`ppic:member:${session.user_id}`]: ["subscribe"],
+					...(session.role === "SUPER_ADMIN"
+						? { "ppic:settings": ["subscribe"] }
+						: {}),
+				},
 			}),
 		);
 	} catch {

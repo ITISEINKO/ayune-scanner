@@ -107,12 +107,19 @@ export async function POST(request: Request) {
 		);
 	}
 	try {
-		await getAbly().channels.get("ppic:settings").publish("member-updated", {
+		const event = {
 			userId,
 			...(isRoleUpdate
 				? { role, allowedStatus: null }
 				: { allowedStatus }),
-		});
+		};
+		const channels = getAbly().channels;
+		await Promise.all([
+			channels.get("ppic:settings").publish("member-updated", event),
+			channels
+				.get(`ppic:member:${userId}`)
+				.publish("session-updated", { userId }),
+		]);
 	} catch (error) {
 		console.error("Ably settings update failed", error);
 	}

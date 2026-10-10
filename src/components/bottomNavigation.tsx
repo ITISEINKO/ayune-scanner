@@ -3,8 +3,6 @@
 import {
 	FolderKanban,
 	History,
-	LogOut,
-	Search,
 	ScanLine,
 	User,
 	Users,
@@ -12,8 +10,7 @@ import {
 import { Fragment } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ppicStatusPath } from "@/lib/produksiPanel";
-import type { PpicRole, PpicStatuses } from "@/types/ppic";
+import type { PpicRole } from "@/types/ppic";
 
 const superAdminItems = [
 	{ href: "/admin", label: "Projects", icon: FolderKanban },
@@ -27,30 +24,21 @@ const memberItems = [
 	{ href: "/profile", label: "Profile", icon: User },
 ];
 
-const getNavigationItemsByRole = (role: PpicRole | null, allowedStatuses: PpicStatuses | null) => {
+const getNavigationItemsByRole = (role: PpicRole | null) => {
 	if (role === "SUPER_ADMIN") return superAdminItems;
-	if (role === "MEMBER")
-		return [
-			...memberItems,
-			...(allowedStatuses ?? []).map((status) => ({
-				href: ppicStatusPath(status),
-				label: status.replaceAll("_", " "),
-				icon: ScanLine,
-			})),
-		];
-	return [{ href: "/api/auth/logout", label: "Logout", icon: LogOut }];
+	if (role === "MEMBER") return memberItems;
+	return [];
 };
 
 export function BottomNavigation({
 	role,
-	allowedStatuses,
 }: {
 	role: PpicRole | null;
-	allowedStatuses: PpicStatuses | null;
 }) {
 	const pathname = usePathname();
 	if (pathname === "/login") return null;
-	const navigationItems = getNavigationItemsByRole(role, allowedStatuses);
+	const navigationItems = getNavigationItemsByRole(role);
+	if (!navigationItems.length) return null;
 
 	return (
 		<nav
@@ -80,19 +68,13 @@ export function BottomNavigation({
 								className="mx-2 h-7 w-px shrink-0 bg-white/10"
 							/>
 						)}
-						{href === "/api/auth/logout" ? (
-							<a href={href} className={className}>
-								{content}
-							</a>
-						) : (
-							<Link
-								href={href}
-								aria-current={active ? "page" : undefined}
-								className={className}
-							>
-								{content}
-							</Link>
-						)}
+						<Link
+							href={href}
+							aria-current={active ? "page" : undefined}
+							className={className}
+						>
+							{content}
+						</Link>
 					</Fragment>
 				);
 			})}
