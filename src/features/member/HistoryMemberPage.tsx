@@ -21,27 +21,33 @@ export const HistoryMemberPage = ({
 	);
 
 	return (
-		<main className="mx-auto min-h-dvh max-w-lg bg-muted/30 px-4 pt-8 pb-28">
-			<header className="rounded-3xl bg-primary px-6 py-7 text-primary-foreground shadow-lg">
-				<div className="flex items-center justify-between gap-4">
+		<main className="mx-auto min-h-dvh max-w-lg bg-background pb-28">
+			<header className="relative overflow-hidden rounded-b-[2.5rem] bg-accent/30 px-6 pt-6 pb-8 text-accent-foreground">
+				<img
+					src="/ayune-14.svg"
+					alt=""
+					aria-hidden="true"
+					className="pointer-events-none absolute -top-20 -right-16 z-0 size-70 opacity-10"
+				/>
+				<div className="relative z-10 flex items-center justify-between gap-4">
 					<div>
-						<p className="text-xs font-bold tracking-widest text-primary-foreground/70 uppercase">
+						<p className="text-md text-muted-foreground/80">
 							Aktivitas member
 						</p>
-						<h1 className="mt-1 text-2xl font-black tracking-tight">
+						<h1 className="text-2xl font-extrabold tracking-tight">
 							Riwayat Scan
 						</h1>
 					</div>
-					<div className="flex size-12 items-center justify-center rounded-2xl bg-primary-foreground/10">
+					<div className="flex size-12 items-center justify-center rounded-2xl bg-card/70">
 						<History aria-hidden="true" className="size-6" />
 					</div>
 				</div>
-				<p className="mt-3 text-sm text-primary-foreground/75">
+				<p className="relative z-10 mt-3 text-sm text-muted-foreground">
 					Semua scan yang berhasil diubah akan tampil di sini.
 				</p>
 			</header>
 
-			<section className="mt-5 overflow-hidden rounded-3xl border border-border/70 bg-card shadow-sm">
+			<section className="mx-4 mt-5 overflow-hidden rounded-3xl border border-border/70 bg-card shadow-sm">
 				<div className="flex items-center justify-between border-b border-border/70 px-5 py-4">
 					<div>
 						<p className=" text-xs tracking-[0.16em] text-muted-foreground uppercase">

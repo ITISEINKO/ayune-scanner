@@ -39,7 +39,7 @@ export const ProfilePage = () => {
 
 			<section className="mt-6 mx-6 space-y-3" aria-label="Account details">
 				<div className="flex items-center gap-3 rounded-xl   p-4 ">
-					<Mail aria-hidden="true" className="size-5 text-primary" />
+					<Mail aria-hidden="true" className="size-5 self-start text-primary" />
 					<div className="min-w-0">
 						<p className="text-xs text-muted-foreground">Email</p>
 						<p className="truncate text-sm font-semibold">
@@ -48,14 +48,20 @@ export const ProfilePage = () => {
 					</div>
 				</div>
 				<div className="flex items-center gap-3 rounded-xl   p-4 ">
-					<ShieldCheck aria-hidden="true" className="size-5 text-primary" />
+					<ShieldCheck
+						aria-hidden="true"
+						className="size-5 self-start text-primary"
+					/>
 					<div>
 						<p className="text-xs text-muted-foreground">Role</p>
 						<p className="text-sm font-semibold">{role}</p>
 					</div>
 				</div>
 				<div className="flex items-center gap-3 rounded-xl   p-4 ">
-					<BadgeCheck aria-hidden="true" className="size-5 text-primary" />
+					<BadgeCheck
+						aria-hidden="true"
+						className="size-5.5 self-start text-primary"
+					/>
 					<div className="min-w-0">
 						<p className="text-xs text-muted-foreground">Allowed status</p>
 						{allowedStatuses.length ? (
@@ -64,7 +70,7 @@ export const ProfilePage = () => {
 									<Badge
 										key={status}
 										variant="secondary"
-										className="h-6 px-2 bg-accent/30 text-xs text-muted-foreground"
+										className="h-6 px-2 bg-accent/30 text-xs text-mute"
 									>
 										{status.replaceAll("_", " ")}
 									</Badge>

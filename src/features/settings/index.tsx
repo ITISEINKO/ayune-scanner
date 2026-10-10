@@ -107,22 +107,31 @@ export const SettingPage = () => {
 		);
 	if (loading || !members)
 		return (
-			<main className="mx-auto min-h-dvh max-w-lg pb-28" aria-busy="true">
-				<header className="mb-7 rounded-b-4xl bg-muted px-6 py-8">
-					<div className="flex items-center gap-4">
+			<main
+				className="mx-auto min-h-dvh max-w-lg bg-background pb-28"
+				aria-busy="true"
+			>
+				<header className="relative overflow-hidden rounded-b-[2.5rem] bg-accent/30 px-6 pt-6 pb-8 text-accent-foreground">
+					<img
+						src="/ayune-14.svg"
+						alt=""
+						aria-hidden="true"
+						className="pointer-events-none absolute -top-20 -right-16 z-0 size-70 opacity-10"
+					/>
+					<div className="relative z-10 flex items-center gap-4">
 						<div className="size-19 shrink-0 overflow-hidden">
 							<img src="/icon.svg" alt="" className="size-full" />
 						</div>
 						<div>
-							<p className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
+							<p className="text-md text-muted-foreground/80">
 								Pengaturan akses
 							</p>
-							<h1 className="text-2xl font-black capitalize tracking-tight">
+							<h1 className="text-2xl font-extrabold tracking-tight">
 								Akses halaman PPIC
 							</h1>
 						</div>
 					</div>
-					<p className="mt-2 text-sm text-muted-foreground">
+					<p className="relative z-10 mt-2 text-sm text-muted-foreground">
 						Tentukan halaman yang boleh diakses oleh setiap pengguna.
 					</p>
 				</header>
@@ -169,40 +178,43 @@ export const SettingPage = () => {
 		);
 
 	return (
-		<main className="mx-auto min-h-dvh max-w-lg  pb-28">
-			<header className="mb-7 rounded-b-4xl px-6 py-8 bg-muted">
-				<div className="flex items-center gap-4">
-					<div className="size-19 shrink-0 overflow-hidden">
-						<img src="/icon.svg" alt="" className="size-full" />
-					</div>
+		<main className="mx-auto min-h-dvh max-w-lg bg-background pb-28">
+			<header className="relative overflow-hidden rounded-b-[2.5rem] bg-accent/30 px-6 pt-6 pb-4 text-accent-foreground">
+				<img
+					src="/ayune-14.svg"
+					alt=""
+					aria-hidden="true"
+					className="pointer-events-none absolute -top-20 -right-16 z-0 size-70 opacity-10"
+				/>
+				<div className="relative z-10 flex items-center gap-4">
 					<div>
-						<p className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
-							Pengaturan akses
-						</p>
-						<h1 className="text-xl font-black capitalize tracking-tight">
+						<p className="text-md text-muted-foreground/80">Pengaturan akses</p>
+						<h1 className="text-2xl font-extrabold tracking-tight">
 							Akses halaman PPIC
 						</h1>
 					</div>
 				</div>
-				<p className="mt-2 text-sm text-muted-foreground">
+				<p className="relative z-10 my-2 text-sm text-muted-foreground">
 					Tentukan halaman yang boleh diakses oleh setiap pengguna.
 				</p>
-			</header>
-			<div className="mx-auto px-4 pb-4">
-				<div className="relative">
-					<Search
-						aria-hidden="true"
-						className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-					/>
-					<Input
-						aria-label="Search by name"
-						value={search}
-						onChange={(event) => setSearch(event.target.value)}
-						placeholder="Search by name"
-						className="pl-10"
-					/>
+
+				<div className="mx-auto  pb-2">
+					<div className="relative">
+						<Search
+							aria-hidden="true"
+							className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+						/>
+						<Input
+							aria-label="Search by name"
+							value={search}
+							onChange={(event) => setSearch(event.target.value)}
+							placeholder="Search by name"
+							className="pl-10"
+						/>
+					</div>
 				</div>
-			</div>
+			</header>
+
 			<div className="mx-auto p-4">
 				{saveError && (
 					<p className="mt-2 text-sm text-destructive" role="alert">
@@ -219,10 +231,10 @@ export const SettingPage = () => {
 					</TableHeader>
 					<TableBody>
 						{filteredMembers.map((member) => {
-								const selectedStatuses = permissions[member.id] ?? [];
-								const selectedOptions = statusOptions.filter((option) =>
-									selectedStatuses.includes(option.status as PpicStatus),
-								);
+							const selectedStatuses = permissions[member.id] ?? [];
+							const selectedOptions = statusOptions.filter((option) =>
+								selectedStatuses.includes(option.status as PpicStatus),
+							);
 							return (
 								<TableRow key={member.id}>
 									<TableCell>
@@ -282,23 +294,37 @@ export const SettingPage = () => {
 													/>
 												}
 											>
-												<Badge variant={selectedOptions.length ? "green" : "muted"}>
+												<Badge
+													variant={selectedOptions.length ? "green" : "muted"}
+												>
 													{selectedOptions.length
-														? selectedOptions.map((option) => option.label).join(", ")
+														? selectedOptions
+																.map((option) => option.label)
+																.join(", ")
 														: "Not active"}
 												</Badge>
 											</DropdownMenuTrigger>
 											<DropdownMenuContent align="end" className="w-56">
-														{statusOptions.slice(0, 3).map((option) => (
-															<DropdownMenuCheckboxItem
-																key={option.value}
-																checked={selectedStatuses.includes(option.status as never)}
-																onCheckedChange={(checked) => {
-																	setSaveError(false);
-																	const next = checked
-																	? [...selectedStatuses, option.status as PpicStatus]
-																		: selectedStatuses.filter((status) => status !== option.status);
-																	void updatePermission(member.id, next.length ? next : null)
+												{statusOptions.slice(0, 3).map((option) => (
+													<DropdownMenuCheckboxItem
+														key={option.value}
+														checked={selectedStatuses.includes(
+															option.status as never,
+														)}
+														onCheckedChange={(checked) => {
+															setSaveError(false);
+															const next = checked
+																? [
+																		...selectedStatuses,
+																		option.status as PpicStatus,
+																	]
+																: selectedStatuses.filter(
+																		(status) => status !== option.status,
+																	);
+															void updatePermission(
+																member.id,
+																next.length ? next : null,
+															)
 																.then(() =>
 																	toast.success("Status berhasil diperbarui."),
 																)
@@ -312,21 +338,23 @@ export const SettingPage = () => {
 															<option.icon />
 															{option.label}
 														</Badge>
-															</DropdownMenuCheckboxItem>
-														))}
-														<DropdownMenuItem
-															onClick={() => {
-																setSaveError(false);
-																void updatePermission(member.id, null)
-																	.then(() => toast.success("Status berhasil diperbarui."))
-																	.catch(() => {
-																		setSaveError(true);
-																		toast.error("Gagal memperbarui status.");
-																	});
-															}}
-														>
-															Not active
-														</DropdownMenuItem>
+													</DropdownMenuCheckboxItem>
+												))}
+												<DropdownMenuItem
+													onClick={() => {
+														setSaveError(false);
+														void updatePermission(member.id, null)
+															.then(() =>
+																toast.success("Status berhasil diperbarui."),
+															)
+															.catch(() => {
+																setSaveError(true);
+																toast.error("Gagal memperbarui status.");
+															});
+													}}
+												>
+													Not active
+												</DropdownMenuItem>
 											</DropdownMenuContent>
 										</DropdownMenu>
 									</TableCell>
