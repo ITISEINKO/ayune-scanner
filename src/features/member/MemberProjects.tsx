@@ -38,8 +38,14 @@ export const ChooseProjectPage = ({
 
 	return (
 		<main className="mx-auto min-h-dvh max-w-lg bg-background pb-8">
-			<header className="rounded-b-[2.5rem] bg-accent/30 px-4 pt-6 pb-8 text-accent-foreground">
-				<div className="flex items-center gap-3">
+			<header className="relative overflow-hidden rounded-b-[2.5rem] bg-accent/30 px-4 pt-6 pb-8 text-accent-foreground">
+				<img
+					src="/ayune-14.svg"
+					alt=""
+					aria-hidden="true"
+					className="pointer-events-none absolute -top-20 -right-16 z-0 size-70  opacity-10"
+				/>
+				<div className="relative z-10 flex items-center gap-3">
 					<div className="mr-auto">
 						<p className="text-md text-muted-foreground/80">Pekerjaan Aktif</p>
 
@@ -48,7 +54,7 @@ export const ChooseProjectPage = ({
 						</h1>
 					</div>
 				</div>
-				<div className="relative mt-4">
+				<div className="relative z-10 mt-4">
 					<Search
 						aria-hidden="true"
 						className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-muted-foreground"

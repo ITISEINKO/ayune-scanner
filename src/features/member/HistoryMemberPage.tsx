@@ -1,12 +1,25 @@
-import { ClipboardCheck, History } from "lucide-react";
+"use client";
+
+import { ClipboardCheck, ChevronLeft, ChevronRight, History } from "lucide-react";
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import type { PpicScanHistory } from "@/types/ppic";
+
+const ITEMS_PER_PAGE = 15;
 
 export const HistoryMemberPage = ({
 	history,
 }: {
 	history: PpicScanHistory[];
 }) => {
+	const [page, setPage] = useState(1);
+	const totalPages = Math.ceil(history.length / ITEMS_PER_PAGE);
+	const visibleHistory = history.slice(
+		(page - 1) * ITEMS_PER_PAGE,
+		page * ITEMS_PER_PAGE,
+	);
+
 	return (
 		<main className="mx-auto min-h-dvh max-w-lg bg-muted/30 px-4 pt-8 pb-28">
 			<header className="rounded-3xl bg-primary px-6 py-7 text-primary-foreground shadow-lg">
@@ -42,7 +55,7 @@ export const HistoryMemberPage = ({
 				</div>
 				{history.length ? (
 					<ul className="divide-y divide-border/70" aria-label="Riwayat scan">
-						{history.map(
+						{visibleHistory.map(
 							({ taskName, serialNumber, status, scannedAt }, index) => (
 								<li
 									key={`${serialNumber}-${scannedAt}-${index}`}
@@ -83,6 +96,31 @@ export const HistoryMemberPage = ({
 					<p className="px-5 py-8 text-center text-sm text-muted-foreground">
 						Belum ada riwayat scan.
 					</p>
+				)}
+				{totalPages > 1 && (
+					<div className="flex items-center justify-between border-t border-border/70 px-5 py-3">
+						<Button
+							aria-label="Halaman sebelumnya"
+							disabled={page === 1}
+							onClick={() => setPage((current) => current - 1)}
+							size="icon-sm"
+							variant="outline"
+						>
+							<ChevronLeft aria-hidden="true" />
+						</Button>
+						<span className="text-xs font-semibold text-muted-foreground">
+							Halaman {page} dari {totalPages}
+						</span>
+						<Button
+							aria-label="Halaman berikutnya"
+							disabled={page === totalPages}
+							onClick={() => setPage((current) => current + 1)}
+							size="icon-sm"
+							variant="outline"
+						>
+							<ChevronRight aria-hidden="true" />
+						</Button>
+					</div>
 				)}
 			</section>
 		</main>
