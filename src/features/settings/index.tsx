@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
+	DropdownMenuCheckboxItem,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -30,6 +31,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { usePanelMembers } from "@/hooks/use-panel-members";
 import { PPIC_ROLES, PPIC_STATUSES } from "@/types/ppic";
+import type { PpicStatus } from "@/types/ppic";
 
 export const SettingPage = () => {
 	const {
@@ -217,10 +219,10 @@ export const SettingPage = () => {
 					</TableHeader>
 					<TableBody>
 						{filteredMembers.map((member) => {
-							const status =
-								statusOptions.find(
-									(option) => option.status === permissions[member.id],
-								) ?? statusOptions[3];
+								const selectedStatuses = permissions[member.id] ?? [];
+								const selectedOptions = statusOptions.filter((option) =>
+									selectedStatuses.includes(option.status as PpicStatus),
+								);
 							return (
 								<TableRow key={member.id}>
 									<TableCell>
@@ -280,18 +282,23 @@ export const SettingPage = () => {
 													/>
 												}
 											>
-												<Badge variant={status.variant}>
-													<status.icon />
-													{status.label}
+												<Badge variant={selectedOptions.length ? "green" : "muted"}>
+													{selectedOptions.length
+														? selectedOptions.map((option) => option.label).join(", ")
+														: "Not active"}
 												</Badge>
 											</DropdownMenuTrigger>
 											<DropdownMenuContent align="end" className="w-56">
-												{statusOptions.map((option) => (
-													<DropdownMenuItem
-														key={option.value}
-														onClick={() => {
-															setSaveError(false);
-															void updatePermission(member.id, option.status)
+														{statusOptions.slice(0, 3).map((option) => (
+															<DropdownMenuCheckboxItem
+																key={option.value}
+																checked={selectedStatuses.includes(option.status as never)}
+																onCheckedChange={(checked) => {
+																	setSaveError(false);
+																	const next = checked
+																	? [...selectedStatuses, option.status as PpicStatus]
+																		: selectedStatuses.filter((status) => status !== option.status);
+																	void updatePermission(member.id, next.length ? next : null)
 																.then(() =>
 																	toast.success("Status berhasil diperbarui."),
 																)
@@ -305,8 +312,21 @@ export const SettingPage = () => {
 															<option.icon />
 															{option.label}
 														</Badge>
-													</DropdownMenuItem>
-												))}
+															</DropdownMenuCheckboxItem>
+														))}
+														<DropdownMenuItem
+															onClick={() => {
+																setSaveError(false);
+																void updatePermission(member.id, null)
+																	.then(() => toast.success("Status berhasil diperbarui."))
+																	.catch(() => {
+																		setSaveError(true);
+																		toast.error("Gagal memperbarui status.");
+																	});
+															}}
+														>
+															Not active
+														</DropdownMenuItem>
 											</DropdownMenuContent>
 										</DropdownMenu>
 									</TableCell>

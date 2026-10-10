@@ -22,7 +22,7 @@ export default async function MemberLayout({
 			/>
 			<BottomNavigation
 				role={session?.role ?? null}
-				allowedStatus={session?.allowed_status ?? null}
+				allowedStatuses={session?.allowed_status ?? null}
 			/>
 		</>
 	);

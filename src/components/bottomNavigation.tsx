@@ -13,7 +13,7 @@ import { Fragment } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ppicStatusPath } from "@/lib/produksiPanel";
-import type { PpicRole, PpicStatus } from "@/types/ppic";
+import type { PpicRole, PpicStatuses } from "@/types/ppic";
 
 const superAdminItems = [
 	{ href: "/admin", label: "Projects", icon: FolderKanban },
@@ -27,21 +27,30 @@ const memberItems = [
 	{ href: "/profile", label: "Profile", icon: User },
 ];
 
-const getNavigationItemsByRole = (role: PpicRole | null) => {
+const getNavigationItemsByRole = (role: PpicRole | null, allowedStatuses: PpicStatuses | null) => {
 	if (role === "SUPER_ADMIN") return superAdminItems;
-	if (role === "MEMBER") return memberItems;
+	if (role === "MEMBER")
+		return [
+			...memberItems,
+			...(allowedStatuses ?? []).map((status) => ({
+				href: ppicStatusPath(status),
+				label: status.replaceAll("_", " "),
+				icon: ScanLine,
+			})),
+		];
 	return [{ href: "/api/auth/logout", label: "Logout", icon: LogOut }];
 };
 
 export function BottomNavigation({
 	role,
+	allowedStatuses,
 }: {
 	role: PpicRole | null;
-	allowedStatus: PpicStatus | null;
+	allowedStatuses: PpicStatuses | null;
 }) {
 	const pathname = usePathname();
 	if (pathname === "/login") return null;
-	const navigationItems = getNavigationItemsByRole(role);
+	const navigationItems = getNavigationItemsByRole(role, allowedStatuses);
 
 	return (
 		<nav

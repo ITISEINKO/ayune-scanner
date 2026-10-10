@@ -9,7 +9,8 @@ import {
 	CLICKUP_PPIC_CHANNEL_ID,
 	ppicStatusPath,
 } from "@/lib/produksiPanel";
-import type { PpicRole, PpicStatus } from "@/types/ppic";
+import { ppicStatuses } from "@/types/ppic";
+import type { PpicRole, PpicStatuses } from "@/types/ppic";
 import type { PanelMember } from "@/types/clickup";
 import type { SelectedProject } from "@/types/project";
 
@@ -79,7 +80,7 @@ const sessionSignature = (payload: string) =>
 export const encodePpicSession = (
 	userId: string,
 	role: PpicRole,
-	allowedStatus: PpicStatus | null,
+	allowedStatus: PpicStatuses | null,
 ) => {
 	const payload = Buffer.from(
 		JSON.stringify({
@@ -174,14 +175,13 @@ export const ppicSession = async () => {
 				allowed_status: null,
 				refreshed_at: session.refreshed_at,
 			};
-		if (
-			session.role === "MEMBER" &&
-			(session.allowed_status === null || isPpicStatus(session.allowed_status))
-		)
+		const allowedStatus =
+			session.allowed_status === null ? null : ppicStatuses(session.allowed_status);
+		if (session.role === "MEMBER" && allowedStatus)
 			return {
 				user_id: session.user_id,
 				role: "MEMBER" as const,
-				allowed_status: session.allowed_status,
+				allowed_status: allowedStatus,
 				refreshed_at: session.refreshed_at,
 			};
 	} catch {
@@ -201,7 +201,7 @@ export const ppicLoginState = async (userId: string) => {
 	const allowedStatus =
 		access?.role === "MEMBER" &&
 		Number(access.active) === 1 &&
-		isPpicStatus(access.allowed_status)
+		Array.isArray(access.allowed_status)
 			? access.allowed_status
 			: null;
 	return {
@@ -246,7 +246,7 @@ export const requireFreshPpicStatusAccess = async (status: string) => {
 	if (
 		access?.role !== "MEMBER" ||
 		Number(access.active) !== 1 ||
-		access.allowed_status !== status
+		!Array.isArray(access.allowed_status) || !access.allowed_status.includes(status)
 	)
 		redirect("/unauthorized");
 	return userId;
@@ -256,7 +256,7 @@ export const requirePpicStatusAccess = async (status: string) => {
 	if (!isPpicStatus(status)) redirect("/unauthorized");
 	const session = await ppicSession();
 	if (session) {
-		if (session.role === "SUPER_ADMIN" || session.allowed_status === status)
+		if (session.role === "SUPER_ADMIN" || session.allowed_status?.includes(status))
 			return;
 		redirect("/unauthorized");
 	}

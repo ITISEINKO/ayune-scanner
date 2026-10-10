@@ -11,16 +11,16 @@ import {
 import type { PanelMember } from "@/types/clickup";
 import {
 	isPpicRole,
-	isPpicStatus,
+	ppicStatuses,
 } from "@/types/ppic";
-import type { PpicRole, PpicStatus } from "@/types/ppic";
+import type { PpicRole, PpicStatuses } from "@/types/ppic";
 
 const loadMembers = async () => {
 	const response = await fetch("/api/panel/members", { cache: "no-store" });
 	const data = (await response.json()) as {
 		members?: PanelMember[];
 		roles?: Record<string, PpicRole>;
-		permissions?: Record<string, PpicStatus | null>;
+		permissions?: Record<string, PpicStatuses | null>;
 	};
 	if (!response.ok || !data.members) throw new Error("members");
 	return {
@@ -47,7 +47,7 @@ export function usePanelMembers() {
 		mutationFn: async (
 			body:
 				| { user_id: string; role: PpicRole }
-				| { user_id: string; allowed_status: PpicStatus | null },
+				| { user_id: string; allowed_status: PpicStatuses | null },
 		) => {
 			const response = await fetch("/api/panel/members", {
 				method: "POST",
@@ -99,15 +99,14 @@ export function usePanelMembers() {
 							roles: { ...current.roles, [userId]: data.role },
 							permissions: { ...current.permissions, [userId]: null },
 						};
-					if (
-						"allowedStatus" in data &&
-						(data.allowedStatus === null || isPpicStatus(data.allowedStatus))
-					)
+					const allowedStatus =
+						"allowedStatus" in data ? ppicStatuses(data.allowedStatus) : null;
+					if ("allowedStatus" in data && (data.allowedStatus === null || allowedStatus))
 						return {
 							...current,
 							permissions: {
 								...current.permissions,
-								[userId]: data.allowedStatus,
+								[userId]: data.allowedStatus === null ? null : allowedStatus,
 							},
 						};
 					return current;
@@ -132,7 +131,7 @@ export function usePanelMembers() {
 		error: query.isError,
 		updateRole: (userId: string, role: PpicRole) =>
 			update.mutateAsync({ user_id: userId, role }),
-		updatePermission: (userId: string, allowedStatus: PpicStatus | null) =>
+		updatePermission: (userId: string, allowedStatus: PpicStatuses | null) =>
 			update.mutateAsync({ user_id: userId, allowed_status: allowedStatus }),
 		savingMemberId: update.isPending ? (update.variables?.user_id ?? null) : null,
 	};

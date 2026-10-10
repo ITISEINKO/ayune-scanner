@@ -64,7 +64,7 @@ export async function POST(request: Request) {
 		const response = NextResponse.json({
 			ok: true,
 			project: selection,
-			path: ppicStatusPath(session.allowed_status),
+			path: ppicStatusPath(session.allowed_status[0]),
 		});
 		selectionCookie(response, cookie);
 		after(async () => {

@@ -3,8 +3,9 @@ import {
 	isPpicRole,
 	isPpicStatus,
 	PPIC_STATUSES,
+	ppicStatuses,
 } from "@/types/ppic";
-import type { PpicRole, PpicScanHistory, PpicStatus } from "@/types/ppic";
+import type { PpicRole, PpicScanHistory, PpicStatus, PpicStatuses } from "@/types/ppic";
 
 const url = process.env.TURSO_DATABASE_URL;
 const authToken = process.env.TURSO_AUTH_TOKEN;
@@ -20,7 +21,11 @@ export const db = createClient({
 
 export { isPpicRole, isPpicStatus } from "@/types/ppic";
 
-export const getPpicAccess = async (clickupUserId: string) => {
+export const getPpicAccess = async (clickupUserId: string): Promise<{
+	role?: unknown;
+	allowed_status: PpicStatuses | null;
+	active?: unknown;
+} | null> => {
 	const result = await db.execute({
 		sql: `
 			SELECT role, allowed_status, active
@@ -31,7 +36,8 @@ export const getPpicAccess = async (clickupUserId: string) => {
 		args: [clickupUserId],
 	});
 
-	return result.rows[0] ?? null;
+	const row = result.rows[0] as Record<string, unknown> | undefined;
+	return row ? { ...row, allowed_status: ppicStatuses(row.allowed_status) } : null;
 };
 
 export const isPpicSuperAdmin = async (clickupUserId: string) => {
@@ -63,7 +69,11 @@ export const getPpicRole = async (clickupUserId: string): Promise<PpicRole> => {
 	return isPpicRole(result.rows[0]?.role) ? result.rows[0].role : "MEMBER";
 };
 
-export const getPpicPermission = async (clickupUserId: string) => {
+export const getPpicPermission = async (clickupUserId: string): Promise<{
+	clickup_user_id?: unknown;
+	allowed_status: PpicStatuses | null;
+	active?: unknown;
+} | null> => {
 	const result = await db.execute({
 		sql: `
 			SELECT clickup_user_id, allowed_status, active
@@ -75,18 +85,19 @@ export const getPpicPermission = async (clickupUserId: string) => {
 		args: [clickupUserId],
 	});
 
-	return result.rows[0] ?? null;
+	const row = result.rows[0] as Record<string, unknown> | undefined;
+	return row ? { ...row, allowed_status: ppicStatuses(row.allowed_status) } : null;
 };
 
 export const savePpicPermission = async (
 	userId: string,
-	allowedStatus: PpicStatus,
+	allowedStatus: PpicStatuses,
 	updatedBy: string,
 ) => {
 	if (
 		!userId.trim() ||
 		!updatedBy.trim() ||
-		!isPpicStatus(allowedStatus)
+		!allowedStatus.length || allowedStatus.some((status) => !isPpicStatus(status))
 	)
 		throw new Error("Invalid PPIC permission");
 
@@ -105,7 +116,7 @@ export const savePpicPermission = async (
 				updated_by = excluded.updated_by,
 				updated_at = CURRENT_TIMESTAMP
 		`,
-		args: [userId, allowedStatus, updatedBy],
+		args: [userId, allowedStatus.length === 1 ? allowedStatus[0] : JSON.stringify(allowedStatus), updatedBy],
 	});
 };
 

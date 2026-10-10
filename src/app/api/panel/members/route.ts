@@ -4,11 +4,11 @@ import {
 	getPpicPermission,
 	getPpicRole,
 	isPpicRole,
-	isPpicStatus,
 	isPpicSuperAdmin,
 	savePpicPermission,
 	savePpicRole,
 } from "@/lib/db";
+import { ppicStatuses } from "@/types/ppic";
 import { getAbly } from "@/lib/ably";
 import { clickUpUserId, panelChannelMembers } from "@/lib/session";
 
@@ -77,8 +77,8 @@ export async function POST(request: Request) {
 	const allowedStatus =
 		body.allowed_status === null
 			? null
-			: isPpicStatus(body.allowed_status)
-				? body.allowed_status
+			: ppicStatuses(body.allowed_status)
+				? ppicStatuses(body.allowed_status)
 				: undefined;
 	if (
 		!userId ||

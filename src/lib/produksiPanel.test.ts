@@ -7,6 +7,7 @@ import {
 	type ClickUpField,
 } from "./clickup.ts";
 import { ppicStatusPath, statusBarangScanOptions } from "./produksiPanel.ts";
+import { ppicStatuses } from "@/types/ppic";
 import { taskProjectScope } from "./projectScope.ts";
 
 const dropdown: ClickUpField = {
@@ -32,6 +33,11 @@ assert.equal(ppicStatusPath("BARANG_DITERIMA"), "/barang-diterima");
 assert.equal(ppicStatusPath("SEDANG_DIPACKING"), "/sedang-dipacking");
 assert.equal(ppicStatusPath("TERPASANG_DIGUNAKAN"), "/terpasang-digunakan");
 assert.equal(ppicStatusPath("inactive"), "/scan-to-find");
+assert.deepEqual(ppicStatuses("BARANG_DITERIMA"), ["BARANG_DITERIMA"]);
+assert.deepEqual(
+	ppicStatuses('["BARANG_DITERIMA","TERPASANG_DIGUNAKAN"]'),
+	["BARANG_DITERIMA", "TERPASANG_DIGUNAKAN"],
+);
 assert.equal(
 	taskProjectScope({ id: "serial", top_level_parent: "main", parent: "group" }, "main"),
 	"MATCH",

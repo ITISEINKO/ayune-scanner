@@ -38,7 +38,7 @@ export const ChooseProjectPage = ({
 
 	return (
 		<main className="mx-auto min-h-dvh max-w-lg bg-background pb-8">
-			<header className="relative overflow-hidden rounded-b-[2.5rem] bg-accent/30 px-4 pt-6 pb-8 text-accent-foreground">
+			<header className="relative overflow-hidden rounded-b-[2.5rem] bg-accent/30 px-6 pt-6 pb-8 text-accent-foreground">
 				<img
 					src="/ayune-14.svg"
 					alt=""

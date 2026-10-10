@@ -1,14 +1,14 @@
 "use client";
 
 import { queryOptions, useQuery } from "@tanstack/react-query";
-import type { PpicRole, PpicStatus } from "@/types/ppic";
+import type { PpicRole, PpicStatuses } from "@/types/ppic";
 
 const loadProfile = async () => {
 	const response = await fetch("/api/profile");
 	const profile = (await response.json()) as {
 		email: string | null;
 		role: PpicRole | null;
-		allowedStatus: PpicStatus | null;
+		allowedStatuses: PpicStatuses | null;
 	};
 	if (!response.ok) throw new Error("profile");
 	return profile;

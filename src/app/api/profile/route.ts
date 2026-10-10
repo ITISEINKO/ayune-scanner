@@ -6,6 +6,6 @@ export async function GET() {
 	return NextResponse.json({
 		email,
 		role: session?.role ?? null,
-		allowedStatus: session?.allowed_status ?? null,
+		allowedStatuses: session?.allowed_status ?? null,
 	});
 }

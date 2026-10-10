@@ -6,8 +6,9 @@ import { useProfile } from "@/hooks/use-profile";
 export const ProfilePage = () => {
 	const { data: profile } = useProfile();
 	const role = profile?.role?.replaceAll("_", " ") ?? "Not available";
-	const allowedStatus =
-		profile?.allowedStatus?.replaceAll("_", " ") ?? "No scan access";
+	const allowedStatuses =
+		profile?.allowedStatuses?.map((status) => status.replaceAll("_", " ")).join(", ") ??
+			"No scan access";
 
 	return (
 		<main className="mx-auto min-h-screen max-w-lg bg-muted/30   pb-28">
@@ -58,7 +59,7 @@ export const ProfilePage = () => {
 					<BadgeCheck aria-hidden="true" className="size-5 text-primary" />
 					<div>
 						<p className="text-xs text-muted-foreground">Allowed status</p>
-						<p className="text-sm font-semibold">{allowedStatus}</p>
+						<p className="text-sm font-semibold">{allowedStatuses}</p>
 					</div>
 				</div>
 				<a
