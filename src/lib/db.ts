@@ -13,6 +13,7 @@ import type {
 	PpicStatuses,
 } from "@/types/ppic";
 import type { PanelMember } from "@/types/clickup";
+import type { ProjectStatusRow } from "@/types/project";
 
 const url = process.env.TURSO_DATABASE_URL;
 const authToken = process.env.TURSO_AUTH_TOKEN;
@@ -28,6 +29,94 @@ export const db = createClient({
 
 let scanHistorySchema: Promise<void> | undefined;
 let permissionNamesSchema: Promise<void> | undefined;
+let projectStatusSchema: Promise<void> | undefined;
+
+const ensureProjectStatusSchema = () =>
+	(projectStatusSchema ??= db
+		.execute(`
+			CREATE TABLE IF NOT EXISTS ppic_component_status (
+				component_task_id TEXT PRIMARY KEY,
+				project_task_id TEXT NOT NULL,
+				status TEXT,
+				updated_at INTEGER NOT NULL
+			)
+		`)
+		.then(() =>
+			db.execute(
+				"CREATE INDEX IF NOT EXISTS idx_ppic_component_status_project_updated ON ppic_component_status(project_task_id, updated_at)",
+			),
+		)
+		.then(() => undefined));
+
+export const seedPpicProjectStatuses = async (
+	projectTaskId: string,
+	rows: ProjectStatusRow[],
+) => {
+	if (!rows.length) return;
+	await ensureProjectStatusSchema();
+	await Promise.all(
+		rows.map((row) =>
+			db.execute({
+				sql: `
+					INSERT INTO ppic_component_status (
+						component_task_id, project_task_id, status, updated_at
+					)
+					VALUES (?, ?, ?, ?)
+					ON CONFLICT(component_task_id) DO UPDATE SET
+						project_task_id = excluded.project_task_id,
+						status = excluded.status
+				`,
+				args: [row.componentTaskId, projectTaskId, row.status, Date.now()],
+			}),
+		),
+	);
+};
+
+export const getPpicProjectStatusUpdatedAt = async (projectTaskId: string) => {
+	await ensureProjectStatusSchema();
+	const result = await db.execute({
+		sql: "SELECT COALESCE(MAX(updated_at), 0) AS updated_at FROM ppic_component_status WHERE project_task_id = ?",
+		args: [projectTaskId],
+	});
+	return Number(result.rows[0]?.updated_at ?? 0);
+};
+
+export const updatePpicComponentStatus = async (
+	componentTaskId: string,
+	status: string | null,
+) => {
+	await ensureProjectStatusSchema();
+	const result = await db.execute({
+		sql: `
+			UPDATE ppic_component_status
+			SET status = ?, updated_at = ?
+			WHERE component_task_id = ?
+		`,
+		args: [status, Date.now(), componentTaskId],
+	});
+	return result.rowsAffected > 0;
+};
+
+export const getPpicProjectStatusChanges = async (
+	projectTaskId: string,
+	since: number,
+) => {
+	await ensureProjectStatusSchema();
+	const result = await db.execute({
+		sql: `
+			SELECT component_task_id, status, updated_at
+			FROM ppic_component_status
+			WHERE project_task_id = ? AND updated_at > ?
+			ORDER BY updated_at ASC
+		`,
+		args: [projectTaskId, since],
+	});
+	return result.rows.map((row) => ({
+		componentTaskId: String(row.component_task_id),
+		status: row.status === null ? null : String(row.status),
+		updatedAt: Number(row.updated_at),
+	}));
+};
 
 const ensureScanHistorySchema = () =>
 	(scanHistorySchema ??= db

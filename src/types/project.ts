@@ -18,10 +18,18 @@ export type ProjectSerialCache = {
 	expires_at: number;
 };
 
+export type ProjectStatusRow = {
+	componentTaskId: string;
+	status: string | null;
+};
+
+export type ProjectStatusChange = ProjectStatusRow & { updatedAt: number };
+
 export type ProjectDashboardComponent = {
 	id: string;
 	serialNumber: string | null;
 	name: string;
+	status: string | null;
 	history: PpicProjectScanHistory[];
 };
 
@@ -37,4 +45,5 @@ export type ProjectDashboard = {
 	recentHistory: PpicProjectScanHistory[];
 	memberContribution: { userId: string; name: string; scans: number }[];
 	memberNames: Record<string, string>;
+	statusUpdatedAt: number;
 };

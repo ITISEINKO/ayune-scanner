@@ -6,7 +6,11 @@ import {
 	optionName,
 	type ClickUpField,
 } from "./clickup.ts";
-import { ppicStatusPath, statusBarangScanOptions } from "./produksiPanel.ts";
+import {
+	ppicStatusPath,
+	statusBarangScanKey,
+	statusBarangScanOptions,
+} from "./produksiPanel.ts";
 import { ppicStatuses } from "../types/ppic.ts";
 import { taskProjectScope } from "./projectScope.ts";
 import { calendarDaysBetween, elapsedLabel, scanWindow } from "./projectTimeline.ts";
@@ -30,6 +34,8 @@ const authUrl = clickUpAuthUrl(
 );
 assert.equal(authUrl.searchParams.get("client_id"), "client-id");
 assert.equal(statusBarangScanOptions.length, 9);
+assert.equal(statusBarangScanKey(3), "SEDANG_DIPACKING");
+assert.equal(statusBarangScanKey(8), "DIHAPUSKAN");
 assert.equal(ppicStatusPath("BARANG_DITERIMA"), "/barang-diterima");
 assert.equal(ppicStatusPath("SEDANG_DIPACKING"), "/sedang-dipacking");
 assert.equal(ppicStatusPath("TERPASANG_DIGUNAKAN"), "/terpasang-digunakan");

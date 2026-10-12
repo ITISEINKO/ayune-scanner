@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { clickUpHeaders } from "@/lib/clickup";
-import { CF_PANEL } from "@/lib/produksiPanel";
+import { CF_PANEL, statusBarangScanKey } from "@/lib/produksiPanel";
 import { panelListId } from "@/lib/projects";
 import { taskProjectScope } from "@/lib/projectScope";
 import type { ClickUpTask } from "@/types/clickup";
@@ -31,6 +31,9 @@ export const serialNumberOf = (task: ClickUpTask) =>
 
 export const scanStatusOf = (task: ClickUpTask) =>
 	fieldValue(task, CF_PANEL.STATUS_BARANG_SCAN);
+
+export const getScanStatus = (task: ClickUpTask) =>
+	statusBarangScanKey(scanStatusOf(task));
 
 const validCache = (value: unknown): value is ProjectSerialCache => {
 	if (!value || typeof value !== "object") return false;

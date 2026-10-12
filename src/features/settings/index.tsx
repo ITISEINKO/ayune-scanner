@@ -34,6 +34,10 @@ import { PPIC_ROLES, PPIC_STATUSES } from "@/types/ppic";
 import type { PpicStatus } from "@/types/ppic";
 
 export const SettingPage = () => {
+	const [webhookEndpoint, setWebhookEndpoint] = useState("");
+	const [webhookSecret, setWebhookSecret] = useState("");
+	const [webhookSaving, setWebhookSaving] = useState(false);
+	const [webhookError, setWebhookError] = useState("");
 	const {
 		members,
 		roles,
@@ -88,6 +92,27 @@ export const SettingPage = () => {
 			variant: "muted",
 		},
 	] as const;
+	const createWebhook = async () => {
+		setWebhookSaving(true);
+		setWebhookError("");
+		try {
+			const response = await fetch("/api/clickup/webhook", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					endpoint: webhookEndpoint.trim(),
+				}),
+			});
+			const data = await response.json();
+			if (!response.ok || !data.webhook) throw new Error(data.error ?? "Gagal membuat webhook.");
+			setWebhookSecret(data.webhook.secret ?? "");
+			toast.success("Webhook ClickUp berhasil dibuat.");
+		} catch (error) {
+			setWebhookError(error instanceof Error ? error.message : "Gagal membuat webhook.");
+		} finally {
+			setWebhookSaving(false);
+		}
+	};
 
 	if (error)
 		return (
@@ -216,6 +241,28 @@ export const SettingPage = () => {
 			</header>
 
 			<div className="mx-auto p-4">
+				<section className="mb-6 rounded-2xl border bg-card p-4 shadow-sm">
+					<h2 className="flex items-center gap-2 font-bold"><Settings2 className="size-4" /> ClickUp webhook</h2>
+					<p className="mt-1 text-sm text-muted-foreground">Daftarkan webhook untuk perubahan status di list PPIC.</p>
+					<div className="mt-4 space-y-3">
+						<Input
+							aria-label="Webhook endpoint"
+							placeholder={`${typeof window === "undefined" ? "https://domain-anda.com" : window.location.origin}/api/clickup/scan-hook`}
+							value={webhookEndpoint}
+							onChange={(event) => setWebhookEndpoint(event.target.value)}
+						/>
+						<Button type="button" onClick={createWebhook} disabled={webhookSaving}>
+							{webhookSaving ? "Membuat..." : "Buat webhook"}
+						</Button>
+						{webhookError && <p className="text-sm text-destructive" role="alert">{webhookError}</p>}
+						{webhookSecret && (
+							<div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">
+								<p className="font-bold">Simpan secret ini sekarang</p>
+								<code className="mt-1 block break-all">{webhookSecret}</code>
+							</div>
+						)}
+					</div>
+				</section>
 				{saveError && (
 					<p className="mt-2 text-sm text-destructive" role="alert">
 						Could not save access. Try again.

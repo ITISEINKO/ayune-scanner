@@ -1,6 +1,11 @@
-import { getPpicMemberNames, getPpicProjectScanHistory } from "@/lib/db";
+import {
+	getPpicMemberNames,
+	getPpicProjectScanHistory,
+	getPpicProjectStatusUpdatedAt,
+	seedPpicProjectStatuses,
+} from "@/lib/db";
 import { clickUpHeaders } from "@/lib/clickup";
-import { serialNumberOf } from "@/lib/projectSerialCache";
+import { getScanStatus, serialNumberOf } from "@/lib/projectSerialCache";
 import type { ClickUpTask } from "@/types/clickup";
 import type {
 	ProjectDashboard,
@@ -15,7 +20,10 @@ const clickUpError = (response: Response) =>
 const loadTask = async (token: string, taskId: string) => {
 	const response = await fetch(
 		`https://api.clickup.com/api/v2/task/${encodeURIComponent(taskId)}?include_subtasks=true`,
-		{ headers: clickUpHeaders(token), cache: "no-store" },
+		{
+			headers: clickUpHeaders(token),
+			next: { revalidate: 30, tags: ["clickup-project-data"] },
+		},
 	);
 	if (!response.ok) throw clickUpError(response);
 	return (await response.json()) as ClickUpTask;
@@ -23,6 +31,23 @@ const loadTask = async (token: string, taskId: string) => {
 
 const descendantsOf = (tasks: ClickUpTask[]): ClickUpTask[] =>
 	tasks.flatMap((task) => [task, ...descendantsOf(task.subtasks ?? [])]);
+
+const itemIdFor = (
+	task: ClickUpTask,
+	projectId: string,
+	byId: Map<string, ClickUpTask>,
+) => {
+	let current = task;
+	const seen = new Set<string>();
+	while (current.parent && !seen.has(current.id)) {
+		seen.add(current.id);
+		const parent = byId.get(current.parent);
+		if (!parent) return null;
+		if (parent.parent === projectId) return parent.id;
+		current = parent;
+	}
+	return null;
+};
 
 export const getProjectDashboard = async (
 	token: string,
@@ -33,6 +58,7 @@ export const getProjectDashboard = async (
 		getPpicProjectScanHistory(project.task_id),
 	]);
 	const allTasks = descendantsOf(parent.subtasks ?? []);
+	const byId = new Map(allTasks.map((task) => [task.id, task]));
 	const historyByTask = new Map<string, typeof history>();
 	for (const log of history) {
 		const logs = historyByTask.get(log.componentTaskId) ?? [];
@@ -44,16 +70,28 @@ export const getProjectDashboard = async (
 	);
 	const items = allTasks.filter((task) => task.parent === project.task_id);
 	const components = allTasks.filter(
-		(task) => task.top_level_parent === project.task_id && task.parent && task.parent !== project.task_id,
+		(task) =>
+			task.parent !== project.task_id &&
+			itemIdFor(task, project.task_id, byId) &&
+			getScanStatus(task) !== "DIHAPUSKAN",
 	);
+	await seedPpicProjectStatuses(
+		project.task_id,
+		components.map((task) => ({
+			componentTaskId: task.id,
+			status: getScanStatus(task),
+		})),
+	);
+	const statusUpdatedAt = await getPpicProjectStatusUpdatedAt(project.task_id);
 	const componentByItem = new Map<string, ProjectDashboardComponent[]>();
 	for (const component of components) {
-		const itemId = component.parent!;
+		const itemId = itemIdFor(component, project.task_id, byId)!;
 		const value = componentByItem.get(itemId) ?? [];
 		value.push({
 			id: component.id,
 			serialNumber: serialNumberOf(component),
 			name: component.name ?? "Tanpa nama",
+			status: getScanStatus(component),
 			history: historyByTask.get(component.id) ?? [],
 		});
 		componentByItem.set(itemId, value);
@@ -85,5 +123,6 @@ export const getProjectDashboard = async (
 			}))
 			.sort((a, b) => b.scans - a.scans || a.name.localeCompare(b.name)),
 		memberNames,
+		statusUpdatedAt,
 	};
 };
