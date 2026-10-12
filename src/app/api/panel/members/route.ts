@@ -6,6 +6,7 @@ import {
 	getPpicRole,
 	isPpicRole,
 	isPpicSuperAdmin,
+	savePpicMemberNames,
 	savePpicPermission,
 	savePpicRole,
 } from "@/lib/db";
@@ -35,7 +36,8 @@ export async function GET() {
 	const result = await panelChannelMembers();
 	if (!result.ok) return accessError(result.status);
 	try {
-		const [roles, permissions] = await Promise.all([
+		const [, roles, permissions] = await Promise.all([
+			savePpicMemberNames(result.members),
 			Object.fromEntries(
 				await Promise.all(
 					result.members.map(async (member) => [
@@ -76,6 +78,7 @@ export async function POST(request: Request) {
 		);
 	}
 	const userId = typeof body.user_id === "string" ? body.user_id.trim() : "";
+	const member = result.members.find((candidate) => candidate.id === userId);
 	const isRoleUpdate = body.role !== undefined;
 	const isStatusUpdate = body.allowed_status !== undefined;
 	const role = isPpicRole(body.role) ? body.role : null;
@@ -90,7 +93,7 @@ export async function POST(request: Request) {
 		isRoleUpdate === isStatusUpdate ||
 		(isRoleUpdate && role === null) ||
 		(isStatusUpdate && allowedStatus === undefined) ||
-		!result.members.some((member) => member.id === userId) ||
+		!member ||
 		(isStatusUpdate && (await isPpicSuperAdmin(userId)))
 	)
 		return NextResponse.json(
@@ -105,6 +108,7 @@ export async function POST(request: Request) {
 		else if (allowedStatus === null)
 			await deactivatePpicPermission(userId, updatedBy);
 		else await savePpicPermission(userId, allowedStatus!, updatedBy);
+		await savePpicMemberNames([member]);
 	} catch {
 		return NextResponse.json(
 			{ ok: false, error: "DATABASE_ERROR" },

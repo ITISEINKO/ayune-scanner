@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useSelectProject } from "@/hooks/use-project-selection";
 import { useProjects } from "@/hooks/use-projects";
 
@@ -150,9 +151,21 @@ export const ChooseProjectPage = ({
 								</div>
 							</article>
 						))}
-						{loading && (
-							<p className="text-sm text-muted-foreground">Memuat project...</p>
-						)}
+						{loading &&
+							Array.from({ length: 3 }, (_, index) => (
+								<article
+									key={index}
+									aria-hidden="true"
+									className="rounded-[1.35rem] border border-broder/40 bg-card p-4"
+								>
+									<Skeleton className="h-6 w-20 rounded-md" />
+									<Skeleton className="mt-3 h-10 w-4/5" />
+									<div className="mt-7 flex items-center justify-between">
+										<Skeleton className="h-5 w-36" />
+										<Skeleton className="size-8 rounded-full" />
+									</div>
+								</article>
+							))}
 						{!loading && !error && !visibleProjects.length && (
 							<p className="text-sm text-muted-foreground">
 								Tidak ada project ongoing.

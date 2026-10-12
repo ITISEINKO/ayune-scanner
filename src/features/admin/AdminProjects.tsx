@@ -6,6 +6,7 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useProjects } from "@/hooks/use-projects";
 
 export const AdminProjects = () => {
@@ -92,7 +93,7 @@ export const AdminProjects = () => {
 							<Link
 								key={project.id}
 								href={`/admin/project?task_id=${encodeURIComponent(project.id)}`}
-								className="block rounded-[1.35rem] border border-broder/40 bg-card text-card-foreground transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
+								className="block rounded-[1.35rem] border border-border/40 bg-card text-card-foreground transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
 							>
 								<div className="p-4">
 									<div className="flex items-center justify-between gap-3">
@@ -115,9 +116,21 @@ export const AdminProjects = () => {
 								</div>
 							</Link>
 						))}
-						{loading && (
-							<p className="text-sm text-muted-foreground">Memuat project...</p>
-						)}
+						{loading &&
+							Array.from({ length: 3 }, (_, index) => (
+								<article
+									key={index}
+									aria-hidden="true"
+									className="rounded-[1.35rem] border border-border/40 bg-card/50 p-4"
+								>
+									<Skeleton className="h-6 w-20 rounded-md" />
+									<Skeleton className="mt-3 h-10 w-4/5" />
+									<div className="mt-7 flex items-center justify-between">
+										<Skeleton className="h-5 w-36" />
+										<Skeleton className="size-8 rounded-full" />
+									</div>
+								</article>
+							))}
 						{!loading && !error && !visibleProjects.length && (
 							<p className="text-sm text-muted-foreground">
 								Tidak ada project ongoing.

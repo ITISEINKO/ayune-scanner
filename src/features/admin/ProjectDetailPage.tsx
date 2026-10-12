@@ -62,17 +62,17 @@ export const ProjectDetailPage = ({
 					<ChevronLeft aria-hidden="true" className="size-5" />
 				</Link>
 				<div className="min-w-0 flex-1">
-					<p className="text-xs text-muted-foreground">
-						{project.custom_id ?? project.task_id}
-					</p>
-					<h1 className="truncate text-sm font-extrabold">
-						{project.name ?? "Tanpa nama"}
-					</h1>
+					<h2 className="text-lg font-semibold">Detail Project</h2>
 				</div>
 			</header>
 
 			<div className="space-y-3 p-4">
 				<section className="rounded-xl border bg-card p-4 shadow-sm">
+					<div className="min-w-0 flex-1">
+						<h1 className="truncate text-sm font-extrabold">
+							{project.name ?? "Tanpa nama"}
+						</h1>
+					</div>
 					<p className="text-xs tracking-[0.2em] text-muted-foreground uppercase">
 						Timeline project
 					</p>
@@ -152,7 +152,7 @@ export const ProjectDetailPage = ({
 					<div className="mt-3 space-y-2 text-sm">
 						{memberContribution.map((member) => (
 							<div key={member.userId} className="flex justify-between gap-3">
-								<span>{member.name}</span>
+								<span className="capitalize">{member.name}</span>
 								<span className="font-bold">{member.scans} scan</span>
 							</div>
 						))}
@@ -176,7 +176,7 @@ export const ProjectDetailPage = ({
 								className="px-4 py-3 text-sm"
 							>
 								<p className="font-semibold">{log.taskName}</p>
-								<p className="mt-1 text-xs text-muted-foreground">
+								<p className="mt-1 text-xs text-muted-foreground capitalize">
 									{statusLabel(log.status)} ·{" "}
 									{memberNames[log.userId] ?? log.userId} ·{" "}
 									{formatDate(log.scannedAt, true)}

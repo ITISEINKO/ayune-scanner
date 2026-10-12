@@ -12,6 +12,7 @@ import type {
 	PpicStatus,
 	PpicStatuses,
 } from "@/types/ppic";
+import type { PanelMember } from "@/types/clickup";
 
 const url = process.env.TURSO_DATABASE_URL;
 const authToken = process.env.TURSO_AUTH_TOKEN;
@@ -26,6 +27,7 @@ export const db = createClient({
 });
 
 let scanHistorySchema: Promise<void> | undefined;
+let permissionNamesSchema: Promise<void> | undefined;
 
 const ensureScanHistorySchema = () =>
 	(scanHistorySchema ??= db
@@ -38,7 +40,49 @@ const ensureScanHistorySchema = () =>
 				await db.execute("ALTER TABLE ppic_scan_history ADD COLUMN component_task_id TEXT");
 		}));
 
+const ensurePermissionNamesSchema = () =>
+	(permissionNamesSchema ??= db
+		.execute("PRAGMA table_info(ppic_permissions)")
+		.then(async (result) => {
+			const columns = new Set(result.rows.map((row) => String(row.name)));
+			if (!columns.has("display_name"))
+				await db.execute("ALTER TABLE ppic_permissions ADD COLUMN display_name TEXT");
+		}));
+
 export { isPpicRole, isPpicStatus } from "@/types/ppic";
+
+export const savePpicMemberNames = async (members: PanelMember[]) => {
+	await ensurePermissionNamesSchema();
+	await Promise.all(
+		members.map((member) =>
+			db.execute({
+				sql: `
+					UPDATE ppic_permissions
+					SET display_name = ?
+					WHERE clickup_user_id = ?
+				`,
+				args: [member.name, member.id],
+			}),
+		),
+	);
+};
+
+export const getPpicMemberNames = async (userIds: string[]) => {
+	if (!userIds.length) return {};
+	await ensurePermissionNamesSchema();
+	const result = await db.execute({
+		sql: `
+			SELECT clickup_user_id, display_name
+			FROM ppic_permissions
+			WHERE clickup_user_id IN (${userIds.map(() => "?").join(", ")})
+				AND display_name IS NOT NULL
+		`,
+		args: userIds,
+	});
+	return Object.fromEntries(
+		result.rows.map((row) => [String(row.clickup_user_id), String(row.display_name)]),
+	);
+};
 
 export const getPpicAccess = async (clickupUserId: string): Promise<{
 	role?: unknown;

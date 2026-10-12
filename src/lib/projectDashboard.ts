@@ -1,7 +1,6 @@
-import { getPpicProjectScanHistory } from "@/lib/db";
+import { getPpicMemberNames, getPpicProjectScanHistory } from "@/lib/db";
 import { clickUpHeaders } from "@/lib/clickup";
 import { serialNumberOf } from "@/lib/projectSerialCache";
-import { panelChannelMembers } from "@/lib/session";
 import type { ClickUpTask } from "@/types/clickup";
 import type {
 	ProjectDashboard,
@@ -29,10 +28,9 @@ export const getProjectDashboard = async (
 	token: string,
 	project: SelectedProject,
 ): Promise<ProjectDashboard> => {
-	const [parent, history, members] = await Promise.all([
+	const [parent, history] = await Promise.all([
 		loadTask(token, project.task_id),
 		getPpicProjectScanHistory(project.task_id),
-		panelChannelMembers(),
 	]);
 	const allTasks = descendantsOf(parent.subtasks ?? []);
 	const historyByTask = new Map<string, typeof history>();
@@ -41,8 +39,8 @@ export const getProjectDashboard = async (
 		logs.push(log);
 		historyByTask.set(log.componentTaskId, logs);
 	}
-	const nameByUserId = new Map(
-		members.ok ? members.members.map((member) => [member.id, member.name]) : [],
+	const memberNames = await getPpicMemberNames(
+		[...new Set(history.map((log) => log.userId))],
 	);
 	const items = allTasks.filter((task) => task.parent === project.task_id);
 	const components = allTasks.filter(
@@ -82,10 +80,10 @@ export const getProjectDashboard = async (
 		memberContribution: [...contribution.entries()]
 			.map(([userId, scans]) => ({
 				userId,
-				name: nameByUserId.get(userId) ?? userId,
+				name: memberNames[userId] ?? userId,
 				scans,
 			}))
 			.sort((a, b) => b.scans - a.scans || a.name.localeCompare(b.name)),
-		memberNames: Object.fromEntries(nameByUserId),
+		memberNames,
 	};
 };
