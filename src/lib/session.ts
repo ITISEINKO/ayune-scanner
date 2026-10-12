@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { unstable_cache } from "next/cache";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { redirect } from "next/navigation";
 import { cache } from "react";
@@ -17,6 +18,7 @@ import type { SelectedProject } from "@/types/project";
 export const PPIC_SESSION_COOKIE = "ppic_session";
 export const PPIC_SELECTED_PROJECT_COOKIE = "ppic_selected_project";
 export const PPIC_SESSION_REFRESH_TTL_MS = 15 * 60 * 1000;
+export const PANEL_MEMBERS_CACHE_TAG = "panel-members";
 
 type ClickUpUserResponse = {
 	user?: { id?: string | number };
@@ -271,55 +273,76 @@ export const requireSelectedMemberProject = async () => {
 	return project;
 };
 
+export const requireSelectedAdminProject = async () => {
+	const session = await ppicSession();
+	const userId =
+		session?.role === "SUPER_ADMIN"
+			? session.user_id
+			: await clickUpUserId();
+	if (!userId) redirect("/login");
+	if (session?.role !== "SUPER_ADMIN" && !(await isPpicSuperAdmin(userId)))
+		redirect("/unauthorized");
+	const project = await selectedProject(userId);
+	if (!project) redirect("/admin");
+	return project;
+};
+
+const cachedPanelChannelMembers = unstable_cache(
+	async (token: string): Promise<PanelMembersResult> => {
+		const workspaceId =
+			process.env.CLICKUP_CHAT_WORKSPACE_ID ||
+			process.env.CLICKUP_TEAM_ID ||
+			CLICKUP_TEAM_ID;
+		const channelId =
+			process.env.CLICKUP_CHAT_CHANNEL_ID ||
+			process.env.CLICKUP_PPIC_CHANNEL_ID ||
+			CLICKUP_PPIC_CHANNEL_ID;
+		const membersUrl = `https://api.clickup.com/api/v3/workspaces/${workspaceId}/chat/channels/${channelId}/members`;
+
+		try {
+			const [userId, response] = await Promise.all([
+				clickUpUserIdForToken(token),
+				fetch(membersUrl, {
+					headers: clickUpHeaders(token),
+					cache: "no-store",
+				}),
+			]);
+			if (!response.ok)
+				return {
+					ok: false,
+					status: response.status === 401 ? 401 : 502,
+				};
+			if (!userId) return { ok: false, status: 401 };
+			const body = (await response.json()) as {
+				data?: unknown;
+				members?: unknown;
+			};
+			const rawMembers = body.data ?? body.members;
+			const members = Array.isArray(rawMembers)
+				? rawMembers.flatMap((member) => {
+						if (typeof member !== "object" || member === null) return [];
+						const value = member as Record<string, unknown>;
+						const id = value.id;
+						const name = value.username ?? value.name;
+						return id !== undefined && typeof name === "string"
+							? [{ id: String(id), name }]
+							: [];
+					})
+				: [];
+			return (await isPpicSuperAdmin(userId))
+				? { ok: true, members }
+				: { ok: false, status: 403 };
+		} catch {
+			return { ok: false, status: 502 };
+		}
+	},
+	["panel-channel-members"],
+	{ revalidate: 60, tags: [PANEL_MEMBERS_CACHE_TAG] },
+);
+
 export const panelChannelMembers = async (): Promise<PanelMembersResult> => {
 	const token = await clickUpToken();
-	if (!token) return { ok: false, status: 401 };
-	const workspaceId =
-		process.env.CLICKUP_CHAT_WORKSPACE_ID ||
-		process.env.CLICKUP_TEAM_ID ||
-		CLICKUP_TEAM_ID;
-	const channelId =
-		process.env.CLICKUP_CHAT_CHANNEL_ID ||
-		process.env.CLICKUP_PPIC_CHANNEL_ID ||
-		CLICKUP_PPIC_CHANNEL_ID;
-	const membersUrl = `https://api.clickup.com/api/v3/workspaces/${workspaceId}/chat/channels/${channelId}/members`;
-
-	try {
-		const [userId, response] = await Promise.all([
-			clickUpUserIdForToken(token),
-			fetch(membersUrl, {
-				headers: clickUpHeaders(token),
-				cache: "no-store",
-			}),
-		]);
-		if (!response.ok)
-			return {
-				ok: false,
-				status: response.status === 401 ? 401 : 502,
-			};
-		if (!userId) return { ok: false, status: 401 };
-		const body = (await response.json()) as {
-			data?: unknown;
-			members?: unknown;
-		};
-		const rawMembers = body.data ?? body.members;
-		const members = Array.isArray(rawMembers)
-			? rawMembers.flatMap((member) => {
-					if (typeof member !== "object" || member === null) return [];
-					const value = member as Record<string, unknown>;
-					const id = value.id;
-					const name = value.username ?? value.name;
-					return id !== undefined && typeof name === "string"
-						? [{ id: String(id), name }]
-						: [];
-				})
-			: [];
-		return (await isPpicSuperAdmin(userId))
-			? { ok: true, members }
-			: { ok: false, status: 403 };
-	} catch {
-		return { ok: false, status: 502 };
-	}
+	return token ? cachedPanelChannelMembers(token) : { ok: false, status: 401 };
 };
 
 export const requireClickUpToken = async () => {

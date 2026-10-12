@@ -146,6 +146,8 @@ export async function POST(request: Request) {
 				serialNumber,
 				target.status,
 				name ?? serialNumber,
+				mainTaskId,
+				taskId,
 			);
 		} catch {
 			throw new Error("SCAN_HISTORY_SAVE_FAILED");

@@ -27,6 +27,12 @@ export type PpicScanHistory = {
 	scannedAt: string;
 };
 
+export type PpicProjectScanHistory = PpicScanHistory & {
+	userId: string;
+	projectTaskId: string;
+	componentTaskId: string;
+};
+
 export const isPpicStatus = (value: unknown): value is PpicStatus =>
 	typeof value === "string" && PPIC_STATUSES.includes(value as PpicStatus);
 

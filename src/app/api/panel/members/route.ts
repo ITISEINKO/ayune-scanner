@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import {
 	deactivatePpicPermission,
 	getPpicPermission,
@@ -10,7 +11,11 @@ import {
 } from "@/lib/db";
 import { ppicStatuses } from "@/types/ppic";
 import { getAbly } from "@/lib/ably";
-import { clickUpUserId, panelChannelMembers } from "@/lib/session";
+import {
+	clickUpUserId,
+	panelChannelMembers,
+	PANEL_MEMBERS_CACHE_TAG,
+} from "@/lib/session";
 
 const accessError = (status: 401 | 403 | 502) =>
 	NextResponse.json(
@@ -106,6 +111,7 @@ export async function POST(request: Request) {
 			{ status: 502 },
 		);
 	}
+	revalidateTag(PANEL_MEMBERS_CACHE_TAG, { expire: 0 });
 	try {
 		const event = {
 			userId,

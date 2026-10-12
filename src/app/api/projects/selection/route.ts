@@ -6,20 +6,26 @@ import {
 import { inProgressProjects } from "@/lib/projects";
 import { ppicStatusPath } from "@/lib/produksiPanel";
 import {
+	clickUpUserId,
 	clickUpToken,
 	encodeSelectedProject,
 	PPIC_SELECTED_PROJECT_COOKIE,
 	ppicSession,
 	selectedProject,
 } from "@/lib/session";
+import { isPpicSuperAdmin } from "@/lib/db";
 import type { SelectedProject } from "@/types/project";
 
 const error = (status: number, code: string) =>
 	NextResponse.json({ ok: false, error: code }, { status });
 
-const memberSession = async () => {
+const projectSession = async () => {
 	const session = await ppicSession();
-	return session?.role === "MEMBER" && session.allowed_status ? session : null;
+	if (session && (session.role === "SUPER_ADMIN" || session.allowed_status)) return session;
+	const userId = await clickUpUserId();
+	return userId && (await isPpicSuperAdmin(userId))
+		? { user_id: userId, role: "SUPER_ADMIN" as const, allowed_status: null }
+		: null;
 };
 
 const selectionCookie = (response: NextResponse, value: string) => {
@@ -33,21 +39,29 @@ const selectionCookie = (response: NextResponse, value: string) => {
 };
 
 export async function GET() {
-	const session = await memberSession();
+	const session = await projectSession();
 	if (!session) return error(401, "UNAUTHORIZED");
 	return NextResponse.json({ project: await selectedProject(session.user_id) });
 }
 
 export async function POST(request: Request) {
-	const session = await memberSession();
+	const session = await projectSession();
 	if (!session) return error(401, "UNAUTHORIZED");
-	let body: { task_id?: unknown };
+	let taskId = "";
+	const formSubmission = request.headers
+		.get("content-type")
+		?.includes("application/x-www-form-urlencoded");
 	try {
-		body = (await request.json()) as typeof body;
+		if (formSubmission) {
+			const form = await request.formData();
+			taskId = typeof form.get("task_id") === "string" ? String(form.get("task_id")).trim() : "";
+		} else {
+			const body = (await request.json()) as { task_id?: unknown };
+			taskId = typeof body.task_id === "string" ? body.task_id.trim() : "";
+		}
 	} catch {
 		return error(400, "INVALID_PROJECT");
 	}
-	const taskId = typeof body.task_id === "string" ? body.task_id.trim() : "";
 	if (!taskId) return error(400, "INVALID_PROJECT");
 	const token = await clickUpToken();
 	if (!token) return error(401, "UNAUTHORIZED");
@@ -61,23 +75,26 @@ export async function POST(request: Request) {
 		};
 		const cookie = encodeSelectedProject(session.user_id, selection);
 		if (!cookie) return error(500, "SESSION_ERROR");
-		const response = NextResponse.json({
-			ok: true,
-			project: selection,
-			path: ppicStatusPath(session.allowed_status[0]),
-		});
+		const path =
+			session.role === "SUPER_ADMIN"
+				? "/admin/project"
+				: ppicStatusPath(session.allowed_status![0]);
+		const response = formSubmission
+			? NextResponse.redirect(new URL(path, request.url), 303)
+			: NextResponse.json({ ok: true, project: selection, path });
 		selectionCookie(response, cookie);
-		after(async () => {
-			try {
-				await clearProjectSerialCache(project.id);
-				await preloadProjectSerialCache(token, project);
-			} catch (error) {
-				console.error("Project serial cache preload failed", {
-					projectId: project.id,
-					error: error instanceof Error ? error.message : String(error),
-				});
-			}
-		});
+		if (session.role === "MEMBER")
+			after(async () => {
+				try {
+					await clearProjectSerialCache(project.id);
+					await preloadProjectSerialCache(token, project);
+				} catch (error) {
+					console.error("Project serial cache preload failed", {
+						projectId: project.id,
+						error: error instanceof Error ? error.message : String(error),
+					});
+				}
+			});
 		return response;
 	} catch (cause) {
 		const code = cause instanceof Error ? cause.message : "CLICKUP_ERROR";
@@ -86,7 +103,7 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE() {
-	const session = await memberSession();
+	const session = await projectSession();
 	if (!session) return error(401, "UNAUTHORIZED");
 	const response = NextResponse.json({ ok: true });
 	response.cookies.set(PPIC_SELECTED_PROJECT_COOKIE, "", {

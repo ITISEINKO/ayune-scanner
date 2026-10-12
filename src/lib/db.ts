@@ -5,7 +5,13 @@ import {
 	PPIC_STATUSES,
 	ppicStatuses,
 } from "@/types/ppic";
-import type { PpicRole, PpicScanHistory, PpicStatus, PpicStatuses } from "@/types/ppic";
+import type {
+	PpicProjectScanHistory,
+	PpicRole,
+	PpicScanHistory,
+	PpicStatus,
+	PpicStatuses,
+} from "@/types/ppic";
 
 const url = process.env.TURSO_DATABASE_URL;
 const authToken = process.env.TURSO_AUTH_TOKEN;
@@ -18,6 +24,19 @@ export const db = createClient({
 	url,
 	authToken,
 });
+
+let scanHistorySchema: Promise<void> | undefined;
+
+const ensureScanHistorySchema = () =>
+	(scanHistorySchema ??= db
+		.execute("PRAGMA table_info(ppic_scan_history)")
+		.then(async (result) => {
+			const columns = new Set(result.rows.map((row) => String(row.name)));
+			if (!columns.has("project_task_id"))
+				await db.execute("ALTER TABLE ppic_scan_history ADD COLUMN project_task_id TEXT");
+			if (!columns.has("component_task_id"))
+				await db.execute("ALTER TABLE ppic_scan_history ADD COLUMN component_task_id TEXT");
+		}));
 
 export { isPpicRole, isPpicStatus } from "@/types/ppic";
 
@@ -172,19 +191,25 @@ export const savePpicScanHistory = async (
 	serialNumber: string,
 	status: PpicStatus,
 	taskName: string,
-) =>
-	db.execute({
+	projectTaskId: string,
+	componentTaskId: string,
+) => {
+	await ensureScanHistorySchema();
+	return db.execute({
 		sql: `
 			INSERT INTO ppic_scan_history (
 				clickup_user_id,
 				serial_number,
 				status,
-				task_name
+				task_name,
+				project_task_id,
+				component_task_id
 			)
-			VALUES (?, ?, ?, ?)
+			VALUES (?, ?, ?, ?, ?, ?)
 		`,
-		args: [userId, serialNumber, status, taskName],
+		args: [userId, serialNumber, status, taskName, projectTaskId, componentTaskId],
 	});
+};
 
 export const getPpicScanHistory = async (
 	userId: string,
@@ -204,5 +229,31 @@ export const getPpicScanHistory = async (
 		status: String(row.status) as PpicStatus,
 		taskName: String(row.task_name),
 		scannedAt: String(row.scanned_at),
+	}));
+};
+
+export const getPpicProjectScanHistory = async (
+	projectTaskId: string,
+): Promise<PpicProjectScanHistory[]> => {
+	await ensureScanHistorySchema();
+	const result = await db.execute({
+		sql: `
+			SELECT clickup_user_id, serial_number, status, task_name, scanned_at,
+				project_task_id, component_task_id
+			FROM ppic_scan_history
+			WHERE project_task_id = ?
+				AND component_task_id IS NOT NULL
+			ORDER BY scanned_at DESC, id DESC
+		`,
+		args: [projectTaskId],
+	});
+	return result.rows.map((row) => ({
+		userId: String(row.clickup_user_id),
+		serialNumber: String(row.serial_number),
+		status: String(row.status) as PpicStatus,
+		taskName: String(row.task_name),
+		scannedAt: String(row.scanned_at),
+		projectTaskId: String(row.project_task_id),
+		componentTaskId: String(row.component_task_id),
 	}));
 };

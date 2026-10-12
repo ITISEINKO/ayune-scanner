@@ -1,7 +1,7 @@
-import { ChooseProjectPage } from "@/features/member/MemberProjects";
+import { AdminProjects } from "@/features/admin/AdminProjects";
 
 const AdminHome = () => {
-	return <ChooseProjectPage selectable={false} />;
+	return <AdminProjects />;
 };
 
 export default AdminHome;
