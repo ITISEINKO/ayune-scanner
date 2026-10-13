@@ -104,11 +104,14 @@ export const SettingPage = () => {
 				}),
 			});
 			const data = await response.json();
-			if (!response.ok || !data.webhook) throw new Error(data.error ?? "Gagal membuat webhook.");
+			if (!response.ok || !data.webhook)
+				throw new Error(data.error ?? "Gagal membuat webhook.");
 			setWebhookSecret(data.webhook.secret ?? "");
 			toast.success("Webhook ClickUp berhasil dibuat.");
 		} catch (error) {
-			setWebhookError(error instanceof Error ? error.message : "Gagal membuat webhook.");
+			setWebhookError(
+				error instanceof Error ? error.message : "Gagal membuat webhook.",
+			);
 		} finally {
 			setWebhookSaving(false);
 		}
@@ -241,7 +244,7 @@ export const SettingPage = () => {
 			</header>
 
 			<div className="mx-auto p-4">
-				<section className="mb-6 rounded-2xl border bg-card p-4 shadow-sm">
+				{/* <section className="mb-6 rounded-2xl border bg-card p-4 shadow-sm">
 					<h2 className="flex items-center gap-2 font-bold"><Settings2 className="size-4" /> ClickUp webhook</h2>
 					<p className="mt-1 text-sm text-muted-foreground">Daftarkan webhook untuk perubahan status di list PPIC.</p>
 					<div className="mt-4 space-y-3">
@@ -262,7 +265,7 @@ export const SettingPage = () => {
 							</div>
 						)}
 					</div>
-				</section>
+				</section> */}
 				{saveError && (
 					<p className="mt-2 text-sm text-destructive" role="alert">
 						Could not save access. Try again.

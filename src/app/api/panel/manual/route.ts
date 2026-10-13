@@ -10,6 +10,7 @@ import {
 	requireFreshSuperAdmin,
 	requireSuperAdmin,
 } from "@/lib/session";
+import { updatePpicComponentStatus } from "@/lib/db";
 import type { ClickUpTask } from "@/types/clickup";
 
 const error = (status: number, code: string) =>
@@ -108,5 +109,6 @@ export async function POST(request: Request) {
 			updateResponse.status === 429 ? 429 : 502,
 			updateResponse.status === 429 ? "RATE_LIMITED" : "CLICKUP_STATUS_UPDATE_FAILED",
 		);
+	await updatePpicComponentStatus(taskId, target.key);
 	return NextResponse.json({ ok: true, status: target.label });
 }

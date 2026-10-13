@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { clickUpHeaders } from "@/lib/clickup";
-import { savePpicScanHistory } from "@/lib/db";
+import { savePpicScanHistory, updatePpicComponentStatus } from "@/lib/db";
 import {
 	projectSerialCache,
 	rememberSerial,
@@ -140,6 +140,7 @@ export async function POST(request: Request) {
 				});
 		}
 		await updateStatus(token, taskId, target.value);
+		await updatePpicComponentStatus(taskId, target.status);
 		try {
 			await savePpicScanHistory(
 				userId,

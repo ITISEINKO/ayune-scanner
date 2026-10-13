@@ -4,6 +4,7 @@ import {
 	getPpicProjectStatusUpdatedAt,
 	seedPpicProjectStatuses,
 } from "@/lib/db";
+import { unstable_cache } from "next/cache";
 import { clickUpHeaders } from "@/lib/clickup";
 import { getScanStatus, serialNumberOf } from "@/lib/projectSerialCache";
 import type { ClickUpTask } from "@/types/clickup";
@@ -49,7 +50,7 @@ const itemIdFor = (
 	return null;
 };
 
-export const getProjectDashboard = async (
+const buildProjectDashboard = async (
 	token: string,
 	project: SelectedProject,
 ): Promise<ProjectDashboard> => {
@@ -126,3 +127,9 @@ export const getProjectDashboard = async (
 		statusUpdatedAt,
 	};
 };
+
+export const getProjectDashboard = unstable_cache(
+	buildProjectDashboard,
+	["project-dashboard"],
+	{ revalidate: false, tags: ["clickup-project-data"] },
+);
