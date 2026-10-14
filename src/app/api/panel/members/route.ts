@@ -2,8 +2,7 @@ import { NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import {
 	deactivatePpicPermission,
-	getPpicPermission,
-	getPpicRole,
+	getPpicMemberAccess,
 	isPpicRole,
 	isPpicSuperAdmin,
 	savePpicMemberNames,
@@ -36,26 +35,11 @@ export async function GET() {
 	const result = await panelChannelMembers();
 	if (!result.ok) return accessError(result.status);
 	try {
-		const [, roles, permissions] = await Promise.all([
+		const [, access] = await Promise.all([
 			savePpicMemberNames(result.members),
-			Object.fromEntries(
-				await Promise.all(
-					result.members.map(async (member) => [
-						member.id,
-						await getPpicRole(member.id),
-					]),
-				),
-			),
-			Object.fromEntries(
-				await Promise.all(
-					result.members.map(async (member) => [
-						member.id,
-						(await getPpicPermission(member.id))?.allowed_status ?? null,
-					]),
-				),
-			),
+			getPpicMemberAccess(result.members.map((member) => member.id)),
 		]);
-		return NextResponse.json({ ...result, roles, permissions });
+		return NextResponse.json({ ...result, ...access });
 	} catch {
 		return NextResponse.json(
 			{ ok: false, error: "DATABASE_ERROR" },

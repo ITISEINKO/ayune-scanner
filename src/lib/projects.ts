@@ -14,7 +14,6 @@ export const inProgressProjects = async (token: string, refresh = false) => {
 	for (let page = 0; ; page += 1) {
 		const query = new URLSearchParams({
 			"statuses[]": "in progress",
-			subtasks: "true",
 			page: String(page),
 		});
 		const response = await fetch(

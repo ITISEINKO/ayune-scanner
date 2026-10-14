@@ -26,7 +26,7 @@ export const AdminProjects = () => {
 	const syncProjects = () => void sync();
 
 	return (
-		<main className="mx-auto min-h-dvh max-w-lg bg-background pb-8">
+		<main className="mx-auto min-h-dvh max-w-lg bg-background pb-24">
 			<header className="relative overflow-hidden rounded-b-[2.5rem] bg-accent/30 px-6 pt-6 pb-8 text-accent-foreground">
 				<img
 					src="/ayune-14.svg"

@@ -54,10 +54,10 @@ export const seedPpicProjectStatuses = async (
 ) => {
 	if (!rows.length) return;
 	await ensureProjectStatusSchema();
-	await Promise.all(
-		rows.map((row) =>
-			db.execute({
-				sql: `
+	const updatedAt = Date.now();
+	await db.batch(
+		rows.map((row) => ({
+			sql: `
 					INSERT INTO ppic_component_status (
 						component_task_id, project_task_id, status, updated_at
 					)
@@ -66,9 +66,9 @@ export const seedPpicProjectStatuses = async (
 						project_task_id = excluded.project_task_id,
 						status = excluded.status
 				`,
-				args: [row.componentTaskId, projectTaskId, row.status, Date.now()],
-			}),
-		),
+			args: [row.componentTaskId, projectTaskId, row.status, updatedAt],
+		})),
+		"write",
 	);
 };
 
@@ -141,18 +141,18 @@ const ensurePermissionNamesSchema = () =>
 export { isPpicRole, isPpicStatus } from "@/types/ppic";
 
 export const savePpicMemberNames = async (members: PanelMember[]) => {
+	if (!members.length) return;
 	await ensurePermissionNamesSchema();
-	await Promise.all(
-		members.map((member) =>
-			db.execute({
-				sql: `
+	await db.batch(
+		members.map((member) => ({
+			sql: `
 					UPDATE ppic_permissions
 					SET display_name = ?
 					WHERE clickup_user_id = ?
 				`,
 				args: [member.name, member.id],
-			}),
-		),
+		})),
+		"write",
 	);
 };
 
@@ -207,38 +207,30 @@ export const isPpicSuperAdmin = async (clickupUserId: string) => {
 	return result.rows.length > 0;
 };
 
-export const getPpicRole = async (clickupUserId: string): Promise<PpicRole> => {
+export const getPpicMemberAccess = async (userIds: string[]) => {
+	const roles = Object.fromEntries(
+		userIds.map((userId) => [userId, "MEMBER" as PpicRole]),
+	) as Record<string, PpicRole>;
+	const permissions = Object.fromEntries(
+		userIds.map((userId) => [userId, null as PpicStatuses | null]),
+	) as Record<string, PpicStatuses | null>;
+	if (!userIds.length) return { roles, permissions };
+
 	const result = await db.execute({
 		sql: `
-			SELECT role
+			SELECT clickup_user_id, role, allowed_status, active
 			FROM ppic_permissions
-			WHERE clickup_user_id = ?
-			LIMIT 1
+			WHERE clickup_user_id IN (${userIds.map(() => "?").join(", ")})
 		`,
-		args: [clickupUserId],
+		args: userIds,
 	});
-
-	return isPpicRole(result.rows[0]?.role) ? result.rows[0].role : "MEMBER";
-};
-
-export const getPpicPermission = async (clickupUserId: string): Promise<{
-	clickup_user_id?: unknown;
-	allowed_status: PpicStatuses | null;
-	active?: unknown;
-} | null> => {
-	const result = await db.execute({
-		sql: `
-			SELECT clickup_user_id, allowed_status, active
-			FROM ppic_permissions
-			WHERE clickup_user_id = ?
-			  AND role = 'MEMBER'
-			  AND active = 1
-		`,
-		args: [clickupUserId],
-	});
-
-	const row = result.rows[0] as Record<string, unknown> | undefined;
-	return row ? { ...row, allowed_status: ppicStatuses(row.allowed_status) } : null;
+	for (const row of result.rows) {
+		const userId = String(row.clickup_user_id);
+		if (isPpicRole(row.role)) roles[userId] = row.role;
+		if (row.role === "MEMBER" && Number(row.active) === 1)
+			permissions[userId] = ppicStatuses(row.allowed_status);
+	}
+	return { roles, permissions };
 };
 
 export const savePpicPermission = async (
