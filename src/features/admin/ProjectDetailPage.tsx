@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Label, PolarRadiusAxis, RadialBar, RadialBarChart } from "recharts";
+import { Label, Pie, PieChart } from "recharts";
 import {
 	CalendarDays,
 	ChevronLeft,
@@ -15,10 +15,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ChartContainer, type ChartConfig } from "@/components/ui/chart";
-import {
-	elapsedLabel,
-	scanWindow,
-} from "@/lib/projectTimeline";
+import { applyProjectStatusChanges } from "@/lib/projectStatus";
+import { elapsedLabel, scanWindow } from "@/lib/projectTimeline";
 import { statusBarangScanOptions } from "@/lib/produksiPanel";
 import type { ProjectDashboard, ProjectStatusChange } from "@/types/project";
 
@@ -90,24 +88,6 @@ const countsFor = (
 	return counts;
 };
 
-const applyStatusChanges = (
-	dashboard: ProjectDashboard,
-	changes: ProjectStatusChange[],
-): ProjectDashboard => ({
-	...dashboard,
-	items: dashboard.items.map((item) => ({
-		...item,
-		components: item.components
-			.map((component) => {
-				const change = changes.find(
-					(candidate) => candidate.componentTaskId === component.id,
-				);
-				return change ? { ...component, status: change.status } : component;
-			})
-			.filter((component) => component.status !== "DIHAPUSKAN"),
-	})),
-});
-
 export const ProjectDetailPage = ({
 	dashboard,
 	error,
@@ -155,7 +135,7 @@ export const ProjectDetailPage = ({
 				if (changes?.length) {
 					since = Math.max(...changes.map((change) => change.updatedAt));
 					setCurrentDashboard((current) =>
-						current ? applyStatusChanges(current, changes) : current,
+						current ? applyProjectStatusChanges(current, changes) : current,
 					);
 					delay = 5_000;
 				} else delay = Math.min(delay * 1.5, 60_000);
@@ -198,11 +178,13 @@ export const ProjectDetailPage = ({
 	const progressPercent = totalComponents
 		? Math.round((completedComponents / totalComponents) * 100)
 		: 0;
-	const trackingChartData = [
-		Object.fromEntries(
-			trackingStatuses.map((status) => [status, statusTotals.get(status) ?? 0]),
-		),
-	];
+	const trackingChartData = trackingStatuses
+		.map((status) => ({
+			status,
+			value: statusTotals.get(status) ?? 0,
+			fill: trackingChartConfig[status].color,
+		}))
+		.filter(({ value }) => value > 0);
 	const itemRows = items.map((item) => ({
 		...item,
 		counts: countsFor(item.components),
@@ -215,19 +197,19 @@ export const ProjectDetailPage = ({
 	const completedItems = itemRows.filter((item) => item.complete).length;
 
 	return (
-		<main className="mx-auto min-h-dvh max-w-lg   pb-28">
-			<header className="bg-accent/30 px-5 pt-3 pb-16">
+		<main className="mx-auto min-h-dvh max-w-lg  bg-muted ">
+			<header className="bg-primary px-5 pt-3 pb-16">
 				<div className="flex items-center justify-between gap-3">
 					<Link
 						href="/admin"
 						aria-label="Kembali ke project"
-						className="-ml-2 inline-flex size-10 items-center justify-center rounded-full transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
+						className="-ml-2 inline-flex size-10 items-center justify-center rounded-full text-primary-foreground transition-colors hover:bg-primary-foreground/10 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary-foreground/40"
 					>
 						<ChevronLeft aria-hidden="true" className="size-6" />
 					</Link>
 					<div className="flex items-center gap-2">
 						{project.custom_id && (
-							<Badge className="rounded-full bg-primary px-3 py-1 text-xs font-bold text-primary-foreground">
+							<Badge className="rounded-full border border-primary-foreground/25 bg-primary-foreground/15 px-3 py-1 text-xs font-bold text-primary-foreground">
 								{project.custom_id}
 							</Badge>
 						)}
@@ -238,6 +220,7 @@ export const ProjectDetailPage = ({
 							size="icon-sm"
 							title="Sinkronkan dashboard"
 							variant="ghost"
+							className="text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
 						>
 							<RefreshCw
 								aria-hidden="true"
@@ -246,43 +229,20 @@ export const ProjectDetailPage = ({
 						</Button>
 					</div>
 				</div>
-				<h1 className="mt-5 text-2xl font-extrabold leading-tight tracking-tight">
+				<h1 className="mt-5 text-2xl font-extrabold leading-tight tracking-tight text-primary-foreground">
 					{project.name ?? "Tanpa nama"}
 				</h1>
 				<div className="mt-5 flex items-end gap-2">
-					<strong className="text-7xl leading-none tracking-tight">
+					<strong className="text-7xl leading-none tracking-tight text-primary-foreground">
 						{completedComponents}
 					</strong>
-					<span className="pb-1 text-xl font-bold">/ {totalComponents}</span>
-				</div>
-				<p className="mt-1 text-sm text-muted-foreground">
-					item selesai · {progressPercent}%
-				</p>
-				<div className="mt-4 flex h-3 overflow-hidden rounded-full bg-muted-foreground/20">
-					{[
-						"TERPASANG_DIGUNAKAN",
-						"SEDANG_DIPACKING",
-						"BARANG_DITERIMA",
-						"OTHER",
-						"UNSCANNED",
-					].map((status) => (
-						<div
-							key={status}
-							className={
-								statusColors[status as (typeof trackingStatuses)[number]]
-							}
-							style={{
-								flex:
-									statusTotals.get(
-										status as (typeof trackingStatuses)[number],
-									) ?? 0,
-							}}
-						/>
-					))}
+					<span className="pb-1 text-xl font-bold text-primary-foreground/80">
+						/ {totalComponents}
+					</span>
 				</div>
 			</header>
 
-			<div className="relative -mt-8 space-y-3 rounded-t-4xl bg-white p-4 pt-6">
+			<div className="relative -mt-8 space-y-3 rounded-t-4xl bg-background pb-28  p-4 pt-6">
 				<section className="overflow-hidden rounded-[1.35rem] border border-border/40 bg-card shadow-sm">
 					<div className="grid grid-cols-2 divide-x text-sm">
 						<div className="p-4">
@@ -295,7 +255,14 @@ export const ProjectDetailPage = ({
 								{currentDashboard.currentStatusStartedAt
 									? new Date(
 											Number(currentDashboard.currentStatusStartedAt),
-										).toLocaleString("en-US", { timeZone: "Asia/Jakarta" })
+										).toLocaleString("id-ID", {
+											day: "numeric",
+											month: "long",
+											year: "numeric",
+											hour: "2-digit",
+											minute: "2-digit",
+											timeZone: "Asia/Jakarta",
+										})
 									: "Tidak tersedia"}
 							</p>
 						</div>
@@ -313,7 +280,7 @@ export const ProjectDetailPage = ({
 					</div>
 				</section>
 				<div>
-					<div className="p-4">
+					<div>
 						<div className="flex items-center justify-between gap-3">
 							<p className="text-[11px] font-bold tracking-[0.18em] text-muted-foreground uppercase">
 								Progres Item
@@ -324,25 +291,19 @@ export const ProjectDetailPage = ({
 							config={trackingChartConfig}
 							className="mx-auto mt-2 aspect-2/1 max-h-45 w-full max-w-90"
 						>
-							<RadialBarChart
-								data={trackingChartData}
-								startAngle={180}
-								endAngle={0}
-								cy="80%"
-								innerRadius={78}
-								outerRadius={118}
-							>
-								{trackingStatuses.map((status) => (
-									<RadialBar
-										key={status}
-										dataKey={status}
-										stackId="tracking"
-										fill={`var(--color-${status})`}
-										cornerRadius={5}
-										className="stroke-card stroke-2"
-									/>
-								))}
-								<PolarRadiusAxis tick={false} tickLine={false} axisLine={false}>
+							<PieChart>
+								<Pie
+									data={trackingChartData}
+									dataKey="value"
+									nameKey="status"
+									startAngle={180}
+									endAngle={0}
+									cy="80%"
+									innerRadius={78}
+									outerRadius={118}
+									cornerRadius={5}
+									className="stroke-card stroke-2"
+								>
 									<Label
 										content={({ viewBox }) => {
 											if (viewBox && "cx" in viewBox && "cy" in viewBox) {
@@ -351,18 +312,19 @@ export const ProjectDetailPage = ({
 														x={viewBox.cx}
 														y={viewBox.cy}
 														textAnchor="middle"
+														stroke="none"
 													>
 														<tspan
 															x={viewBox.cx}
-															y={(viewBox.cy || 0) - 8}
-															className="fill-foreground text-2xl font-bold"
+															y={(viewBox.cy || 0) + 4}
+															className="fill-primary text-2xl font-bold"
 														>
 															{totalComponents}
 														</tspan>
 														<tspan
 															x={viewBox.cx}
-															y={(viewBox.cy || 0) + 12}
-															className="fill-muted-foreground"
+															y={(viewBox.cy || 0) + 24}
+															className="fill-primary"
 														>
 															Total item
 														</tspan>
@@ -372,38 +334,35 @@ export const ProjectDetailPage = ({
 											return null;
 										}}
 									/>
-								</PolarRadiusAxis>
-							</RadialBarChart>
+								</Pie>
+							</PieChart>
 						</ChartContainer>
-						<div className="mt-3 grid grid-cols-5 gap-2 text-sm font-bold">
+						<div className="mt-3 flex flex-wrap gap-2">
 							{trackingStatuses.map((status) => (
-								<div key={status}>
-									<span
-										className={`mr-1 inline-block size-2.5 rounded-full ${statusColors[status]}`}
-									/>
-									{statusTotals.get(status) ?? 0}
-								</div>
-							))}
-						</div>
-						<div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground">
-							<div>
-								<span
-									className={`mr-1 inline-block size-2.5 rounded-full ${statusColors.UNSCANNED}`}
-								/>
-								Belum scan
-							</div>
-							{trackingStatuses.slice(1).map((status) => (
-								<div key={status} className="capitalize">
-									<span
-										className={`mr-1 inline-block size-2.5  rounded-full ${statusColors[status]}`}
-									/>
-									{statusLabel(status)}
+								<div
+									key={status}
+									className="min-w-0 flex-1 basis-[calc(50%-0.25rem)] rounded-md px-3 py-2 last:basis-full"
+									style={{
+										backgroundColor: `${trackingChartConfig[status].color}18`,
+									}}
+								>
+									<div className="flex items-center gap-2">
+										<span
+											className={`size-3 shrink-0 rounded-full ${statusColors[status]}`}
+										/>
+										<strong className="text-base leading-none">
+											{statusTotals.get(status) ?? 0}
+										</strong>
+									</div>
+									<p className="mt-1 truncate text-[10px] text-muted-foreground">
+										{statusLabel(status)}
+									</p>
 								</div>
 							))}
 						</div>
 					</div>
-					<div className="mt-4 overflow-hidden rounded-[18px] border bg-card shadow-sm">
-						{itemRows.map((row, index) => {
+					<div className="mt-4 space-y-2">
+						{itemRows.map((row) => {
 							const total = [...row.counts.values()].reduce(
 								(sum, count) => sum + count,
 								0,
@@ -411,7 +370,7 @@ export const ProjectDetailPage = ({
 							return (
 								<div
 									key={row.id}
-									className={`space-y-2 p-3 ${index < itemRows.length - 1 ? "border-b" : ""}`}
+									className="space-y-2 rounded-[18px] bg-card p-3 shadow-sm"
 								>
 									<div className="flex items-baseline justify-between gap-2">
 										<p className="min-w-0 truncate text-sm font-extrabold">
@@ -424,13 +383,13 @@ export const ProjectDetailPage = ({
 											/{total}
 										</p>
 									</div>
-									<div className="flex h-2 gap-1">
+									<div className="flex h-2 overflow-hidden rounded-full bg-muted">
 										{trackingStatuses
 											.filter((status) => (row.counts.get(status) ?? 0) > 0)
 											.map((status) => (
 												<div
 													key={status}
-													className={`rounded-[3px] ${statusColors[status]}`}
+													className={`rounded-sm ${statusColors[status]}`}
 													style={{ flex: row.counts.get(status) ?? 0 }}
 												/>
 											))}
@@ -439,7 +398,7 @@ export const ProjectDetailPage = ({
 										{trackingStatuses.map((status) => (
 											<div key={status} className="flex items-center gap-1.5">
 												<span
-													className={`size-2.5 rounded-full border border-foreground/20 ${statusColors[status]}`}
+													className={`size-2.5 rounded-full  ${statusColors[status]}`}
 												/>
 												{row.counts.get(status) ?? 0}
 											</div>

@@ -1,5 +1,4 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 import { updatePpicComponentStatus } from "@/lib/db";
 import { CF_PANEL, statusBarangScanKey } from "@/lib/produksiPanel";
@@ -40,10 +39,7 @@ export async function POST(request: Request) {
 		);
 	}) as Record<string, unknown> | undefined;
 	if (!taskId) return NextResponse.json({ ignored: true });
-	if (!statusChange) {
-		revalidateTag("clickup-project-data", "max");
-		return NextResponse.json({ ignored: true });
-	}
+	if (!statusChange) return NextResponse.json({ ignored: true });
 	const after = statusChange.after;
 	const value =
 		after && typeof after === "object" && "value" in after
@@ -51,6 +47,5 @@ export async function POST(request: Request) {
 			: after;
 	const updated = await updatePpicComponentStatus(taskId, statusBarangScanKey(value));
 	if (!updated) return NextResponse.json({ ignored: true });
-	revalidateTag("clickup-project-data", "max");
 	return NextResponse.json({ ok: true });
 }

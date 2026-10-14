@@ -13,7 +13,7 @@ import type {
 	PpicStatuses,
 } from "@/types/ppic";
 import type { PanelMember } from "@/types/clickup";
-import type { ProjectStatusRow } from "@/types/project";
+import type { ProjectStatusChange, ProjectStatusRow } from "@/types/project";
 
 const url = process.env.TURSO_DATABASE_URL;
 const authToken = process.env.TURSO_AUTH_TOKEN;
@@ -64,7 +64,8 @@ export const seedPpicProjectStatuses = async (
 					VALUES (?, ?, ?, ?)
 					ON CONFLICT(component_task_id) DO UPDATE SET
 						project_task_id = excluded.project_task_id,
-						status = excluded.status
+						status = excluded.status,
+						updated_at = excluded.updated_at
 				`,
 			args: [row.componentTaskId, projectTaskId, row.status, updatedAt],
 		})),
@@ -79,6 +80,25 @@ export const getPpicProjectStatusUpdatedAt = async (projectTaskId: string) => {
 		args: [projectTaskId],
 	});
 	return Number(result.rows[0]?.updated_at ?? 0);
+};
+
+export const getPpicProjectStatuses = async (
+	projectTaskId: string,
+): Promise<ProjectStatusChange[]> => {
+	await ensureProjectStatusSchema();
+	const result = await db.execute({
+		sql: `
+			SELECT component_task_id, status, updated_at
+			FROM ppic_component_status
+			WHERE project_task_id = ?
+		`,
+		args: [projectTaskId],
+	});
+	return result.rows.map((row) => ({
+		componentTaskId: String(row.component_task_id),
+		status: row.status === null ? null : String(row.status),
+		updatedAt: Number(row.updated_at),
+	}));
 };
 
 export const updatePpicComponentStatus = async (

@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "test": "node --experimental-strip-types src/lib/produksiPanel.test.ts",
+    "test": "node --experimental-strip-types src/lib/produksiPanel.test.ts && node --experimental-strip-types src/lib/projectStatus.test.ts",
     "start": "next start",
     "postinstall": "next build"
   },

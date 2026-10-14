@@ -1,12 +1,14 @@
 import {
 	getPpicMemberNames,
 	getPpicProjectScanHistory,
+	getPpicProjectStatuses,
 	getPpicProjectStatusUpdatedAt,
 	seedPpicProjectStatuses,
 } from "@/lib/db";
 import { unstable_cache } from "next/cache";
 import { clickUpHeaders } from "@/lib/clickup";
 import { getScanStatus, serialNumberOf } from "@/lib/projectSerialCache";
+import { applyProjectStatusChanges } from "@/lib/projectStatus";
 import { CLICKUP_TEAM_ID } from "@/lib/produksiPanel";
 import type { ClickUpTask } from "@/types/clickup";
 import type {
@@ -61,11 +63,11 @@ const loadCurrentStatusDuration = async (token: string, taskId: string) => {
 	};
 };
 
-const loadGroupTasks = async (token: string, groupId: string) => {
+const loadDescendantTasks = async (token: string, parentId: string) => {
 	const tasks: ClickUpTask[] = [];
 	for (let page = 0; ; page += 1) {
 		const query = new URLSearchParams({
-			parent: groupId,
+			parent: parentId,
 			subtasks: "true",
 			include_closed: "true",
 			page: String(page),
@@ -85,14 +87,11 @@ const loadGroupTasks = async (token: string, groupId: string) => {
 	return tasks;
 };
 
-const loadProjectTasks = async (token: string, project: ClickUpTask) => {
-	const cacheKey = `${token}:${project.id}`;
+const loadProjectTasks = async (token: string, projectId: string) => {
+	const cacheKey = `${token}:${projectId}`;
 	const cached = projectTaskCache.get(cacheKey);
 	if (cached && cached.expires > Date.now()) return cached.tasks;
-	const groups = project.subtasks ?? [];
-	const fetchedTasks = [
-		...(await Promise.all(groups.map((group) => loadGroupTasks(token, group.id)))).flat(),
-	];
+	const fetchedTasks = await loadDescendantTasks(token, projectId);
 	const tasks = [...new Map(fetchedTasks.map((task) => [task.id, task])).values()];
 	projectTaskCache.set(cacheKey, { tasks, expires: Date.now() + 60_000 });
 	return tasks;
@@ -121,12 +120,12 @@ const buildProjectDashboard = async (
 	token: string,
 	project: SelectedProject,
 ): Promise<ProjectDashboard> => {
-	const [parent, history, currentStatus] = await Promise.all([
+	const [parent, history, currentStatus, allTasks] = await Promise.all([
 		loadTask(token, project.task_id),
 		getPpicProjectScanHistory(project.task_id),
 		loadCurrentStatusDuration(token, project.task_id),
+		loadProjectTasks(token, project.task_id),
 	]);
-	const allTasks = await loadProjectTasks(token, parent);
 	const byId = new Map(allTasks.map((task) => [task.id, task]));
 	const historyByTask = new Map<string, typeof history>();
 	for (const log of history) {
@@ -198,8 +197,17 @@ const buildProjectDashboard = async (
 	};
 };
 
-export const getProjectDashboard = unstable_cache(
+const cachedProjectDashboard = unstable_cache(
 	buildProjectDashboard,
 	["project-dashboard"],
 	{ revalidate: false, tags: ["clickup-project-data"] },
 );
+
+export const getProjectDashboard = async (
+	token: string,
+	project: SelectedProject,
+) =>
+	applyProjectStatusChanges(
+		await cachedProjectDashboard(token, project),
+		await getPpicProjectStatuses(project.task_id),
+	);
