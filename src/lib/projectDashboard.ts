@@ -30,6 +30,34 @@ const loadTask = async (token: string, taskId: string) => {
 	return (await response.json()) as ClickUpTask;
 };
 
+const loadCurrentStatusDuration = async (token: string, taskId: string) => {
+	const response = await fetch(
+		`https://api.clickup.com/api/v2/task/${encodeURIComponent(taskId)}/time_in_status`,
+		{
+			headers: clickUpHeaders(token),
+			next: { revalidate: 30, tags: ["clickup-project-data"] },
+		},
+	);
+	if (!response.ok) return { minutes: null, since: null };
+	const body = (await response.json().catch(() => null)) as {
+		current_status?: {
+			status?: unknown;
+			total_time?: { by_minute?: unknown; since?: unknown };
+		};
+	} | null;
+	if (body?.current_status?.status?.toString().toLowerCase() !== "in progress")
+		return { minutes: null, since: null };
+	const minutes = body?.current_status?.total_time?.by_minute;
+	const since = body.current_status.total_time?.since;
+	return {
+		minutes:
+			typeof minutes === "number" && Number.isFinite(minutes) && minutes >= 0
+				? minutes
+				: null,
+		since: typeof since === "string" || typeof since === "number" ? String(since) : null,
+	};
+};
+
 const descendantsOf = (tasks: ClickUpTask[]): ClickUpTask[] =>
 	tasks.flatMap((task) => [task, ...descendantsOf(task.subtasks ?? [])]);
 
@@ -54,9 +82,10 @@ const buildProjectDashboard = async (
 	token: string,
 	project: SelectedProject,
 ): Promise<ProjectDashboard> => {
-	const [parent, history] = await Promise.all([
+	const [parent, history, currentStatus] = await Promise.all([
 		loadTask(token, project.task_id),
 		getPpicProjectScanHistory(project.task_id),
+		loadCurrentStatusDuration(token, project.task_id),
 	]);
 	const allTasks = descendantsOf(parent.subtasks ?? []);
 	const byId = new Map(allTasks.map((task) => [task.id, task]));
@@ -125,6 +154,8 @@ const buildProjectDashboard = async (
 			.sort((a, b) => b.scans - a.scans || a.name.localeCompare(b.name)),
 		memberNames,
 		statusUpdatedAt,
+		currentStatusDurationMinutes: currentStatus.minutes,
+		currentStatusStartedAt: currentStatus.since,
 	};
 };
 

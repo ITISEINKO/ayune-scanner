@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { OctagonX } from "lucide-react";
+import { X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useEndProjectSelection } from "@/hooks/use-project-selection";
@@ -20,30 +20,29 @@ export function ProjectScope({ project }: { project: SelectedProject }) {
 			/>
 			<div className="relative z-10">
 				<div className="items-start justify-between gap-3">
-					<Button
-						variant="outline"
-						size="sm"
-						className="h-8 rounded-xl px-3 text-xs font-normal"
-						disabled={endSelection.isPending}
-						onClick={() =>
-							endSelection.mutate(undefined, {
-								onSuccess: () => router.replace("/projects"),
-								onError: () =>
-									toast.error("Project aktif tidak dapat diakhiri."),
-							})
-						}
-					>
-						End Scan
-						<OctagonX
-							aria-hidden="true"
-							className="size-4 text-muted-foreground"
-						/>
-					</Button>
-					<div className="min-w-0">
+					<div className="flex items-center justify-between mb-2">
 						<p className="text-[10px] font-bold tracking-[0.12em] text-muted-foreground uppercase">
 							Project aktif
 						</p>
-						<p className="wrap-break-word text-xl leading-6 font-extrabold tracking-tight">
+						<Button
+							variant="outline"
+							size="sm"
+							className="h-8 rounded-xl bg-primary/30 px-3 text-xs font-normal"
+							disabled={endSelection.isPending}
+							onClick={() =>
+								endSelection.mutate(undefined, {
+									onSuccess: () => router.replace("/projects"),
+									onError: () =>
+										toast.error("Project aktif tidak dapat diakhiri."),
+								})
+							}
+						>
+							<X aria-hidden="true" className="size-4 text-white" />
+						</Button>
+					</div>
+
+					<div className="min-w-0">
+						<p className="wrap-break-word text-xl leading-6 max-w-sm font-extrabold tracking-tight">
 							{project.name ?? project.custom_id ?? project.task_id}
 						</p>
 						{project.name && (

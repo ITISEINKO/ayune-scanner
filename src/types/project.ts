@@ -46,4 +46,6 @@ export type ProjectDashboard = {
 	memberContribution: { userId: string; name: string; scans: number }[];
 	memberNames: Record<string, string>;
 	statusUpdatedAt: number;
+	currentStatusDurationMinutes: number | null;
+	currentStatusStartedAt: string | null;
 };

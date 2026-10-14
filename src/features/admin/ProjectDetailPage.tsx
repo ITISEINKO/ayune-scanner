@@ -7,7 +7,6 @@ import { Label, PolarRadiusAxis, RadialBar, RadialBarChart } from "recharts";
 import {
 	CalendarDays,
 	ChevronLeft,
-	Flag,
 	RefreshCw,
 	ScanLine,
 	Timer,
@@ -17,7 +16,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ChartContainer, type ChartConfig } from "@/components/ui/chart";
 import {
-	calendarDaysBetween,
 	elapsedLabel,
 	scanWindow,
 } from "@/lib/projectTimeline";
@@ -193,11 +191,6 @@ export const ProjectDetailPage = ({
 
 	const { project, items, recentHistory, memberContribution, memberNames } =
 		currentDashboard;
-	const projectElapsed = calendarDaysBetween(project.startDate, new Date());
-	const targetDuration = calendarDaysBetween(
-		project.startDate,
-		project.dueDate,
-	);
 	const components = items.flatMap((item) => item.components);
 	const statusTotals = countsFor(components);
 	const totalComponents = components.length;
@@ -291,29 +284,19 @@ export const ProjectDetailPage = ({
 
 			<div className="relative -mt-8 space-y-3 rounded-t-4xl bg-white p-4 pt-6">
 				<section className="overflow-hidden rounded-[1.35rem] border border-border/40 bg-card shadow-sm">
-					<div className="grid grid-cols-2 divide-x divide-y text-sm">
+					<div className="grid grid-cols-2 divide-x text-sm">
 						<div className="p-4">
 							<CalendarDays
 								aria-hidden="true"
 								className="size-4 text-primary"
 							/>
 							<p className="mt-3 text-xs text-muted-foreground">Mulai</p>
-							<p className="mt-1 font-bold">{formatDate(project.startDate)}</p>
-						</div>
-						<div className="p-4">
-							<Flag aria-hidden="true" className="size-4 text-primary" />
-							<p className="mt-3 text-xs text-muted-foreground">Due date</p>
-							<p className="mt-1 font-bold">{formatDate(project.dueDate)}</p>
-						</div>
-						<div className="p-4">
-							<Timer aria-hidden="true" className="size-4 text-primary" />
-							<p className="mt-3 text-xs text-muted-foreground">
-								Target durasi
-							</p>
 							<p className="mt-1 font-bold">
-								{targetDuration === null
-									? "Tidak tersedia"
-									: `${targetDuration} hari kalender`}
+								{currentDashboard.currentStatusStartedAt
+									? new Date(
+											Number(currentDashboard.currentStatusStartedAt),
+										).toLocaleString("en-US", { timeZone: "Asia/Jakarta" })
+									: "Tidak tersedia"}
 							</p>
 						</div>
 						<div className="p-4">
@@ -322,9 +305,9 @@ export const ProjectDetailPage = ({
 								Sudah berjalan
 							</p>
 							<p className="mt-1 font-bold">
-								{projectElapsed === null
-									? "Belum mulai"
-									: `${projectElapsed} hari`}
+								{currentDashboard.currentStatusDurationMinutes === null
+									? "Tidak tersedia"
+									: `${Math.floor(currentDashboard.currentStatusDurationMinutes / 1440)} hari`}
 							</p>
 						</div>
 					</div>
