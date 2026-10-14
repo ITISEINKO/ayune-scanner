@@ -25,9 +25,9 @@ export function ProjectScope({ project }: { project: SelectedProject }) {
 							Project aktif
 						</p>
 						<Button
-							variant="outline"
-							size="sm"
-							className="h-8 rounded-xl bg-primary/30 px-3 text-xs font-normal"
+							variant="secondary"
+							size="icon-sm"
+							className="rounded-full"
 							disabled={endSelection.isPending}
 							onClick={() =>
 								endSelection.mutate(undefined, {
@@ -37,7 +37,7 @@ export function ProjectScope({ project }: { project: SelectedProject }) {
 								})
 							}
 						>
-							<X aria-hidden="true" className="size-4 text-white" />
+							<X aria-hidden="true" />
 						</Button>
 					</div>
 

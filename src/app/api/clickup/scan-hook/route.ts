@@ -39,7 +39,11 @@ export async function POST(request: Request) {
 			(customField as Record<string, unknown>).id === CF_PANEL.STATUS_BARANG_SCAN
 		);
 	}) as Record<string, unknown> | undefined;
-	if (!taskId || !statusChange) return NextResponse.json({ ignored: true });
+	if (!taskId) return NextResponse.json({ ignored: true });
+	if (!statusChange) {
+		revalidateTag("clickup-project-data", "max");
+		return NextResponse.json({ ignored: true });
+	}
 	const after = statusChange.after;
 	const value =
 		after && typeof after === "object" && "value" in after
@@ -47,6 +51,6 @@ export async function POST(request: Request) {
 			: after;
 	const updated = await updatePpicComponentStatus(taskId, statusBarangScanKey(value));
 	if (!updated) return NextResponse.json({ ignored: true });
-	revalidateTag("clickup-project-data", { expire: 0 });
+	revalidateTag("clickup-project-data", "max");
 	return NextResponse.json({ ok: true });
 }

@@ -7,6 +7,7 @@ import {
 import { unstable_cache } from "next/cache";
 import { clickUpHeaders } from "@/lib/clickup";
 import { getScanStatus, serialNumberOf } from "@/lib/projectSerialCache";
+import { CLICKUP_TEAM_ID } from "@/lib/produksiPanel";
 import type { ClickUpTask } from "@/types/clickup";
 import type {
 	ProjectDashboard,
@@ -17,6 +18,8 @@ import type {
 
 const clickUpError = (response: Response) =>
 	new Error(response.status === 429 ? "RATE_LIMITED" : "CLICKUP_ERROR");
+
+const projectTaskCache = new Map<string, { expires: number; tasks: ClickUpTask[] }>();
 
 const loadTask = async (token: string, taskId: string) => {
 	const response = await fetch(
@@ -58,8 +61,44 @@ const loadCurrentStatusDuration = async (token: string, taskId: string) => {
 	};
 };
 
-const descendantsOf = (tasks: ClickUpTask[]): ClickUpTask[] =>
-	tasks.flatMap((task) => [task, ...descendantsOf(task.subtasks ?? [])]);
+const loadGroupTasks = async (token: string, groupId: string) => {
+	const tasks: ClickUpTask[] = [];
+	for (let page = 0; ; page += 1) {
+		const query = new URLSearchParams({
+			parent: groupId,
+			subtasks: "true",
+			include_closed: "true",
+			page: String(page),
+		});
+		const response = await fetch(
+			`https://api.clickup.com/api/v2/team/${CLICKUP_TEAM_ID}/task?${query}`,
+			{ headers: clickUpHeaders(token), cache: "no-store" },
+		);
+		if (!response.ok) throw clickUpError(response);
+		const data = (await response.json()) as {
+			tasks?: ClickUpTask[];
+			last_page?: boolean;
+		};
+		tasks.push(...(data.tasks ?? []));
+		if (data.last_page || !(data.tasks?.length ?? 0)) break;
+	}
+	return tasks;
+};
+
+const loadProjectTasks = async (token: string, project: ClickUpTask) => {
+	const cacheKey = `${token}:${project.id}`;
+	const cached = projectTaskCache.get(cacheKey);
+	if (cached && cached.expires > Date.now()) return cached.tasks;
+	const groups = project.subtasks ?? [];
+	const fetchedTasks = [
+		...(await Promise.all(groups.map((group) => loadGroupTasks(token, group.id)))).flat(),
+	];
+	const tasks = [...new Map(fetchedTasks.map((task) => [task.id, task])).values()];
+	projectTaskCache.set(cacheKey, { tasks, expires: Date.now() + 60_000 });
+	return tasks;
+};
+
+export const clearPanelTaskCache = () => projectTaskCache.clear();
 
 const itemIdFor = (
 	task: ClickUpTask,
@@ -87,7 +126,7 @@ const buildProjectDashboard = async (
 		getPpicProjectScanHistory(project.task_id),
 		loadCurrentStatusDuration(token, project.task_id),
 	]);
-	const allTasks = descendantsOf(parent.subtasks ?? []);
+	const allTasks = await loadProjectTasks(token, parent);
 	const byId = new Map(allTasks.map((task) => [task.id, task]));
 	const historyByTask = new Map<string, typeof history>();
 	for (const log of history) {
