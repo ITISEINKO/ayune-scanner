@@ -48,7 +48,7 @@ export const MemberScannerPage = ({
 }) => {
 	const busy = useRef(false);
 	const [scanning, setScanning] = useState(false);
-	const [selectedStatus, setSelectedStatus] = useState(allowedStatuses[0]);
+	const [selectedStatus, setSelectedStatus] = useState<PpicStatus>();
 	const [scannedItem, setScannedItem] = useState<string | null>(null);
 	const [scannedStatus, setScannedStatus] = useState<PpicStatus | null>(null);
 
@@ -87,7 +87,7 @@ export const MemberScannerPage = ({
 				<Scanner
 					onDetected={scan}
 					autoStart
-					disabled={scanning}
+					disabled={scanning || !selectedStatus}
 					statuses={allowedStatuses}
 					selectedStatus={selectedStatus}
 					onStatusChange={setSelectedStatus}

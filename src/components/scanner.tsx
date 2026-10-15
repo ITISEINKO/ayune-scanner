@@ -153,7 +153,7 @@ export function Scanner({
 				<div>
 					<p className="mb-1.75 mt-0 text-[10px] font-extrabold tracking-[1.1px] text-muted-foreground">
 						<span className="mr-1 inline-block size-1.75 rounded-full bg-emerald-400 align-[1px]" />{" "}
-						SIAP MEMINDAI
+						{statuses && !selectedStatus ? "PILIH STATUS" : "SIAP MEMINDAI"}
 					</p>
 				</div>
 				<ScanBarcode
@@ -164,7 +164,7 @@ export function Scanner({
 			<p className="px-2 mb-2 shrink-0 text-xs font-medium text-muted-foreground">
 				Status Barang Scan
 			</p>
-			{statuses && selectedStatus && (
+			{statuses && (
 				<div className="mb-3 flex items-center gap-3">
 					<DropdownMenu>
 						<DropdownMenuTrigger
@@ -176,17 +176,22 @@ export function Scanner({
 								/>
 							}
 						>
-							{selectedStatusOption && (
+							{selectedStatusOption ? (
 								<>
 									<selectedStatusOption.icon />
 									<span>{selectedStatusOption.label}</span>
+									<ChevronDown className="ml-auto" />
+								</>
+							) : (
+								<>
+									<span>Pilih status sebelum scan</span>
 									<ChevronDown className="ml-auto" />
 								</>
 							)}
 						</DropdownMenuTrigger>
 						<DropdownMenuContent>
 							<DropdownMenuRadioGroup
-								value={selectedStatus}
+								value={selectedStatus ?? ""}
 								onValueChange={(value) => {
 									const status = statuses.find((item) => item === value);
 									if (status) onStatusChange?.(status);
