@@ -229,7 +229,7 @@ export const ProjectDetailPage = ({
 						</Button>
 					</div>
 				</div>
-				<h1 className="mt-5 text-2xl font-extrabold leading-tight tracking-tight text-primary-foreground">
+				<h1 className="mt-5  text-2xl font-extrabold leading-tight tracking-tight text-primary-foreground">
 					{project.name ?? "Tanpa nama"}
 				</h1>
 				<div className="mt-5 flex items-end gap-2">
