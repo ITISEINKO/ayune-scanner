@@ -89,7 +89,9 @@ export const HistoryMemberPage = ({
 												? "green"
 												: status === "SEDANG_DIPACKING"
 													? "blue"
-													: "purple"
+													: status === "DALAM_PROSES_RETUR"
+														? "destructive"
+														: "purple"
 										}
 									>
 										{status.replaceAll("_", " ")}

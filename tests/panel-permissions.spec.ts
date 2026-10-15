@@ -41,6 +41,7 @@ test.describe("Admin member settings", () => {
 		BARANG_DITERIMA: "Barang Diterima",
 		SEDANG_DIPACKING: "Sedang Dipacking",
 		TERPASANG_DIGUNAKAN: "Terpasang / Digunakan",
+		DALAM_PROSES_RETUR: "Dalam Proses Retur",
 	} as const;
 	let memberName = "";
 	let original:
@@ -217,6 +218,7 @@ test.describe("Admin member settings", () => {
 			"BARANG_DITERIMA",
 			"SEDANG_DIPACKING",
 			"TERPASANG_DIGUNAKAN",
+			"DALAM_PROSES_RETUR",
 		]);
 		await dialog.getByRole("button", { name: "Simpan" }).click();
 		await expect(page.getByText("Akses berhasil diperbarui.")).toBeVisible();
@@ -229,6 +231,7 @@ test.describe("Admin member settings", () => {
 					"BARANG_DITERIMA",
 					"SEDANG_DIPACKING",
 					"TERPASANG_DIGUNAKAN",
+					"DALAM_PROSES_RETUR",
 				].toSorted(),
 			});
 

@@ -39,12 +39,14 @@ assert.equal(statusBarangScanKey(8), "DIHAPUSKAN");
 assert.equal(ppicStatusPath("BARANG_DITERIMA"), "/barang-diterima");
 assert.equal(ppicStatusPath("SEDANG_DIPACKING"), "/sedang-dipacking");
 assert.equal(ppicStatusPath("TERPASANG_DIGUNAKAN"), "/terpasang-digunakan");
+assert.equal(ppicStatusPath("DALAM_PROSES_RETUR"), "/dalam-proses-retur");
 assert.equal(ppicStatusPath("inactive"), "/scan-to-find");
 assert.deepEqual(ppicStatuses("BARANG_DITERIMA"), ["BARANG_DITERIMA"]);
 assert.deepEqual(
 	ppicStatuses('["BARANG_DITERIMA","TERPASANG_DIGUNAKAN"]'),
 	["BARANG_DITERIMA", "TERPASANG_DIGUNAKAN"],
 );
+assert.deepEqual(ppicStatuses("DALAM_PROSES_RETUR"), ["DALAM_PROSES_RETUR"]);
 assert.equal(
 	taskProjectScope({ id: "serial", top_level_parent: "main", parent: "group" }, "main"),
 	"MATCH",

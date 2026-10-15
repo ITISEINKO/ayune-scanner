@@ -2,6 +2,7 @@ export const PPIC_STATUSES = [
 	"BARANG_DITERIMA",
 	"SEDANG_DIPACKING",
 	"TERPASANG_DIGUNAKAN",
+	"DALAM_PROSES_RETUR",
 ] as const;
 
 export type PpicStatus = (typeof PPIC_STATUSES)[number];
@@ -45,8 +46,13 @@ export const ppicStatuses = (value: unknown): PpicStatuses | null => {
 			return null;
 		}
 	}
-	const values = Array.isArray(parsed) ? parsed : typeof parsed === "string" ? [parsed] : [];
-	if (!values.length || values.some((status) => !isPpicStatus(status))) return null;
+	const values = Array.isArray(parsed)
+		? parsed
+		: typeof parsed === "string"
+			? [parsed]
+			: [];
+	if (!values.length || values.some((status) => !isPpicStatus(status)))
+		return null;
 	return [...new Set(values)] as PpicStatuses;
 };
 

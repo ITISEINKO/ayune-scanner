@@ -44,6 +44,13 @@ const statusOptions = [
 		variant: "purple",
 		dot: "bg-violet-600",
 	},
+	{
+		status: PPIC_STATUSES[3],
+		label: "Dalam Proses Retur",
+		shortLabel: "Retur",
+		variant: "destructive",
+		dot: "bg-red-600",
+	},
 ] as const;
 
 export const SettingPage = () => {
@@ -336,7 +343,7 @@ export const SettingPage = () => {
 										<DrawerDescription>
 											{draftRole === "SUPER_ADMIN" ? "Admin" : "Member"}
 											{draftRole === "MEMBER" &&
-												` · ${draftStatuses.length} dari 3 akses aktif`}
+												` · ${draftStatuses.length} dari ${statusOptions.length} akses aktif`}
 										</DrawerDescription>
 									</div>
 								</div>
@@ -385,7 +392,7 @@ export const SettingPage = () => {
 											<Checkbox
 												checked={draftStatuses.includes(option.status)}
 												disabled={draftRole === "SUPER_ADMIN"}
-												className="h-7 w-12 justify-start rounded-full border-input bg-muted p-1 before:size-5 before:rounded-full before:bg-card before:shadow-sm before:transition-transform data-checked:bg-emerald-700 data-checked:before:translate-x-5 **:data-[slot=checkbox-indicator]:hidden"
+												className="h-7 w-12 justify-start rounded-full border-input bg-muted p-1 before:size-5 before:rounded-full before:bg-card before:shadow-sm before:transition-transform data-checked:bg-accent data-checked:border-input data-checked:before:translate-x-5 **:data-[slot=checkbox-indicator]:hidden"
 												onCheckedChange={(checked) =>
 													setDraftStatuses((current) =>
 														checked

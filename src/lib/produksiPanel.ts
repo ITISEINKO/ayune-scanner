@@ -10,7 +10,9 @@ export const ppicStatusPath = (status: unknown) =>
 			? "/sedang-dipacking"
 			: status === "TERPASANG_DIGUNAKAN"
 				? "/terpasang-digunakan"
-			: "/scan-to-find";
+				: status === "DALAM_PROSES_RETUR"
+					? "/dalam-proses-retur"
+					: "/scan-to-find";
 
 export const CF_PANEL = {
 	ORDER_PROCESSING_TIME: "088a20c4-6006-4af7-a713-479f57666a6f",
