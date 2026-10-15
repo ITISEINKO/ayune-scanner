@@ -21,14 +21,10 @@ test('T06 non-admin sees Access denied on settings', async ({ page, context }) =
 			url: 'http://localhost:3000',
 		},
 	]);
-	const membersResponse = page.waitForResponse((response) =>
-		response.url().endsWith('/api/panel/members'),
-	);
-	await page.goto('/settings');
-	expect((await membersResponse).status()).toBe(403);
+	await page.goto('/admin/settings');
 
 	await expect(page.getByRole('heading', { name: 'Access denied' })).toBeVisible();
-	await expect(page).toHaveURL(/\/settings$/);
+	await expect(page).toHaveURL(/\/unauthorized$/);
 });
 
 test('configured active member reaches only its assigned panel', async ({
@@ -42,7 +38,7 @@ test('configured active member reaches only its assigned panel', async ({
 	]);
 
 	await page.goto('/');
-	await expect(page).toHaveURL(/\/barang-diterima$/);
+	await expect(page).toHaveURL(/\/projects$/);
 	await page.goto('/sedang-dipacking');
 	await expect(page).toHaveURL(/\/unauthorized$/);
 
@@ -50,7 +46,7 @@ test('configured active member reaches only its assigned panel', async ({
 		data: { serial_number: '__playwright_missing_serial__', status: 'BARANG_DITERIMA' },
 		maxRedirects: 0,
 	});
-	expect(allowed.status()).toBe(404);
+	expect(allowed.status()).toBe(409);
 
 	const denied = await page.request.post('/api/panel/scan', {
 		data: { serial_number: '__playwright_missing_serial__', status: 'SEDANG_DIPACKING' },

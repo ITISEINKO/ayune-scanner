@@ -1,66 +1,44 @@
 "use client";
 
 import {
-	Cog,
-	BadgeCheck,
-	LogOut,
-	PackageCheck,
-	PackageOpen,
-	Search,
-	Settings2,
+	FolderKanban,
+	History,
+	ScanLine,
+	User,
+	Users,
 } from "lucide-react";
 import { Fragment } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { PpicRole, PpicStatus } from "@/types/ppic";
+import type { PpicRole } from "@/types/ppic";
 
 const superAdminItems = [
-	{ href: "/scan-to-find", label: "Find", icon: Search },
-	{ href: "/ubah-manual", label: "Manual", icon: Settings2 },
-	{ href: "/settings", label: "Settings", icon: Cog },
+	{ href: "/admin", label: "Projects", icon: FolderKanban },
+	{ href: "/admin/ubah-manual", label: "Scan", icon: ScanLine },
+	{ href: "/admin/settings", label: "Member", icon: Users },
+	{ href: "/admin/profile", label: "Profile", icon: User },
 ];
-const memberItems = (allowedStatus: PpicStatus | null) => [
-	{ href: "/scan-to-find", label: "Find", icon: Search },
-	...(allowedStatus
-		? [
-				{
-					href:
-						allowedStatus === "BARANG_DITERIMA"
-							? "/barang-diterima"
-							: allowedStatus === "SEDANG_DIPACKING"
-								? "/sedang-dipacking"
-								: "/terpasang-digunakan",
-					label: "Scan",
-					icon:
-						allowedStatus === "BARANG_DITERIMA"
-							? PackageCheck
-							: allowedStatus === "SEDANG_DIPACKING"
-								? PackageOpen
-								: BadgeCheck,
-				},
-			]
-		: []),
+const memberItems = [
+	{ href: "/projects", label: "Projects", icon: FolderKanban },
+	{ href: "/history", label: "History", icon: History },
+	{ href: "/profile", label: "Profile", icon: User },
 ];
 
-const getNavigationItemsByRole = (
-	role: PpicRole | null,
-	allowedStatus: PpicStatus | null,
-) => {
+const getNavigationItemsByRole = (role: PpicRole | null) => {
 	if (role === "SUPER_ADMIN") return superAdminItems;
-	if (role === "MEMBER") return memberItems(allowedStatus);
-	return [{ href: "/api/auth/logout", label: "Logout", icon: LogOut }];
+	if (role === "MEMBER") return memberItems;
+	return [];
 };
 
 export function BottomNavigation({
 	role,
-	allowedStatus,
 }: {
 	role: PpicRole | null;
-	allowedStatus: PpicStatus | null;
 }) {
 	const pathname = usePathname();
 	if (pathname === "/login") return null;
-	const navigationItems = getNavigationItemsByRole(role, allowedStatus);
+	const navigationItems = getNavigationItemsByRole(role);
+	if (!navigationItems.length) return null;
 
 	return (
 		<nav
@@ -69,12 +47,16 @@ export function BottomNavigation({
 		>
 			{navigationItems.map(({ href, label, icon: Icon }, index) => {
 				const active = pathname === href;
-				const className = `flex min-w-0 flex-1 items-center justify-center gap-2 rounded-md px-3 py-2.5 text-md font-medium transition-colors ${
-					active ? "bg-accent text-white" : "text-white/80 hover:text-white"
+				const className = `flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-md px-3 py-2 text-xs text-white ${
+					active ? "font-bold bg-white/10" : "font-medium"
 				}`;
 				const content = (
 					<>
-						<Icon aria-hidden="true" className="size-4 shrink-0" />
+						<Icon
+							aria-hidden="true"
+							className="size-4 shrink-0"
+							strokeWidth={active ? 3 : 2}
+						/>
 						<span>{label}</span>
 					</>
 				);
@@ -86,19 +68,13 @@ export function BottomNavigation({
 								className="mx-2 h-7 w-px shrink-0 bg-white/10"
 							/>
 						)}
-						{href === "/api/auth/logout" ? (
-							<a href={href} className={className}>
-								{content}
-							</a>
-						) : (
-							<Link
-								href={href}
-								aria-current={active ? "page" : undefined}
-								className={className}
-							>
-								{content}
-							</Link>
-						)}
+						<Link
+							href={href}
+							aria-current={active ? "page" : undefined}
+							className={className}
+						>
+							{content}
+						</Link>
 					</Fragment>
 				);
 			})}

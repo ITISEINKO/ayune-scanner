@@ -1,9 +1,15 @@
-import { PackingPage } from "@/features/panel/PackingPage";
-import { requirePpicStatusAccess } from "@/lib/session";
+import { MemberScannerPage } from "@/features/member/MemberScannerPage";
+import { getPpicAccess } from "@/lib/db";
+import {
+	requireFreshPpicStatusAccess,
+	requireSelectedMemberProject,
+} from "@/lib/session";
 
 const Packing = async () => {
-	await requirePpicStatusAccess("SEDANG_DIPACKING");
-	return <PackingPage />;
+	const project = await requireSelectedMemberProject();
+	const userId = await requireFreshPpicStatusAccess("SEDANG_DIPACKING");
+	const allowedStatuses = (await getPpicAccess(userId))?.allowed_status ?? [];
+	return <MemberScannerPage project={project} allowedStatuses={allowedStatuses} />;
 };
 
 export default Packing;

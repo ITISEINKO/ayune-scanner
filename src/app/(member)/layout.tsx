@@ -12,14 +12,16 @@ export default async function MemberLayout({
 	return (
 		<>
 			{children}
-			{(!session ||
-				Date.now() - session.refreshed_at >= PPIC_SESSION_REFRESH_TTL_MS) && (
-				<SessionRefresh />
-			)}
-			<BottomNavigation
-				role={session?.role ?? null}
-				allowedStatus={session?.allowed_status ?? null}
+			<SessionRefresh
+				refreshAfter={Math.max(
+					0,
+					PPIC_SESSION_REFRESH_TTL_MS -
+						(Date.now() - (session?.refreshed_at ?? 0)),
+				)}
+				refreshedAt={session?.refreshed_at ?? 0}
+				userId={session?.user_id ?? null}
 			/>
+			<BottomNavigation role={session?.role ?? null} />
 		</>
 	);
 }

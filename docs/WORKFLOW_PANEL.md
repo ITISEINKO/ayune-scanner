@@ -556,7 +556,7 @@ For a status that gets its own scan page, update these places:
 6. Add the route and icon branch to `src/components/bottomNavigation.tsx`.
 7. Add the status option to the admin list in `src/features/settings/index.tsx` so a super admin can assign it to a member.
 8. Create the client page in `src/features/panel/` using the existing scanner flow: trim the serial number, POST to `/api/panel/scan`, show the returned item, and keep the existing error handling.
-9. Add a path/status assertion to `src/lib/produksi.test.ts`, then run `pnpm test` and `pnpm exec tsc --noEmit --pretty false`.
+9. Add a path/status assertion to `src/lib/produksiPanel.test.ts`, then run `pnpm test` and `pnpm exec tsc --noEmit --pretty false`.
 
 ### Runtime flow
 

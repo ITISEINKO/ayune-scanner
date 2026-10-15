@@ -165,6 +165,6 @@ test.describe("Admin self-transition", () => {
 			original!.active,
 		);
 		await freshLogin(page);
-		await expect(page).toHaveURL(/\/settings$/);
+		await expect(page).toHaveURL(/\/admin\/settings$/);
 	});
 });

@@ -107,6 +107,18 @@ export const statusBarangScanOptions = [
 	{ key: "DIHAPUSKAN", label: "DIHAPUSKAN", id: STATUS_BARANG_SCAN.DIHAPUSKAN },
 ] as const;
 
+export const statusBarangScanKey = (value: unknown) => {
+	if (value === null || value === undefined || value === "") return null;
+	return (
+		statusBarangScanOptions.find(
+			(option, index) =>
+				option.id === String(value) ||
+				option.key === String(value) ||
+				String(index) === String(value),
+		)?.key ?? null
+	);
+};
+
 export const ORDER_MAKER = {
 	INTERIOR_1: "266e36f0-e7c8-4bd7-8e44-d352b0dc0e6a",
 	INTERIOR_2: "ae1d3e3e-948a-481b-88ec-33a8c0d971f2",

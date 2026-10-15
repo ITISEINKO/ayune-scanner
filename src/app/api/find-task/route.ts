@@ -57,5 +57,9 @@ export async function GET(request: Request) {
 	if (!tasks.length) return error(404, "NOT_FOUND");
 	if (!tasks[0].url) return error(502, "CLICKUP_ERROR");
 
-	return NextResponse.json({ url: tasks[0].url, count: tasks.length });
+	return NextResponse.json({
+		url: tasks[0].url,
+		name: tasks[0].name ?? serialNumber,
+		count: tasks.length,
+	});
 }

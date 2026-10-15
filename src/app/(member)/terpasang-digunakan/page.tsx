@@ -1,9 +1,15 @@
-import { TerpasangDigunakanPage } from "@/features/panel/TerpasangDigunakanPage";
-import { requirePpicStatusAccess } from "@/lib/session";
+import { MemberScannerPage } from "@/features/member/MemberScannerPage";
+import { getPpicAccess } from "@/lib/db";
+import {
+	requireFreshPpicStatusAccess,
+	requireSelectedMemberProject,
+} from "@/lib/session";
 
 const TerpasangDigunakan = async () => {
-	await requirePpicStatusAccess("TERPASANG_DIGUNAKAN");
-	return <TerpasangDigunakanPage />;
+	const project = await requireSelectedMemberProject();
+	const userId = await requireFreshPpicStatusAccess("TERPASANG_DIGUNAKAN");
+	const allowedStatuses = (await getPpicAccess(userId))?.allowed_status ?? [];
+	return <MemberScannerPage project={project} allowedStatuses={allowedStatuses} />;
 };
 
 export default TerpasangDigunakan;

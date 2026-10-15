@@ -1,11 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
 import { clickUpHeaders } from "@/lib/clickup";
 import {
 	encodePpicSession,
 	PPIC_SESSION_COOKIE,
 	ppicLoginState,
 } from "@/lib/session";
-import { PANEL_LIST_ID } from "@/lib/produksiPanel";
+import { NextRequest, NextResponse } from "next/server";
 
 const loginError = (request: NextRequest, error = "clickup") =>
 	NextResponse.redirect(new URL(`/login?error=${error}`, request.url));
@@ -24,32 +23,34 @@ export async function GET(request: NextRequest) {
 	const url = new URL(request.url);
 	const code = url.searchParams.get("code");
 	const state = url.searchParams.get("state");
-	if (!code || !state || state !== request.cookies.get("clickup_oauth_state")?.value)
+	if (
+		!code ||
+		!state ||
+		state !== request.cookies.get("clickup_oauth_state")?.value
+	)
 		return loginError(request);
 
 	const clientId = process.env.CLICKUP_CLIENT_ID;
 	const clientSecret = process.env.CLICKUP_CLIENT_SECRET;
 	const redirectUri = process.env.CLICKUP_REDIRECT_URI;
 	const teamId = process.env.CLICKUP_TEAM_ID;
-	const listId = process.env.CLICKUP_PPIC_PANEL_LIST_ID || PANEL_LIST_ID;
 	if (!clientId || !clientSecret || !redirectUri || !teamId)
-		return new NextResponse("ClickUp OAuth is not configured.", { status: 500 });
+		return new NextResponse("ClickUp OAuth is not configured.", {
+			status: 500,
+		});
 
 	let tokenResponse: Response;
 	try {
-		tokenResponse = await fetch(
-			"https://api.clickup.com/api/v2/oauth/token",
-			{
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					client_id: clientId,
-					client_secret: clientSecret,
-					code,
-					redirect_uri: redirectUri,
-				}),
-			},
-		);
+		tokenResponse = await fetch("https://api.clickup.com/api/v2/oauth/token", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				client_id: clientId,
+				client_secret: clientSecret,
+				code,
+				redirect_uri: redirectUri,
+			}),
+		});
 	} catch {
 		return loginError(request);
 	}
@@ -59,15 +60,18 @@ export async function GET(request: NextRequest) {
 	};
 	if (typeof token !== "string" || !token) return loginError(request);
 
-	let userResponse: Response;
-	try {
-		userResponse = await fetch("https://api.clickup.com/api/v2/user", {
+	const [userResult, teamsResult] = await Promise.allSettled([
+		fetch("https://api.clickup.com/api/v2/user", {
 			headers: clickUpHeaders(token),
 			cache: "no-store",
-		});
-	} catch {
-		return loginError(request);
-	}
+		}),
+		fetch("https://api.clickup.com/api/v2/team", {
+			headers: clickUpHeaders(token),
+			cache: "no-store",
+		}),
+	]);
+	if (userResult.status === "rejected") return loginError(request);
+	const userResponse = userResult.value;
 	if (!userResponse.ok) return loginError(request);
 
 	let userId: string | null = null;
@@ -83,15 +87,8 @@ export async function GET(request: NextRequest) {
 	}
 	if (!userId) return unauthorized(request);
 
-	let teamsResponse: Response;
-	try {
-		teamsResponse = await fetch("https://api.clickup.com/api/v2/team", {
-			headers: clickUpHeaders(token),
-			cache: "no-store",
-		});
-	} catch {
-		return unauthorized(request);
-	}
+	if (teamsResult.status === "rejected") return unauthorized(request);
+	const teamsResponse = teamsResult.value;
 	if (!teamsResponse.ok) return unauthorized(request);
 	let teams: unknown;
 	try {
@@ -109,17 +106,6 @@ export async function GET(request: NextRequest) {
 				String(team.id) === teamId,
 		);
 	if (!hasIseinko) return unauthorized(request);
-
-	let listResponse: Response;
-	try {
-		listResponse = await fetch(
-			`https://api.clickup.com/api/v2/list/${encodeURIComponent(listId)}`,
-			{ headers: clickUpHeaders(token), cache: "no-store" },
-		);
-	} catch {
-		return unauthorized(request);
-	}
-	if (!listResponse.ok) return unauthorized(request);
 
 	let loginState: Awaited<ReturnType<typeof ppicLoginState>>;
 	try {

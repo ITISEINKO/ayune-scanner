@@ -36,6 +36,7 @@ export const ScanToFindPage = ({ role }: { role: PpicRole }) => {
 			);
 			const result = (await response.json()) as {
 				url?: string;
+				name?: string;
 				count?: number;
 				error?: string;
 			};
@@ -55,8 +56,8 @@ export const ScanToFindPage = ({ role }: { role: PpicRole }) => {
 			tab.location.href = result.url;
 			setMessage(
 				result.count && result.count > 1
-					? "Serial number duplikat: task pertama dibuka."
-					: "Task dibuka di tab baru.",
+					? `${result.name}: serial number duplikat, task pertama dibuka.`
+					: `${result.name}: task dibuka di tab baru.`,
 			);
 		} catch {
 			tab?.close();
@@ -84,7 +85,7 @@ export const ScanToFindPage = ({ role }: { role: PpicRole }) => {
 						<p className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
 							{role === "SUPER_ADMIN" ? "PPIC admin" : "PPIC member"}
 						</p>
-						<h1 className="text-2xl font-black tracking-tight">
+						<h1 className="text-xl font-black tracking-tight">
 							Buka Task PPIC
 						</h1>
 					</div>
