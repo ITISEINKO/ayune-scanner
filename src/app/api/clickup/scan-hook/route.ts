@@ -7,7 +7,8 @@ const unauthorized = () =>
 	NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
 
 export async function POST(request: Request) {
-	const secret = process.env.CLICKUP_WEBHOOK_SECRET || process.env.SCAN_HOOK_SECRET;
+	const secret =
+		process.env.CLICKUP_WEBHOOK_SECRET || process.env.CLICKUP_SCAN_HOOK_SECRET;
 	const received = request.headers.get("x-signature");
 	if (!secret || !received) return unauthorized();
 	const expectedBytes = createHmac("sha256", secret)
@@ -24,10 +25,15 @@ export async function POST(request: Request) {
 	try {
 		body = JSON.parse(await request.text()) as Record<string, unknown>;
 	} catch {
-		return NextResponse.json({ ok: false, error: "INVALID_JSON" }, { status: 400 });
+		return NextResponse.json(
+			{ ok: false, error: "INVALID_JSON" },
+			{ status: 400 },
+		);
 	}
 	const taskId = typeof body.task_id === "string" ? body.task_id : "";
-	const historyItems = Array.isArray(body.history_items) ? body.history_items : [];
+	const historyItems = Array.isArray(body.history_items)
+		? body.history_items
+		: [];
 	const statusChange = historyItems.find((item) => {
 		if (!item || typeof item !== "object") return false;
 		const customField = (item as Record<string, unknown>).custom_field;
@@ -35,7 +41,8 @@ export async function POST(request: Request) {
 			(item as Record<string, unknown>).field === "custom_field" &&
 			customField &&
 			typeof customField === "object" &&
-			(customField as Record<string, unknown>).id === CF_PANEL.STATUS_BARANG_SCAN
+			(customField as Record<string, unknown>).id ===
+				CF_PANEL.STATUS_BARANG_SCAN
 		);
 	}) as Record<string, unknown> | undefined;
 	if (!taskId) return NextResponse.json({ ignored: true });
@@ -45,7 +52,10 @@ export async function POST(request: Request) {
 		after && typeof after === "object" && "value" in after
 			? (after as { value?: unknown }).value
 			: after;
-	const updated = await updatePpicComponentStatus(taskId, statusBarangScanKey(value));
+	const updated = await updatePpicComponentStatus(
+		taskId,
+		statusBarangScanKey(value),
+	);
 	if (!updated) return NextResponse.json({ ignored: true });
 	return NextResponse.json({ ok: true });
 }
