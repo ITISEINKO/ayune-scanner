@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
 import { clickUpHeaders } from "@/lib/clickup";
 import {
 	encodePpicSession,
 	PPIC_SESSION_COOKIE,
 	ppicLoginState,
 } from "@/lib/session";
+import { NextRequest, NextResponse } from "next/server";
 
 const loginError = (request: NextRequest, error = "clickup") =>
 	NextResponse.redirect(new URL(`/login?error=${error}`, request.url));
@@ -23,7 +23,11 @@ export async function GET(request: NextRequest) {
 	const url = new URL(request.url);
 	const code = url.searchParams.get("code");
 	const state = url.searchParams.get("state");
-	if (!code || !state || state !== request.cookies.get("clickup_oauth_state")?.value)
+	if (
+		!code ||
+		!state ||
+		state !== request.cookies.get("clickup_oauth_state")?.value
+	)
 		return loginError(request);
 
 	const clientId = process.env.CLICKUP_CLIENT_ID;
@@ -31,23 +35,22 @@ export async function GET(request: NextRequest) {
 	const redirectUri = process.env.CLICKUP_REDIRECT_URI;
 	const teamId = process.env.CLICKUP_TEAM_ID;
 	if (!clientId || !clientSecret || !redirectUri || !teamId)
-		return new NextResponse("ClickUp OAuth is not configured.", { status: 500 });
+		return new NextResponse("ClickUp OAuth is not configured.", {
+			status: 500,
+		});
 
 	let tokenResponse: Response;
 	try {
-		tokenResponse = await fetch(
-			"https://api.clickup.com/api/v2/oauth/token",
-			{
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					client_id: clientId,
-					client_secret: clientSecret,
-					code,
-					redirect_uri: redirectUri,
-				}),
-			},
-		);
+		tokenResponse = await fetch("https://api.clickup.com/api/v2/oauth/token", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				client_id: clientId,
+				client_secret: clientSecret,
+				code,
+				redirect_uri: redirectUri,
+			}),
+		});
 	} catch {
 		return loginError(request);
 	}
