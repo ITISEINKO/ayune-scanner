@@ -40,7 +40,13 @@ const targetFor = (status: string) =>
 						status: "TERPASANG_DIGUNAKAN" as const,
 						value: STATUS_BARANG_SCAN.TERPASANG_DIGUNAKAN,
 					}
-				: null;
+				: status === "DALAM_PROSES_RETUR"
+					? {
+							label: "DALAM PROSES RETUR",
+							status: "DALAM_PROSES_RETUR" as const,
+							value: STATUS_BARANG_SCAN.DALAM_PROSES_RETUR,
+						}
+					: null;
 
 const findSerial = async (token: string, serialNumber: string) => {
 	const query = new URLSearchParams({

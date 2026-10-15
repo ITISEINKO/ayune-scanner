@@ -42,6 +42,7 @@ test.describe("Member project selection", () => {
 		"SEDANG_DIPACKING",
 		"TERPASANG_DIGUNAKAN",
 		"BARANG_DITERIMA",
+		"DALAM_PROSES_RETUR",
 	] as const;
 	const adminToken = env("CLICKUP_TOKEN");
 	const db = createClient({
@@ -393,6 +394,9 @@ test.describe("Member project selection", () => {
 		await expect(
 			page.getByRole("menuitemradio", { name: "Barang Diterima" }),
 		).toBeVisible();
+		await expect(
+			page.getByRole("menuitemradio", { name: "Dalam Proses Retur" }),
+		).toBeVisible();
 		await page
 			.getByRole("menuitemradio", { name: "Sedang Dipacking" })
 			.click();
@@ -419,13 +423,14 @@ test.describe("Member project selection", () => {
 		).toBeVisible();
 	});
 
-	test("real scan updates all three statuses and returns to Barang Diterima", async ({
+	test("real scan updates all four statuses and returns to Barang Diterima", async ({
 		page,
 	}) => {
 		await authenticateMember(page, true);
 		const sequence = [
 			"SEDANG_DIPACKING",
 			"TERPASANG_DIGUNAKAN",
+			"DALAM_PROSES_RETUR",
 			"BARANG_DITERIMA",
 		] as const;
 

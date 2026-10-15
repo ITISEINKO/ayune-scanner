@@ -11,6 +11,7 @@ import {
 	Keyboard,
 	Package,
 	PackageCheck,
+	RotateCcw,
 	ScanBarcode,
 } from "lucide-react";
 import { useBarcodeScanner } from "@/hooks/use-barcode-scanner";
@@ -58,6 +59,13 @@ const statusOptions = [
 		icon: BadgeCheck,
 		variant: "purple",
 		className: "bg-violet-100 text-violet-700",
+	},
+	{
+		status: "DALAM_PROSES_RETUR",
+		label: "Dalam Proses Retur",
+		icon: RotateCcw,
+		variant: "destructive",
+		className: "bg-red-100 text-red-700",
 	},
 ] as const;
 
