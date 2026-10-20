@@ -22,10 +22,8 @@ export const ProfilePage = () => {
 						className="pointer-events-none absolute -right-40 -bottom-40 size-96 rounded-full bg-secondary/30 blur-3xl"
 					/>
 					<div className="relative z-10">
-						<p className="text-sm font-semibold tracking-wide">PROFILE</p>
-						<p className="mt-2 text-sm text-primary-foreground/75">
-							Your PPIC account
-						</p>
+						<p className="text-sm font-semibold tracking-wide">PROFIL</p>
+						<p className="mt-2 text-sm text-primary-foreground/75">Akun Kamu</p>
 					</div>
 				</header>
 				<div className="relative -mt-12 px-6 pb-7 text-center">
@@ -33,7 +31,7 @@ export const ProfilePage = () => {
 						<UserRound aria-hidden="true" className="size-11" />
 					</div>
 					<p className="mt-3 text-lg font-bold">{role}</p>
-					<p className="text-sm text-muted-foreground">PPIC account</p>
+					<p className="text-sm text-muted-foreground">Akun</p>
 				</div>
 			</section>
 

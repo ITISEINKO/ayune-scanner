@@ -83,15 +83,15 @@ export const ScanToFindPage = ({ role }: { role: PpicRole }) => {
 					</div>
 					<div>
 						<p className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
-							{role === "SUPER_ADMIN" ? "PPIC admin" : "PPIC member"}
+							{role === "SUPER_ADMIN" ? "Admin" : "Member"}
 						</p>
 						<h1 className="text-xl font-black tracking-tight">
-							Buka Task PPIC
+							Buka Task Produksi Panel
 						</h1>
 					</div>
 				</div>
 				<p className="mt-2 text-sm text-muted-foreground">
-					Scan Serial Number untuk membuka task PPIC di Clickup
+					Scan Serial Number untuk membuka task Produksi Panel di Clickup
 				</p>
 			</header>
 

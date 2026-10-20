@@ -91,7 +91,7 @@ export const UbahManualPage = () => {
 					</div>
 					<div>
 						<p className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
-							PPIC admin
+							Produksi Panel admin
 						</p>
 						<h1 className="text-xl font-black capitalize tracking-tight">
 							Ubah status barang

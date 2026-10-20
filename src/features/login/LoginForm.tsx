@@ -8,6 +8,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
+import { LogInIcon } from "lucide-react";
 
 export function LoginForm({
 	className,
@@ -20,7 +21,7 @@ export function LoginForm({
 				<CardHeader className="px-0 pt-5 pb-0">
 					<CardTitle className="text-2xl font-bold">Welcome back</CardTitle>
 					<CardDescription className="text-base">
-						Continue with your ClickUp account
+						Continue with your account
 					</CardDescription>
 				</CardHeader>
 				<CardContent className="px-0 pt-6">
@@ -37,15 +38,11 @@ export function LoginForm({
 						render={<a href="/api/auth/clickup" />}
 						className="h-12 w-full rounded-xl shadow-lg shadow-primary/20 transition-transform hover:-translate-y-0.5"
 					>
-						<img
-							src="/clickup.svg"
-							alt=""
-							className="size-4 brightness-0 invert"
-						/>
-						Continue with ClickUp
+						<LogInIcon stroke-width="2.5" className="mr-2" />
+						Login Now
 					</Button>
 					<p className="mt-5 text-center text-xs text-muted-foreground">
-						Use your ClickUp account to access the PPIC panel.
+						Use your account to access the Panel Production.
 					</p>
 				</CardContent>
 			</Card>
