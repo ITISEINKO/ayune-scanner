@@ -49,6 +49,7 @@ const trackingStatuses = [
 	"BARANG_DITERIMA",
 	"SEDANG_DIPACKING",
 	"TERPASANG_DIGUNAKAN",
+	"DALAM_PROSES_RETUR",
 	"OTHER",
 ] as const;
 const statusColors: Record<(typeof trackingStatuses)[number], string> = {
@@ -56,6 +57,7 @@ const statusColors: Record<(typeof trackingStatuses)[number], string> = {
 	BARANG_DITERIMA: "bg-[#e8d4a8]",
 	SEDANG_DIPACKING: "bg-[#c8b8df]",
 	TERPASANG_DIGUNAKAN: "bg-[#6f9276]",
+	DALAM_PROSES_RETUR: "bg-[#c96f6f]",
 	OTHER: "bg-[#9a8f78]",
 };
 const trackingChartConfig = {
@@ -66,6 +68,7 @@ const trackingChartConfig = {
 		label: "Terpasang / Digunakan",
 		color: "#6f9276",
 	},
+	DALAM_PROSES_RETUR: { label: "Dalam Proses Retur", color: "#c96f6f" },
 	OTHER: { label: "Status lainnya", color: "#9a8f78" },
 } satisfies ChartConfig;
 
@@ -341,7 +344,7 @@ export const ProjectDetailPage = ({
 							{trackingStatuses.map((status) => (
 								<div
 									key={status}
-									className="min-w-0 flex-1 basis-[calc(50%-0.25rem)] rounded-md px-3 py-2 last:basis-full"
+									className="min-w-0 flex-1 basis-[calc(50%-0.25rem)] rounded-md px-3 py-2"
 									style={{
 										backgroundColor: `${trackingChartConfig[status].color}18`,
 									}}
@@ -394,7 +397,7 @@ export const ProjectDetailPage = ({
 												/>
 											))}
 									</div>
-									<div className="grid grid-cols-5 gap-2 text-xs font-bold">
+									<div className="grid grid-cols-6 gap-2 text-xs font-bold">
 										{trackingStatuses.map((status) => (
 											<div key={status} className="flex items-center gap-1.5">
 												<span

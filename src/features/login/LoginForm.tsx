@@ -38,7 +38,7 @@ export function LoginForm({
 						render={<a href="/api/auth/clickup" />}
 						className="h-12 w-full rounded-xl shadow-lg shadow-primary/20 transition-transform hover:-translate-y-0.5"
 					>
-						<LogInIcon stroke-width="2.5" className="mr-2" />
+						<LogInIcon strokeWidth="2.5" className="mr-2" />
 						Login Now
 					</Button>
 					<p className="mt-5 text-center text-xs text-muted-foreground">

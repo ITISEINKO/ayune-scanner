@@ -21,14 +21,12 @@ import type {
 const clickUpError = (response: Response) =>
 	new Error(response.status === 429 ? "RATE_LIMITED" : "CLICKUP_ERROR");
 
-const projectTaskCache = new Map<string, { expires: number; tasks: ClickUpTask[] }>();
-
 const loadTask = async (token: string, taskId: string) => {
 	const response = await fetch(
 		`https://api.clickup.com/api/v2/task/${encodeURIComponent(taskId)}?include_subtasks=true`,
 		{
 			headers: clickUpHeaders(token),
-			next: { revalidate: 30, tags: ["clickup-project-data"] },
+			cache: "no-store",
 		},
 	);
 	if (!response.ok) throw clickUpError(response);
@@ -84,20 +82,8 @@ const loadDescendantTasks = async (token: string, parentId: string) => {
 		tasks.push(...(data.tasks ?? []));
 		if (data.last_page || !(data.tasks?.length ?? 0)) break;
 	}
-	return tasks;
+	return [...new Map(tasks.map((task) => [task.id, task])).values()];
 };
-
-const loadProjectTasks = async (token: string, projectId: string) => {
-	const cacheKey = `${token}:${projectId}`;
-	const cached = projectTaskCache.get(cacheKey);
-	if (cached && cached.expires > Date.now()) return cached.tasks;
-	const fetchedTasks = await loadDescendantTasks(token, projectId);
-	const tasks = [...new Map(fetchedTasks.map((task) => [task.id, task])).values()];
-	projectTaskCache.set(cacheKey, { tasks, expires: Date.now() + 60_000 });
-	return tasks;
-};
-
-export const clearPanelTaskCache = () => projectTaskCache.clear();
 
 const itemIdFor = (
 	task: ClickUpTask,
@@ -124,7 +110,7 @@ const buildProjectDashboard = async (
 		loadTask(token, project.task_id),
 		getPpicProjectScanHistory(project.task_id),
 		loadCurrentStatusDuration(token, project.task_id),
-		loadProjectTasks(token, project.task_id),
+		loadDescendantTasks(token, project.task_id),
 	]);
 	const byId = new Map(allTasks.map((task) => [task.id, task]));
 	const historyByTask = new Map<string, typeof history>();
@@ -200,14 +186,26 @@ const buildProjectDashboard = async (
 const cachedProjectDashboard = unstable_cache(
 	buildProjectDashboard,
 	["project-dashboard"],
-	{ revalidate: false, tags: ["clickup-project-data"] },
+	{ revalidate: 300, tags: ["clickup-project-data"] },
 );
 
 export const getProjectDashboard = async (
 	token: string,
 	project: SelectedProject,
-) =>
-	applyProjectStatusChanges(
-		await cachedProjectDashboard(token, project),
+) => {
+	const dashboard = await cachedProjectDashboard(token, project);
+	const updated = applyProjectStatusChanges(
+		dashboard,
 		await getPpicProjectStatuses(project.task_id),
 	);
+	console.info("Project dashboard retur counts", {
+		projectTaskId: project.task_id,
+		beforeApply: dashboard.items
+			.flatMap((item) => item.components)
+			.filter((component) => component.status === "DALAM_PROSES_RETUR").length,
+		afterApply: updated.items
+			.flatMap((item) => item.components)
+			.filter((component) => component.status === "DALAM_PROSES_RETUR").length,
+	});
+	return updated;
+};
