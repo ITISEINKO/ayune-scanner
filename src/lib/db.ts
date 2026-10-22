@@ -13,7 +13,7 @@ import type {
 	PpicStatuses,
 } from "@/types/ppic";
 import type { PanelMember } from "@/types/clickup";
-import type { ProjectStatusChange, ProjectStatusRow } from "@/types/project";
+import type { ProjectDashboard, ProjectStatusChange, ProjectStatusRow } from "@/types/project";
 
 const url = process.env.TURSO_DATABASE_URL;
 const authToken = process.env.TURSO_AUTH_TOKEN;
@@ -30,6 +30,55 @@ export const db = createClient({
 let scanHistorySchema: Promise<void> | undefined;
 let permissionNamesSchema: Promise<void> | undefined;
 let projectStatusSchema: Promise<void> | undefined;
+let dashboardSnapshotSchema: Promise<void> | undefined;
+
+const ensureDashboardSnapshotSchema = () =>
+	(dashboardSnapshotSchema ??= db.execute(`
+		CREATE TABLE IF NOT EXISTS ppic_admin_project_snapshot (
+			scope_key TEXT PRIMARY KEY,
+			dashboard_json TEXT,
+			refresh_id TEXT,
+			refresh_until INTEGER NOT NULL DEFAULT 0
+		)
+	`).then(() => undefined));
+
+export const getAdminProjectSnapshot = async (scopeKey: string) => {
+	await ensureDashboardSnapshotSchema();
+	const result = await db.execute({
+		sql: "SELECT dashboard_json FROM ppic_admin_project_snapshot WHERE scope_key = ?",
+		args: [scopeKey],
+	});
+	const json = result.rows[0]?.dashboard_json;
+	return json ? JSON.parse(String(json)) as ProjectDashboard : null;
+};
+
+export const claimAdminProjectRefresh = async (scopeKey: string, refreshId: string) => {
+	await ensureDashboardSnapshotSchema();
+	const result = await db.execute({
+		sql: `INSERT INTO ppic_admin_project_snapshot (scope_key, refresh_id, refresh_until)
+			VALUES (?, ?, ?)
+			ON CONFLICT(scope_key) DO UPDATE SET
+				refresh_id = excluded.refresh_id, refresh_until = excluded.refresh_until
+			WHERE ppic_admin_project_snapshot.refresh_until < ?`,
+		args: [scopeKey, refreshId, Date.now() + 60_000, Date.now()],
+	});
+	return result.rowsAffected > 0;
+};
+
+export const finishAdminProjectRefresh = async (
+	scopeKey: string,
+	refreshId: string,
+	dashboard?: ProjectDashboard,
+) => {
+	await ensureDashboardSnapshotSchema();
+	const result = await db.execute({
+		sql: `UPDATE ppic_admin_project_snapshot
+			SET dashboard_json = COALESCE(?, dashboard_json), refresh_id = NULL, refresh_until = 0
+			WHERE scope_key = ? AND refresh_id = ?`,
+		args: [dashboard ? JSON.stringify(dashboard) : null, scopeKey, refreshId],
+	});
+	return result.rowsAffected > 0;
+};
 
 const ensureProjectStatusSchema = () =>
 	(projectStatusSchema ??= db
@@ -51,10 +100,10 @@ const ensureProjectStatusSchema = () =>
 export const seedPpicProjectStatuses = async (
 	projectTaskId: string,
 	rows: ProjectStatusRow[],
+	updatedAt = Date.now(),
 ) => {
 	if (!rows.length) return;
 	await ensureProjectStatusSchema();
-	const updatedAt = Date.now();
 	await db.batch(
 		rows.map((row) => ({
 			sql: `
@@ -66,6 +115,7 @@ export const seedPpicProjectStatuses = async (
 						project_task_id = excluded.project_task_id,
 						status = excluded.status,
 						updated_at = excluded.updated_at
+					WHERE ppic_component_status.updated_at < excluded.updated_at
 				`,
 			args: [row.componentTaskId, projectTaskId, row.status, updatedAt],
 		})),

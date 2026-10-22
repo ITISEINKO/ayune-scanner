@@ -1,0 +1,5 @@
+simulation: admin-dashboard
+routing: path
+mocks:
+  - routeKey: clickup
+    path: ../mocks/admin-dashboard/config.yaml

@@ -17,8 +17,8 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # Engineering KB (wajib)
 
-Vault pengetahuan: `C:\Users\User\Documents\CODE\kb-obsidian-vault`
-Aturan lengkap: `C:\Users\User\Documents\CODE\kb-obsidian-vault\00-Home\AGENT-RULES.md` (baca hanya kalau perlu detail, mis. saat membuat note baru)
+Vault pengetahuan: `"C:\Users\User\Music\INTERSTELLAR\kb-obsidian-vault"`
+Aturan lengkap: `"C:\Users\User\Music\INTERSTELLAR\kb-obsidian-vault"\00-Home\AGENT-RULES.md` (baca hanya kalau perlu detail, mis. saat membuat note baru)
 
 **Bahasa output:** Hanya proses penjelasan atau deskripsi yang ditulis dalam Bahasa Indonesia agar mudah dipahami. Heading, label, dan istilah teknis yang umum boleh tetap dalam English; pertahankan kode, command, path, dan pesan error dalam bentuk aslinya. Hanya Saat write di note obsidian, bukan di repo ini
 

@@ -100,23 +100,31 @@ export const ProjectDetailPage = ({
 }) => {
 	const [currentDashboard, setCurrentDashboard] = useState(dashboard);
 	const [isSyncing, setIsSyncing] = useState(false);
+	const [syncError, setSyncError] = useState<string | null>(null);
 	const router = useRouter();
 	const syncDashboard = async () => {
-		if (isSyncing) return;
+		if (isSyncing || !currentDashboard) return;
 		setIsSyncing(true);
+		setSyncError(null);
 		try {
-			const response = await fetch("/api/project/sync", { method: "POST" });
+			const response = await fetch("/api/project/sync", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ task_id: currentDashboard.project.task_id }),
+			});
 			if (!response.ok) throw new Error("SYNC_FAILED");
-			router.refresh();
+			const result = await response.json() as { dashboard: ProjectDashboard };
+			setCurrentDashboard(result.dashboard);
 		} catch {
+			setSyncError("Resync gagal. Data terakhir tetap ditampilkan. Coba lagi.");
 		} finally {
 			setIsSyncing(false);
 		}
 	};
 	useEffect(() => setCurrentDashboard(dashboard), [dashboard]);
 	useEffect(() => {
-		if (!dashboard) return;
-		let since = dashboard.statusUpdatedAt;
+		if (!currentDashboard) return;
+		let since = currentDashboard.statusUpdatedAt;
 		let delay = 10_000;
 		let timer: number | undefined;
 		let stopped = false;
@@ -128,13 +136,14 @@ export const ProjectDetailPage = ({
 			}
 			try {
 				const response = await fetch(
-					`/api/project/changes?project=${encodeURIComponent(dashboard.project.task_id)}&since=${since}`,
+					`/api/project/changes?project=${encodeURIComponent(currentDashboard.project.task_id)}&since=${since}`,
 					{ cache: "no-store" },
 				);
 				if (!response.ok) throw new Error("STATUS_POLL_FAILED");
 				const { changes = [] } = (await response.json()) as {
 					changes?: ProjectStatusChange[];
 				};
+				if (stopped) return;
 				if (changes?.length) {
 					since = Math.max(...changes.map((change) => change.updatedAt));
 					setCurrentDashboard((current) =>
@@ -160,7 +169,7 @@ export const ProjectDetailPage = ({
 			if (timer !== undefined) window.clearTimeout(timer);
 			document.removeEventListener("visibilitychange", onVisibilityChange);
 		};
-	}, [dashboard]);
+	}, [currentDashboard?.project.task_id, currentDashboard?.syncedAt]);
 
 	if (!currentDashboard)
 		return (
@@ -169,6 +178,7 @@ export const ProjectDetailPage = ({
 					← Kembali ke project
 				</Link>
 				<p className="mt-6 text-sm text-destructive">{error}</p>
+				<Button className="mt-3" onClick={() => router.refresh()}>Coba lagi</Button>
 			</main>
 		);
 
@@ -235,6 +245,11 @@ export const ProjectDetailPage = ({
 				<h1 className="mt-5  text-2xl font-extrabold leading-tight tracking-tight text-primary-foreground">
 					{project.name ?? "Tanpa nama"}
 				</h1>
+				{currentDashboard.syncedAt && (
+					<p className="mt-2 text-xs text-primary-foreground/80">
+						Terakhir diperbarui {formatDate(String(currentDashboard.syncedAt), true)}
+					</p>
+				)}
 				<div className="mt-5 flex items-end gap-2">
 					<strong className="text-7xl leading-none tracking-tight text-primary-foreground">
 						{completedComponents}
@@ -246,6 +261,7 @@ export const ProjectDetailPage = ({
 			</header>
 
 			<div className="relative -mt-8 space-y-3 rounded-t-4xl bg-background pb-28  p-4 pt-6">
+				{syncError && <p role="alert" className="text-sm text-destructive">{syncError}</p>}
 				<section className="overflow-hidden rounded-[1.35rem] border border-border/40 bg-card shadow-sm">
 					<div className="grid grid-cols-2 divide-x text-sm">
 						<div className="p-4">

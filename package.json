@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "test": "node --experimental-strip-types src/lib/produksiPanel.test.ts && node --experimental-strip-types src/lib/projectStatus.test.ts && node --experimental-strip-types src/lib/projectDashboard.test.ts",
+    "test:admin-dashboard": "node --experimental-strip-types tests/admin-project-snapshot.cjs",
     "start": "next start",
     "postinstall": "next build"
   },
