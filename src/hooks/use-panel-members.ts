@@ -113,9 +113,14 @@ export function usePanelMembers() {
 				},
 			);
 		};
-		void channel.subscribe("member-updated", onMemberUpdated).catch((error) => {
-			if (!closed) console.error(error);
-		});
+		void channel.subscribe("member-updated", onMemberUpdated)
+			.then(() => {
+				// Catch changes missed while Settings was unmounted, after live updates are subscribed.
+				if (!closed) return queryClient.invalidateQueries({ queryKey: panelMembersQuery.queryKey });
+			})
+			.catch((error) => {
+				if (!closed) console.error(error);
+			});
 		return () => {
 			closed = true;
 			channel.unsubscribe("member-updated", onMemberUpdated);
