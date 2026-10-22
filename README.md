@@ -27,11 +27,11 @@ pnpm dev
 
 Installation runs `next build` through `postinstall`, so configure the environment before installing. Open `http://localhost:3000` after starting the dev server.
 
-| Command | Purpose |
-| --- | --- |
-| `pnpm build` | Create a production build |
-| `pnpm start` | Run the production build |
-| `pnpm test` | Run status and dashboard unit checks |
+| Command                              | Purpose                                               |
+| ------------------------------------ | ----------------------------------------------------- |
+| `pnpm build`                         | Create a production build                             |
+| `pnpm start`                         | Run the production build                              |
+| `pnpm test`                          | Run status and dashboard unit checks                  |
 | `node tests/panel-members-cache.cjs` | Check Settings cache refresh and subscription cleanup |
 
 ## Code layout
@@ -42,3 +42,5 @@ Installation runs `next build` through `postinstall`, so configure the environme
 - `src/lib/` — ClickUp integration, sessions, database access, and project data.
 - `src/types/` — shared TypeScript types.
 - `tests/` — focused checks and Playwright suites; some suites require explicit opt-in and mutate live data.
+
+<!-- testing pr -->

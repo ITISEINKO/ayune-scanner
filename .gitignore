@@ -22,6 +22,7 @@
 /docs/
 
 # misc
+/AGENTS.md
 .DS_Store
 *.pem
 
