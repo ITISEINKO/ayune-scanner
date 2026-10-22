@@ -43,4 +43,4 @@ Installation runs `next build` through `postinstall`, so configure the environme
 - `src/types/` — shared TypeScript types.
 - `tests/` — focused checks and Playwright suites; some suites require explicit opt-in and mutate live data.
 
-<!-- testing pr -->
+testing pr
