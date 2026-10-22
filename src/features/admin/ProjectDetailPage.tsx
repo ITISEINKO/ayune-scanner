@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { Label, Pie, PieChart } from "recharts";
 import {
 	CalendarDays,
 	ChevronLeft,
+	ChevronRight,
 	RefreshCw,
 	ScanLine,
 	Timer,
@@ -14,7 +15,21 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ChartContainer, type ChartConfig } from "@/components/ui/chart";
+import { ChartContainer } from "@/components/ui/chart";
+import {
+	STATUS_BADGE_CLASS_NAME,
+	STATUS_COLOR_CONFIG,
+} from "@/lib/colorStatusConfig";
+import {
+	Drawer,
+	DrawerClose,
+	DrawerContent,
+	DrawerDescription,
+	DrawerFooter,
+	DrawerHeader,
+	DrawerTitle,
+	DrawerTrigger,
+} from "@/components/ui/drawer";
 import { applyProjectStatusChanges } from "@/lib/projectStatus";
 import { elapsedLabel, scanWindow } from "@/lib/projectTimeline";
 import { statusBarangScanOptions } from "@/lib/produksiPanel";
@@ -52,25 +67,12 @@ const trackingStatuses = [
 	"DALAM_PROSES_RETUR",
 	"OTHER",
 ] as const;
-const statusColors: Record<(typeof trackingStatuses)[number], string> = {
-	UNSCANNED: "bg-[#d9e7f2]",
-	BARANG_DITERIMA: "bg-[#e8d4a8]",
-	SEDANG_DIPACKING: "bg-[#c8b8df]",
-	TERPASANG_DIGUNAKAN: "bg-[#6f9276]",
-	DALAM_PROSES_RETUR: "bg-[#c96f6f]",
-	OTHER: "bg-[#9a8f78]",
-};
-const trackingChartConfig = {
-	UNSCANNED: { label: "Belum scan", color: "#d9e7f2" },
-	BARANG_DITERIMA: { label: "Barang Diterima", color: "#e8d4a8" },
-	SEDANG_DIPACKING: { label: "Sedang Dipacking", color: "#c8b8df" },
-	TERPASANG_DIGUNAKAN: {
-		label: "Terpasang / Digunakan",
-		color: "#6f9276",
-	},
-	DALAM_PROSES_RETUR: { label: "Dalam Proses Retur", color: "#c96f6f" },
-	OTHER: { label: "Status lainnya", color: "#9a8f78" },
-} satisfies ChartConfig;
+const trackingStatusOf = (status: string | null) =>
+	!status
+		? "UNSCANNED"
+		: trackingStatuses.includes(status as (typeof trackingStatuses)[number])
+			? (status as (typeof trackingStatuses)[number])
+			: "OTHER";
 
 const countsFor = (
 	components: ProjectDashboard["items"][number]["components"],
@@ -79,17 +81,42 @@ const countsFor = (
 		trackingStatuses.map((status) => [status, 0]),
 	);
 	for (const component of components) {
-		const status = !component.status
-			? "UNSCANNED"
-			: trackingStatuses.includes(
-						component.status as (typeof trackingStatuses)[number],
-				  )
-				? (component.status as (typeof trackingStatuses)[number])
-				: "OTHER";
+		const status = trackingStatusOf(component.status);
 		counts.set(status, (counts.get(status) ?? 0) + 1);
 	}
 	return counts;
 };
+
+function GroupStatusBar({ counts }: { counts: ReturnType<typeof countsFor> }) {
+	return (
+		<span
+			role="img"
+			aria-label={trackingStatuses
+				.map(
+					(status) =>
+						`${STATUS_COLOR_CONFIG[status].label}: ${counts.get(status) ?? 0}`,
+				)
+				.join(", ")}
+			className="flex h-2.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800"
+		>
+			{[
+				...trackingStatuses.filter((status) => status !== "UNSCANNED"),
+				"UNSCANNED" as const,
+			]
+				.filter((status) => (counts.get(status) ?? 0) > 0)
+				.map((status) => (
+					<span
+						key={status}
+						aria-hidden="true"
+						style={{
+							flex: counts.get(status),
+							backgroundColor: STATUS_COLOR_CONFIG[status].color,
+						}}
+					/>
+				))}
+		</span>
+	);
+}
 
 export const ProjectDetailPage = ({
 	dashboard,
@@ -113,7 +140,7 @@ export const ProjectDetailPage = ({
 				body: JSON.stringify({ task_id: currentDashboard.project.task_id }),
 			});
 			if (!response.ok) throw new Error("SYNC_FAILED");
-			const result = await response.json() as { dashboard: ProjectDashboard };
+			const result = (await response.json()) as { dashboard: ProjectDashboard };
 			setCurrentDashboard(result.dashboard);
 		} catch {
 			setSyncError("Resync gagal. Data terakhir tetap ditampilkan. Coba lagi.");
@@ -178,7 +205,9 @@ export const ProjectDetailPage = ({
 					← Kembali ke project
 				</Link>
 				<p className="mt-6 text-sm text-destructive">{error}</p>
-				<Button className="mt-3" onClick={() => router.refresh()}>Coba lagi</Button>
+				<Button className="mt-3" onClick={() => router.refresh()}>
+					Coba lagi
+				</Button>
 			</main>
 		);
 
@@ -188,26 +217,44 @@ export const ProjectDetailPage = ({
 	const statusTotals = countsFor(components);
 	const totalComponents = components.length;
 	const completedComponents = statusTotals.get("TERPASANG_DIGUNAKAN") ?? 0;
-	const progressPercent = totalComponents
-		? Math.round((completedComponents / totalComponents) * 100)
-		: 0;
 	const trackingChartData = trackingStatuses
 		.map((status) => ({
 			status,
 			value: statusTotals.get(status) ?? 0,
-			fill: trackingChartConfig[status].color,
+			fill: STATUS_COLOR_CONFIG[status].color,
 		}))
 		.filter(({ value }) => value > 0);
-	const itemRows = items.map((item) => ({
-		...item,
-		counts: countsFor(item.components),
-		complete:
-			item.components.length > 0 &&
-			item.components.every(
-				(component) => component.status === "TERPASANG_DIGUNAKAN",
-			),
-	}));
-	const completedItems = itemRows.filter((item) => item.complete).length;
+	const itemRows = items
+		.map((item) => {
+			const counts = countsFor(item.components);
+			const total = item.components.length;
+			const remaining = counts.get("UNSCANNED") ?? 0;
+			const parts = item.name.split("+").map((part) => part.trim());
+			const hasMetadata =
+				parts.length === 3 && /^\d+(?:[.,]\d+)?$/.test(parts[2]);
+			const title = hasMetadata
+				? parts[0]
+						.split("-")
+						.map((word, index) =>
+							index === 0
+								? word
+								: word.charAt(0).toUpperCase() + word.slice(1).toLowerCase(),
+						)
+						.join(" ")
+				: item.name;
+			const tags = hasMetadata ? [parts[1], `${parts[2]} mm`] : [];
+			return {
+				...item,
+				counts,
+				total,
+				remaining,
+				scanned: total - remaining,
+				title,
+				tags,
+				label: [title, ...tags].join(" · "),
+			};
+		})
+		.sort((a, b) => b.remaining - a.remaining);
 
 	return (
 		<main className="mx-auto min-h-dvh max-w-lg  bg-muted ">
@@ -247,7 +294,8 @@ export const ProjectDetailPage = ({
 				</h1>
 				{currentDashboard.syncedAt && (
 					<p className="mt-2 text-xs text-primary-foreground/80">
-						Terakhir diperbarui {formatDate(String(currentDashboard.syncedAt), true)}
+						Terakhir diperbarui{" "}
+						{formatDate(String(currentDashboard.syncedAt), true)}
 					</p>
 				)}
 				<div className="mt-5 flex items-end gap-2">
@@ -261,7 +309,11 @@ export const ProjectDetailPage = ({
 			</header>
 
 			<div className="relative -mt-8 space-y-3 rounded-t-4xl bg-background pb-28  p-4 pt-6">
-				{syncError && <p role="alert" className="text-sm text-destructive">{syncError}</p>}
+				{syncError && (
+					<p role="alert" className="text-sm text-destructive">
+						{syncError}
+					</p>
+				)}
 				<section className="overflow-hidden rounded-[1.35rem] border border-border/40 bg-card shadow-sm">
 					<div className="grid grid-cols-2 divide-x text-sm">
 						<div className="p-4">
@@ -307,7 +359,7 @@ export const ProjectDetailPage = ({
 						</div>
 
 						<ChartContainer
-							config={trackingChartConfig}
+							config={STATUS_COLOR_CONFIG}
 							className="mx-auto mt-2 aspect-2/1 max-h-45 w-full max-w-90"
 						>
 							<PieChart>
@@ -362,12 +414,15 @@ export const ProjectDetailPage = ({
 									key={status}
 									className="min-w-0 flex-1 basis-[calc(50%-0.25rem)] rounded-md px-3 py-2"
 									style={{
-										backgroundColor: `${trackingChartConfig[status].color}18`,
+										backgroundColor: `color-mix(in srgb, ${STATUS_COLOR_CONFIG[status].color} 12%, transparent)`,
 									}}
 								>
 									<div className="flex items-center gap-2">
 										<span
-											className={`size-3 shrink-0 rounded-full ${statusColors[status]}`}
+											className="size-3 shrink-0 rounded-full"
+											style={{
+												backgroundColor: STATUS_COLOR_CONFIG[status].color,
+											}}
 										/>
 										<strong className="text-base leading-none">
 											{statusTotals.get(status) ?? 0}
@@ -380,58 +435,131 @@ export const ProjectDetailPage = ({
 							))}
 						</div>
 					</div>
-					<div className="mt-4 space-y-2">
-						{itemRows.map((row) => {
-							const total = [...row.counts.values()].reduce(
-								(sum, count) => sum + count,
-								0,
-							);
-							return (
-								<div
-									key={row.id}
-									className="space-y-2 rounded-[18px] bg-card p-3 shadow-sm"
-								>
-									<div className="flex items-baseline justify-between gap-2">
-										<p className="min-w-0 truncate text-sm font-extrabold">
-											{row.name}
-										</p>
-										<p className="shrink-0 text-xs text-muted-foreground">
-											<strong className="text-base text-foreground">
-												{row.counts.get("TERPASANG_DIGUNAKAN") ?? 0}
-											</strong>
-											/{total}
-										</p>
-									</div>
-									<div className="flex h-2 overflow-hidden rounded-full bg-muted">
-										{trackingStatuses
-											.filter((status) => (row.counts.get(status) ?? 0) > 0)
-											.map((status) => (
-												<div
-													key={status}
-													className={`rounded-sm ${statusColors[status]}`}
-													style={{ flex: row.counts.get(status) ?? 0 }}
+					<section className="mt-6" aria-label="Kelompok item">
+						<div className="mb-3 flex items-center justify-between gap-3">
+							<h2 className="text-[11px] font-medium tracking-[0.2em] text-muted-foreground uppercase">
+								Kelompok Item
+							</h2>
+						</div>
+						<div
+							className="divide-y overflow-hidden rounded-3xl bg-card"
+							aria-label="Daftar subtask"
+						>
+							{itemRows.map((row) => (
+								<Drawer key={row.id} showSwipeHandle>
+									<DrawerTrigger
+										aria-label={`Lihat detail ${row.label}`}
+										className="block w-full space-y-2 p-4 text-left hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+									>
+										<span className="flex items-start justify-between gap-3">
+											<span className="min-w-0 wrap-break-word text-sm font-bold">
+												{row.title}
+											</span>
+											<span className="flex shrink-0 items-center gap-2 text-sm tabular-nums">
+												<span>
+													<strong>{row.scanned}</strong>
+													<span className="text-muted-foreground">
+														/{row.total}
+													</span>
+												</span>
+												<ChevronRight
+													aria-hidden="true"
+													className="size-3 text-muted-foreground"
 												/>
-											))}
-									</div>
-									<div className="grid grid-cols-6 gap-2 text-xs font-bold">
-										{trackingStatuses.map((status) => (
-											<div key={status} className="flex items-center gap-1.5">
-												<span
-													className={`size-2.5 rounded-full  ${statusColors[status]}`}
-												/>
-												{row.counts.get(status) ?? 0}
-											</div>
-										))}
-									</div>
-								</div>
-							);
-						})}
-						{!itemRows.length && (
-							<p className="p-4 text-sm text-muted-foreground">
-								Belum ada item pada project ini.
-							</p>
-						)}
-					</div>
+											</span>
+										</span>
+										<span className="flex items-center justify-between gap-2">
+											<span className="flex flex-wrap gap-1">
+												{row.tags.map((tag) => (
+													<span
+														key={tag}
+														className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground"
+													>
+														{tag}
+													</span>
+												))}
+											</span>
+											<span className="shrink-0 text-[11px] text-muted-foreground">
+												sisa {row.remaining}
+											</span>
+										</span>
+										<GroupStatusBar counts={row.counts} />
+									</DrawerTrigger>
+									<DrawerContent className="[--drawer-inset:0px]! mx-auto max-w-lg rounded-t-3xl bg-background">
+										<DrawerHeader className="gap-2 text-left!">
+											<DrawerTitle className="wrap-break-word text-lg font-bold">
+												{row.label}
+											</DrawerTitle>
+											<DrawerDescription>
+												<strong className="text-foreground">
+													{row.scanned}/{row.total}
+												</strong>{" "}
+												sudah di-scan · sisa {row.remaining}
+											</DrawerDescription>
+											<GroupStatusBar counts={row.counts} />
+										</DrawerHeader>
+										<ul className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain p-4">
+											{row.components.map((component) => {
+												const status = trackingStatusOf(component.status);
+												const presentation = STATUS_COLOR_CONFIG[status];
+												const lastScan = scanWindow(component.history).last;
+												return (
+													<li
+														key={component.id}
+														className="flex items-center gap-3 rounded-2xl bg-card px-3 py-3"
+													>
+														<span
+															aria-hidden="true"
+															className="size-2.5 shrink-0 rounded-full"
+															style={{ backgroundColor: presentation.color }}
+														/>
+														<div className="min-w-0 flex-1">
+															<p className="wrap-break-word text-sm font-bold">
+																{component.serialNumber ?? component.name}
+															</p>
+															{component.serialNumber &&
+																component.serialNumber !== component.name && (
+																	<p className="wrap-break-word text-xs text-muted-foreground">
+																		{component.name}
+																	</p>
+																)}
+														</div>
+														<Badge
+															variant="outline"
+															style={
+																{
+																	"--status-color": presentation.color,
+																	"--status-text-color": presentation.textColor,
+																} as CSSProperties
+															}
+															className={`h-auto max-w-[42%] rounded-full px-2 py-1 text-[10px] whitespace-normal ${STATUS_BADGE_CLASS_NAME}`}
+														>
+															{presentation.label}
+														</Badge>
+													</li>
+												);
+											})}
+											{!row.components.length && (
+												<li className="py-3 text-sm text-muted-foreground">
+													Belum ada item pada subtask ini.
+												</li>
+											)}
+										</ul>
+										<DrawerFooter>
+											<DrawerClose render={<Button variant="outline" />}>
+												Tutup
+											</DrawerClose>
+										</DrawerFooter>
+									</DrawerContent>
+								</Drawer>
+							))}
+							{!itemRows.length && (
+								<p className="p-4 text-sm text-muted-foreground">
+									Belum ada item pada project ini.
+								</p>
+							)}
+						</div>
+					</section>
 				</div>
 				<section className="hidden rounded-xl border bg-card p-4 shadow-sm">
 					<h2 className="text-xs font-semibold tracking-[0.2em] text-muted-foreground uppercase">
