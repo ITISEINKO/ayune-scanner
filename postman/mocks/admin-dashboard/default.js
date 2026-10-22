@@ -1,6 +1,8 @@
 // Synthetic fixtures follow the ClickUp task/custom-field contract used by the dashboard.
 const http = require("node:http");
 const listId = "1100830000000087";
+let projectStarted = false;
+let projectWrites = 0;
 const component = (id, status) => ({
 	id, parent: "group", name: id,
 	custom_fields: [
@@ -14,7 +16,41 @@ http.createServer((req, res) => {
 	const mode = req.headers["x-test-mode"];
 	let status = 200;
 	let body;
-	if (req.method !== "GET") {
+	if (mode?.startsWith("project-start")) {
+		const task = { id: "todo-project", name: "Todo project", parent: null, list: { id: listId }, status: { status: projectStarted ? "in progress" : "to do" } };
+		if (url.pathname === "/test/reset") {
+			projectStarted = false;
+			projectWrites = 0;
+			body = {};
+		} else if (url.pathname === "/test/writes") {
+			body = { writes: projectWrites };
+		} else if (url.pathname === `/api/v2/list/${listId}/task`) {
+			const matches = url.searchParams.get("statuses[]") === task.status.status;
+			body = { tasks: matches ? (url.searchParams.get("page") === "0" ? [task] : [{ ...task, id: "child", parent: task.id }]) : [], last_page: url.searchParams.get("page") === "1" || !matches };
+		} else if (req.method === "GET" && url.pathname.startsWith("/api/v2/task/")) {
+			const id = url.pathname.split("/").pop();
+			body = { ...task, id,
+				...(id === "child" ? { parent: task.id } : {}),
+				...(id === "foreign" ? { list: { id: "other-list" } } : {}),
+				...(id === "done" ? { status: { status: "complete" } } : {}),
+			};
+		} else if (req.method === "PUT" && url.pathname === "/api/v2/task/todo-project") {
+			if (mode === "project-start-rate-limit") {
+				status = 429;
+				body = { error: "Rate limited" };
+			} else if (req.body?.status !== "in progress" || Object.keys(req.body).length !== 1) {
+				status = 400;
+				body = { error: "Invalid task update" };
+			} else {
+				projectStarted = true;
+				projectWrites += 1;
+				body = { ...task, status: { status: "in progress" } };
+			}
+		} else {
+			status = 501;
+			body = { error: "Endpoint not modeled" };
+		}
+	} else if (req.method !== "GET") {
 		status = 501;
 		body = { error: "Unexpected mutation" };
 	} else if (url.pathname === "/api/v2/task/project/time_in_status") {

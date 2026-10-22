@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type CSSProperties } from "react";
+import { toast } from "sonner";
 import { Label, Pie, PieChart } from "recharts";
 import {
 	CalendarDays,
@@ -74,6 +75,11 @@ const trackingStatusOf = (status: string | null) =>
 			? (status as (typeof trackingStatuses)[number])
 			: "OTHER";
 
+const isSupportingGroup = (name: string) =>
+	["MATERIAL REQUISITION FORM", "HARDWARE LIST"].includes(
+		name.trim().replace(/\s+/g, " ").toUpperCase(),
+	);
+
 const countsFor = (
 	components: ProjectDashboard["items"][number]["components"],
 ) => {
@@ -97,24 +103,118 @@ function GroupStatusBar({ counts }: { counts: ReturnType<typeof countsFor> }) {
 						`${STATUS_COLOR_CONFIG[status].label}: ${counts.get(status) ?? 0}`,
 				)
 				.join(", ")}
-			className="flex h-2.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800"
+			className="flex h-2.5 w-full overflow-hidden rounded-full bg-muted"
 		>
 			{[
 				...trackingStatuses.filter((status) => status !== "UNSCANNED"),
 				"UNSCANNED" as const,
 			]
 				.filter((status) => (counts.get(status) ?? 0) > 0)
-				.map((status) => (
-					<span
-						key={status}
-						aria-hidden="true"
-						style={{
-							flex: counts.get(status),
-							backgroundColor: STATUS_COLOR_CONFIG[status].color,
-						}}
-					/>
-				))}
+				.map((status) => {
+					const color = STATUS_COLOR_CONFIG[status];
+					return (
+						<span
+							key={status}
+							aria-hidden="true"
+							style={{
+								flex: counts.get(status),
+								backgroundColor:
+									"progressColor" in color ? color.progressColor : color.color,
+							}}
+						/>
+					);
+				})}
 		</span>
+	);
+}
+
+function GroupComponentList({
+	components,
+	supporting,
+}: {
+	components: ProjectDashboard["items"][number]["components"];
+	supporting: boolean;
+}) {
+	const [showUnscannedOnly, setShowUnscannedOnly] = useState(false);
+	const unscannedCount = components.filter(
+		(component) => trackingStatusOf(component.status) === "UNSCANNED",
+	).length;
+	const visibleComponents = showUnscannedOnly
+		? components.filter(
+				(component) => trackingStatusOf(component.status) === "UNSCANNED",
+			)
+		: components;
+	return (
+		<>
+			{!supporting && (
+				<div className="shrink-0 px-4 py-3">
+					<Button
+						type="button"
+						variant={showUnscannedOnly ? "secondary" : "outline"}
+						size="sm"
+						aria-pressed={showUnscannedOnly}
+						disabled={!unscannedCount}
+						onClick={() => setShowUnscannedOnly((show) => !show)}
+					>
+						{showUnscannedOnly
+							? "Tampilkan semua item"
+							: `Belum discan (${unscannedCount})`}
+					</Button>
+				</div>
+			)}
+			<ul className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain p-4">
+				{visibleComponents.map((component) => {
+					const status = trackingStatusOf(component.status);
+					const presentation = STATUS_COLOR_CONFIG[status];
+					return (
+						<li
+							key={component.id}
+							className="flex items-center gap-3 rounded-2xl bg-card px-3 py-3"
+						>
+							{!supporting && (
+								<span
+									aria-hidden="true"
+									className="size-2.5 shrink-0 rounded-full"
+									style={{ backgroundColor: presentation.color }}
+								/>
+							)}
+							<div className="min-w-0 flex-1">
+								<p className="wrap-break-word text-sm font-bold">
+									{component.serialNumber ?? component.name}
+								</p>
+								{component.serialNumber &&
+									component.serialNumber !== component.name && (
+										<p className="wrap-break-word text-xs text-muted-foreground">
+											{component.name}
+										</p>
+									)}
+							</div>
+							{!supporting && (
+								<Badge
+									variant="outline"
+									style={
+										{
+											"--status-color": presentation.color,
+											"--status-text-color": presentation.textColor,
+										} as CSSProperties
+									}
+									className={`h-auto max-w-[42%] rounded-full px-2 py-1 text-[10px] whitespace-normal ${STATUS_BADGE_CLASS_NAME}`}
+								>
+									{presentation.shortLabel}
+								</Badge>
+							)}
+						</li>
+					);
+				})}
+				{!visibleComponents.length && (
+					<li className="py-3 text-sm text-muted-foreground">
+						{showUnscannedOnly
+							? "Tidak ada item yang belum discan."
+							: "Belum ada item pada subtask ini."}
+					</li>
+				)}
+			</ul>
+		</>
 	);
 }
 
@@ -127,12 +227,10 @@ export const ProjectDetailPage = ({
 }) => {
 	const [currentDashboard, setCurrentDashboard] = useState(dashboard);
 	const [isSyncing, setIsSyncing] = useState(false);
-	const [syncError, setSyncError] = useState<string | null>(null);
 	const router = useRouter();
 	const syncDashboard = async () => {
 		if (isSyncing || !currentDashboard) return;
 		setIsSyncing(true);
-		setSyncError(null);
 		try {
 			const response = await fetch("/api/project/sync", {
 				method: "POST",
@@ -142,8 +240,11 @@ export const ProjectDetailPage = ({
 			if (!response.ok) throw new Error("SYNC_FAILED");
 			const result = (await response.json()) as { dashboard: ProjectDashboard };
 			setCurrentDashboard(result.dashboard);
+			toast.success("Status berhasil diperbarui.");
 		} catch {
-			setSyncError("Resync gagal. Data terakhir tetap ditampilkan. Coba lagi.");
+			toast.error("Gagal memperbarui status", {
+				description: "Data terakhir tetap ditampilkan. Coba lagi.",
+			});
 		} finally {
 			setIsSyncing(false);
 		}
@@ -213,16 +314,21 @@ export const ProjectDetailPage = ({
 
 	const { project, items, recentHistory, memberContribution, memberNames } =
 		currentDashboard;
-	const components = items.flatMap((item) => item.components);
+	const components = items
+		.filter((item) => !isSupportingGroup(item.name))
+		.flatMap((item) => item.components);
 	const statusTotals = countsFor(components);
 	const totalComponents = components.length;
 	const completedComponents = statusTotals.get("TERPASANG_DIGUNAKAN") ?? 0;
 	const trackingChartData = trackingStatuses
-		.map((status) => ({
-			status,
-			value: statusTotals.get(status) ?? 0,
-			fill: STATUS_COLOR_CONFIG[status].color,
-		}))
+		.map((status) => {
+			const color = STATUS_COLOR_CONFIG[status];
+			return {
+				status,
+				value: statusTotals.get(status) ?? 0,
+				fill: "progressColor" in color ? color.progressColor : color.color,
+			};
+		})
 		.filter(({ value }) => value > 0);
 	const itemRows = items
 		.map((item) => {
@@ -245,6 +351,7 @@ export const ProjectDetailPage = ({
 			const tags = hasMetadata ? [parts[1], `${parts[2]} mm`] : [];
 			return {
 				...item,
+				supporting: isSupportingGroup(item.name),
 				counts,
 				total,
 				remaining,
@@ -254,7 +361,11 @@ export const ProjectDetailPage = ({
 				label: [title, ...tags].join(" · "),
 			};
 		})
-		.sort((a, b) => b.remaining - a.remaining);
+		.sort(
+			(a, b) =>
+				Number(a.supporting) - Number(b.supporting) ||
+				b.remaining - a.remaining,
+		);
 
 	return (
 		<main className="mx-auto min-h-dvh max-w-lg  bg-muted ">
@@ -298,22 +409,9 @@ export const ProjectDetailPage = ({
 						{formatDate(String(currentDashboard.syncedAt), true)}
 					</p>
 				)}
-				<div className="mt-5 flex items-end gap-2">
-					<strong className="text-7xl leading-none tracking-tight text-primary-foreground">
-						{completedComponents}
-					</strong>
-					<span className="pb-1 text-xl font-bold text-primary-foreground/80">
-						/ {totalComponents}
-					</span>
-				</div>
 			</header>
 
 			<div className="relative -mt-8 space-y-3 rounded-t-4xl bg-background pb-28  p-4 pt-6">
-				{syncError && (
-					<p role="alert" className="text-sm text-destructive">
-						{syncError}
-					</p>
-				)}
 				<section className="overflow-hidden rounded-[1.35rem] border border-border/40 bg-card shadow-sm">
 					<div className="grid grid-cols-2 divide-x text-sm">
 						<div className="p-4">
@@ -421,7 +519,10 @@ export const ProjectDetailPage = ({
 										<span
 											className="size-3 shrink-0 rounded-full"
 											style={{
-												backgroundColor: STATUS_COLOR_CONFIG[status].color,
+												backgroundColor:
+													status === "UNSCANNED"
+														? STATUS_COLOR_CONFIG.UNSCANNED.progressColor
+														: STATUS_COLOR_CONFIG[status].color,
 											}}
 										/>
 										<strong className="text-base leading-none">
@@ -453,15 +554,17 @@ export const ProjectDetailPage = ({
 									>
 										<span className="flex items-start justify-between gap-3">
 											<span className="min-w-0 wrap-break-word text-sm font-bold">
-												{row.title}
+												{row.label}
 											</span>
 											<span className="flex shrink-0 items-center gap-2 text-sm tabular-nums">
-												<span>
-													<strong>{row.scanned}</strong>
-													<span className="text-muted-foreground">
-														/{row.total}
+												{!row.supporting && (
+													<span>
+														<strong>{row.scanned}</strong>
+														<span className="text-muted-foreground">
+															/{row.total}
+														</span>
 													</span>
-												</span>
+												)}
 												<ChevronRight
 													aria-hidden="true"
 													className="size-3 text-muted-foreground"
@@ -469,21 +572,11 @@ export const ProjectDetailPage = ({
 											</span>
 										</span>
 										<span className="flex items-center justify-between gap-2">
-											<span className="flex flex-wrap gap-1">
-												{row.tags.map((tag) => (
-													<span
-														key={tag}
-														className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground"
-													>
-														{tag}
-													</span>
-												))}
-											</span>
 											<span className="shrink-0 text-[11px] text-muted-foreground">
-												sisa {row.remaining}
+												{row.supporting ? "Grup pendukung" : ``}
 											</span>
 										</span>
-										<GroupStatusBar counts={row.counts} />
+										{!row.supporting && <GroupStatusBar counts={row.counts} />}
 									</DrawerTrigger>
 									<DrawerContent className="[--drawer-inset:0px]! mx-auto max-w-lg rounded-t-3xl bg-background">
 										<DrawerHeader className="gap-2 text-left!">
@@ -491,60 +584,25 @@ export const ProjectDetailPage = ({
 												{row.label}
 											</DrawerTitle>
 											<DrawerDescription>
-												<strong className="text-foreground">
-													{row.scanned}/{row.total}
-												</strong>{" "}
-												sudah di-scan · sisa {row.remaining}
+												{row.supporting ? (
+													"Grup pendukung · tidak termasuk progres scan"
+												) : (
+													<>
+														<strong className="text-foreground">
+															{row.scanned}/{row.total}
+														</strong>{" "}
+														sudah di-scan
+													</>
+												)}
 											</DrawerDescription>
-											<GroupStatusBar counts={row.counts} />
-										</DrawerHeader>
-										<ul className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain p-4">
-											{row.components.map((component) => {
-												const status = trackingStatusOf(component.status);
-												const presentation = STATUS_COLOR_CONFIG[status];
-												const lastScan = scanWindow(component.history).last;
-												return (
-													<li
-														key={component.id}
-														className="flex items-center gap-3 rounded-2xl bg-card px-3 py-3"
-													>
-														<span
-															aria-hidden="true"
-															className="size-2.5 shrink-0 rounded-full"
-															style={{ backgroundColor: presentation.color }}
-														/>
-														<div className="min-w-0 flex-1">
-															<p className="wrap-break-word text-sm font-bold">
-																{component.serialNumber ?? component.name}
-															</p>
-															{component.serialNumber &&
-																component.serialNumber !== component.name && (
-																	<p className="wrap-break-word text-xs text-muted-foreground">
-																		{component.name}
-																	</p>
-																)}
-														</div>
-														<Badge
-															variant="outline"
-															style={
-																{
-																	"--status-color": presentation.color,
-																	"--status-text-color": presentation.textColor,
-																} as CSSProperties
-															}
-															className={`h-auto max-w-[42%] rounded-full px-2 py-1 text-[10px] whitespace-normal ${STATUS_BADGE_CLASS_NAME}`}
-														>
-															{presentation.label}
-														</Badge>
-													</li>
-												);
-											})}
-											{!row.components.length && (
-												<li className="py-3 text-sm text-muted-foreground">
-													Belum ada item pada subtask ini.
-												</li>
+											{!row.supporting && (
+												<GroupStatusBar counts={row.counts} />
 											)}
-										</ul>
+										</DrawerHeader>
+										<GroupComponentList
+											components={row.components}
+											supporting={row.supporting}
+										/>
 										<DrawerFooter>
 											<DrawerClose render={<Button variant="outline" />}>
 												Tutup
@@ -561,7 +619,7 @@ export const ProjectDetailPage = ({
 						</div>
 					</section>
 				</div>
-				<section className="hidden rounded-xl border bg-card p-4 shadow-sm">
+				<section className="hidden rounded-xl border bg-card p-4 shadow-xs">
 					<h2 className="text-xs font-semibold tracking-[0.2em] text-muted-foreground uppercase">
 						Riwayat scan per item
 					</h2>
@@ -602,7 +660,7 @@ export const ProjectDetailPage = ({
 					</div>
 				</section>
 
-				<section className="rounded-xl border bg-card p-4 shadow-sm">
+				<section className="rounded-xl border border-border/30 bg-card p-4 shadow-xs">
 					<h2 className="flex items-center gap-2 text-xs tracking-[0.2em] text-muted-foreground uppercase">
 						<Users aria-hidden="true" className="size-4" /> Kontribusi member
 					</h2>
@@ -619,7 +677,7 @@ export const ProjectDetailPage = ({
 					</div>
 				</section>
 
-				<section className="overflow-hidden rounded-xl border bg-card shadow-sm">
+				<section className="overflow-hidden rounded-xl border border-border/30 bg-card shadow-xs">
 					<div className="flex items-center gap-2 px-4 py-3">
 						<ScanLine aria-hidden="true" className="size-4" />
 						<h2 className="text-xs tracking-[0.2em] text-muted-foreground uppercase">

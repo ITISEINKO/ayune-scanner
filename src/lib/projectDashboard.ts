@@ -37,7 +37,11 @@ const loadTask = async (token: string, taskId: string, signal: AbortSignal) => {
 	return (await response.json()) as ClickUpTask;
 };
 
-const loadCurrentStatusDuration = async (token: string, taskId: string, signal: AbortSignal) => {
+const loadCurrentStatusDuration = async (
+	token: string,
+	taskId: string,
+	signal: AbortSignal,
+) => {
 	const response = await fetch(
 		`https://api.clickup.com/api/v2/task/${encodeURIComponent(taskId)}/time_in_status`,
 		{
@@ -62,11 +66,18 @@ const loadCurrentStatusDuration = async (token: string, taskId: string, signal: 
 			typeof minutes === "number" && Number.isFinite(minutes) && minutes >= 0
 				? minutes
 				: null,
-		since: typeof since === "string" || typeof since === "number" ? String(since) : null,
+		since:
+			typeof since === "string" || typeof since === "number"
+				? String(since)
+				: null,
 	};
 };
 
-const loadDescendantTasks = async (token: string, parentId: string, signal: AbortSignal) => {
+const loadDescendantTasks = async (
+	token: string,
+	parentId: string,
+	signal: AbortSignal,
+) => {
 	const tasks: ClickUpTask[] = [];
 	for (let page = 0; ; page += 1) {
 		const query = new URLSearchParams({
@@ -120,7 +131,11 @@ const buildProjectDashboard = async (
 		loadCurrentStatusDuration(token, project.task_id, signal),
 		loadDescendantTasks(token, project.task_id, signal),
 	]);
-	if (parent.id !== project.task_id || parent.parent || parent.list?.id !== panelListId())
+	if (
+		parent.id !== project.task_id ||
+		parent.parent ||
+		parent.list?.id !== panelListId()
+	)
 		throw new Error("PROJECT_NOT_AVAILABLE");
 	const byId = new Map(allTasks.map((task) => [task.id, task]));
 	const historyByTask = new Map<string, typeof history>();
@@ -129,9 +144,9 @@ const buildProjectDashboard = async (
 		logs.push(log);
 		historyByTask.set(log.componentTaskId, logs);
 	}
-	const memberNames = await getPpicMemberNames(
-		[...new Set(history.map((log) => log.userId))],
-	);
+	const memberNames = await getPpicMemberNames([
+		...new Set(history.map((log) => log.userId)),
+	]);
 	const items = allTasks.filter((task) => task.parent === project.task_id);
 	const components = allTasks.filter(
 		(task) =>
@@ -206,13 +221,13 @@ export const getProjectDashboard = async (
 	let dashboard = refresh ? null : await getAdminProjectSnapshot(scopeKey);
 	if (!dashboard) {
 		const refreshId = randomUUID();
-		if (!await claimAdminProjectRefresh(scopeKey, refreshId))
+		if (!(await claimAdminProjectRefresh(scopeKey, refreshId)))
 			throw new Error("PROJECT_SYNC_IN_PROGRESS");
 		try {
 			// A concurrent first load may have finished between the read and lease acquisition.
 			dashboard = refresh ? null : await getAdminProjectSnapshot(scopeKey);
 			dashboard ??= await buildProjectDashboard(token, project);
-			if (!await finishAdminProjectRefresh(scopeKey, refreshId, dashboard))
+			if (!(await finishAdminProjectRefresh(scopeKey, refreshId, dashboard)))
 				throw new Error("PROJECT_SYNC_SUPERSEDED");
 		} catch (cause) {
 			await finishAdminProjectRefresh(scopeKey, refreshId);
@@ -221,17 +236,10 @@ export const getProjectDashboard = async (
 	}
 	const updated = applyProjectStatusChanges(
 		dashboard,
-		(await getPpicProjectStatuses(project.task_id))
-			.filter((change) => change.updatedAt >= dashboard.statusUpdatedAt),
+		(await getPpicProjectStatuses(project.task_id)).filter(
+			(change) => change.updatedAt >= dashboard.statusUpdatedAt,
+		),
 	);
-	console.info("Project dashboard retur counts", {
-		projectTaskId: project.task_id,
-		beforeApply: dashboard.items
-			.flatMap((item) => item.components)
-			.filter((component) => component.status === "DALAM_PROSES_RETUR").length,
-		afterApply: updated.items
-			.flatMap((item) => item.components)
-			.filter((component) => component.status === "DALAM_PROSES_RETUR").length,
-	});
+
 	return updated;
 };

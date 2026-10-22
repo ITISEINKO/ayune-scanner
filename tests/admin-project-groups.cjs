@@ -58,6 +58,8 @@ async function main() {
 			{ id: "b", name: "Other subtask", components: [{ id: "other", name: "Other group panel", serialNumber: null, status: "TERPASANG_DIGUNAKAN", history: [] }] },
 			{ id: "empty", name: "Empty subtask", components: [] },
 			{ id: "other-status", name: "Custom status subtask", components: [{ id: "custom", name: "Custom panel", serialNumber: null, status: "DRY_FIT", history: [] }] },
+			{ id: "hardware", name: "HARDWARE LIST", components: Array.from({ length: 40 }, (_, index) => ({ id: `hardware-${index}`, name: `Hardware ${index}`, serialNumber: null, status: null, history: [] })) },
+			{ id: "requisition", name: " material   requisition form ", components: Array.from({ length: 80 }, (_, index) => ({ id: `document-${index}`, name: `Document ${index}`, serialNumber: null, status: null, history: [] })) },
 		].reverse(),
 		recentHistory: [], memberContribution: [], memberNames: {},
 		statusUpdatedAt: 1, syncedAt: Date.now(), currentStatusDurationMinutes: null, currentStatusStartedAt: null,
@@ -107,15 +109,17 @@ async function main() {
 		await page.goto(`${baseURL}/admin/project?task_id=drawer-project`);
 		const trigger = page.getByRole("button", { name: `Lihat detail ${groupLabel}`, exact: true });
 		const groupList = page.locator('[aria-label="Daftar subtask"]');
-		await expect(groupList.getByRole("button")).toHaveCount(4);
+		await expect(groupList.getByRole("button")).toHaveCount(6);
 		await expect(groupList.getByRole("button").first()).toHaveAccessibleName(`Lihat detail ${groupLabel}`);
+		await expect(groupList.getByRole("button").nth(4)).toHaveAccessibleName("Lihat detail material requisition form");
+		await expect(groupList.getByRole("button").nth(5)).toHaveAccessibleName("Lihat detail HARDWARE LIST");
 		await expect(trigger).toContainText("2/35");
 		await expect(trigger).toContainText("sisa 33");
-		await expect(trigger.getByText("Plywood", { exact: true })).toBeVisible();
-		await expect(trigger.getByText("19 mm", { exact: true })).toBeVisible();
+		await expect(trigger).toContainText("HPL Solid Double");
 		const barColors = await trigger.locator('[role="img"] > span').evaluateAll((segments) => segments.map((segment) => getComputedStyle(segment).backgroundColor));
-		for (const status of ["BARANG_DITERIMA", "DALAM_PROSES_RETUR", "UNSCANNED"])
+		for (const status of ["BARANG_DITERIMA", "DALAM_PROSES_RETUR"])
 			assert.ok(barColors.includes(cssRgb(STATUS_COLOR_CONFIG[status].color)));
+		assert.equal(await trigger.locator('[role="img"] > span').last().evaluate((segment) => segment.style.backgroundColor), cssRgb(STATUS_COLOR_CONFIG.UNSCANNED.progressColor));
 		mkdirSync("test-results", { recursive: true });
 		await groupList.scrollIntoViewIfNeeded();
 		await page.screenshot({ path: "test-results/admin-project-groups-mobile.png", animations: "disabled" });
@@ -127,16 +131,28 @@ async function main() {
 		await expect(drawer).toContainText("2/35 sudah di-scan · sisa 33");
 		await expect(drawer.getByText("Panel 0", { exact: true })).toBeVisible();
 		await expect(drawer.getByText("SERIAL-0", { exact: true })).toBeVisible();
-		await expect(drawer.getByText("Dalam Proses Retur", { exact: true })).toBeVisible();
-		await expectStatusBadge(drawer.getByText("Dalam Proses Retur", { exact: true }), "DALAM_PROSES_RETUR");
-		await expectStatusBadge(drawer.getByText("Barang Diterima", { exact: true }), "BARANG_DITERIMA");
-		await expectStatusBadge(drawer.getByText("Belum scan", { exact: true }).first(), "UNSCANNED");
+		await expect(drawer.locator('[data-slot="badge"]').filter({ hasText: /^Retur$/ })).toBeVisible();
+		await expectStatusBadge(drawer.locator('[data-slot="badge"]').filter({ hasText: /^Retur$/ }), "DALAM_PROSES_RETUR");
+		await expectStatusBadge(drawer.locator('[data-slot="badge"]').filter({ hasText: /^Diterima$/ }), "BARANG_DITERIMA");
+		await expectStatusBadge(drawer.locator('[data-slot="badge"]').filter({ hasText: /^Belum scan$/ }).first(), "UNSCANNED");
 		await expect(drawer.getByText("Other group panel")).toHaveCount(0);
 		assert.ok(await drawer.locator("ul").evaluate((list) => list.scrollHeight > list.clientHeight), "long component lists must scroll");
+		const unscannedFilter = drawer.getByRole("button", { name: "Belum discan (33)" });
+		await expect(unscannedFilter).toBeEnabled();
+		await unscannedFilter.click();
+		await expect(drawer.getByRole("listitem")).toHaveCount(33);
+		await expect(drawer.getByText("SERIAL-0", { exact: true })).toBeVisible();
+		await expect(drawer.getByText("SERIAL-1", { exact: true })).toHaveCount(0);
+		await drawer.getByRole("button", { name: "Tampilkan semua item" }).click();
+		await expect(drawer.getByRole("listitem")).toHaveCount(35);
 		await db.execute({ sql: "INSERT INTO ppic_component_status (component_task_id, project_task_id, status, updated_at) VALUES (?, ?, ?, ?)", args: ["panel-0", "drawer-project", "SEDANG_DIPACKING", Date.now()] });
 		await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
-		await expect(drawer.getByText("Sedang Dipacking", { exact: true })).toBeVisible();
-		await expectStatusBadge(drawer.getByText("Sedang Dipacking", { exact: true }), "SEDANG_DIPACKING");
+		await expect(drawer.locator('[data-slot="badge"]').filter({ hasText: /^Dipacking$/ })).toBeVisible();
+		await expectStatusBadge(drawer.locator('[data-slot="badge"]').filter({ hasText: /^Dipacking$/ }), "SEDANG_DIPACKING");
+		await expect(drawer.getByText("SERIAL-0", { exact: true })).toBeVisible();
+		await expect(drawer.getByRole("button", { name: "Belum discan (32)" })).toBeEnabled();
+		await drawer.getByRole("button", { name: "Belum discan (32)" }).click();
+		await expect(drawer.getByRole("listitem")).toHaveCount(32);
 		await page.screenshot({ path: "test-results/admin-project-group-drawer-mobile.png", animations: "disabled" });
 		await drawer.getByRole("button", { name: "Tutup", exact: true }).click();
 		await expect(drawer).not.toBeVisible();
@@ -148,10 +164,10 @@ async function main() {
 		await page.getByRole("button", { name: "Lihat detail Other subtask", exact: true }).click();
 		const other = page.getByRole("dialog", { name: "Other subtask" });
 		await expect(other.getByText("Other group panel", { exact: true })).toBeVisible();
-		await expect(other.getByText("Terpasang / Digunakan", { exact: true })).toBeVisible();
-		await expectStatusBadge(other.getByText("Terpasang / Digunakan", { exact: true }), "TERPASANG_DIGUNAKAN");
+		await expect(other.locator('[data-slot="badge"]').filter({ hasText: /^Terpasang$/ })).toBeVisible();
+		await expectStatusBadge(other.locator('[data-slot="badge"]').filter({ hasText: /^Terpasang$/ }), "TERPASANG_DIGUNAKAN");
 		await page.evaluate(() => document.documentElement.classList.add("dark"));
-		await expectStatusBadge(other.getByText("Terpasang / Digunakan", { exact: true }), "TERPASANG_DIGUNAKAN");
+		await expectStatusBadge(other.locator('[data-slot="badge"]').filter({ hasText: /^Terpasang$/ }), "TERPASANG_DIGUNAKAN");
 		await page.evaluate(() => document.documentElement.classList.remove("dark"));
 		await expect(other.getByText("Panel 0", { exact: true })).toHaveCount(0);
 		await other.getByRole("button", { name: "Tutup", exact: true }).click();
@@ -162,8 +178,26 @@ async function main() {
 		await expect(empty).toContainText("0/0 sudah di-scan · sisa 0");
 		await empty.getByRole("button", { name: "Tutup", exact: true }).click();
 		await page.getByRole("button", { name: "Lihat detail Custom status subtask", exact: true }).click();
-		await expect(page.getByRole("dialog", { name: "Custom status subtask" }).getByText("Status lainnya", { exact: true })).toBeVisible();
+		await expect(page.getByRole("dialog", { name: "Custom status subtask" }).locator('[data-slot="badge"]').filter({ hasText: /^Lainnya$/ })).toBeVisible();
+		await page.getByRole("dialog", { name: "Custom status subtask" }).getByRole("button", { name: "Tutup", exact: true }).click();
+		const hardware = page.getByRole("button", { name: "Lihat detail HARDWARE LIST", exact: true });
+		await expect(hardware).toContainText("Grup pendukung");
+		await expect(hardware.getByRole("img")).toHaveCount(0);
+		await hardware.click();
+		const hardwareDrawer = page.getByRole("dialog", { name: "HARDWARE LIST" });
+		await expect(hardwareDrawer.getByRole("button", { name: /Belum discan/ })).toHaveCount(0);
+		await expect(hardwareDrawer).toContainText("tidak termasuk progres scan");
+		await expect(hardwareDrawer.getByText("Hardware 0", { exact: true })).toBeVisible();
+		await expect(hardwareDrawer.locator('[data-slot="badge"]').filter({ hasText: /^Belum scan$/ })).toHaveCount(0);
 		await page.goto(`${baseURL}/admin/settings`);
+		const statusFilter = page.locator(".no-scrollbar");
+		await expect(statusFilter).toHaveCSS("scrollbar-width", "none");
+		assert.equal(
+			await statusFilter.evaluate((element) =>
+				getComputedStyle(element, "::-webkit-scrollbar").display,
+			),
+			"none",
+		);
 		const memberCard = page.locator("article").filter({ hasText: "Color Test" });
 		for (const status of ["BARANG_DITERIMA", "SEDANG_DIPACKING", "TERPASANG_DIGUNAKAN", "DALAM_PROSES_RETUR"])
 			await expectStatusBadge(memberCard.getByText(STATUS_COLOR_CONFIG[status].shortLabel, { exact: true }), status);

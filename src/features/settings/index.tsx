@@ -19,11 +19,17 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePanelMembers } from "@/hooks/use-panel-members";
 import { PPIC_STATUSES } from "@/types/ppic";
-import { STATUS_BADGE_CLASS_NAME, STATUS_COLOR_CONFIG } from "@/lib/colorStatusConfig";
+import {
+	STATUS_BADGE_CLASS_NAME,
+	STATUS_COLOR_CONFIG,
+} from "@/lib/colorStatusConfig";
 import type { PanelMember } from "@/types/clickup";
 import type { PpicRole, PpicStatus, PpicStatuses } from "@/types/ppic";
 
-const statusOptions = PPIC_STATUSES.map((status) => ({ status, ...STATUS_COLOR_CONFIG[status] }));
+const statusOptions = PPIC_STATUSES.map((status) => ({
+	status,
+	...STATUS_COLOR_CONFIG[status],
+}));
 
 export const SettingPage = () => {
 	const {
@@ -202,7 +208,12 @@ export const SettingPage = () => {
 							size="sm"
 							variant="outline"
 							className={`rounded-full font-medium ${statusFilter === option.status ? STATUS_BADGE_CLASS_NAME : ""}`}
-							style={{ "--status-color": option.color, "--status-text-color": option.textColor } as CSSProperties}
+							style={
+								{
+									"--status-color": option.color,
+									"--status-text-color": option.textColor,
+								} as CSSProperties
+							}
 							onClick={() => setStatusFilter(option.status)}
 						>
 							{option.shortLabel}
@@ -273,7 +284,12 @@ export const SettingPage = () => {
 											<Badge
 												key={option.status}
 												variant="outline"
-												style={{ "--status-color": option.color, "--status-text-color": option.textColor } as CSSProperties}
+												style={
+													{
+														"--status-color": option.color,
+														"--status-text-color": option.textColor,
+													} as CSSProperties
+												}
 												className={
 													active
 														? STATUS_BADGE_CLASS_NAME
@@ -361,7 +377,10 @@ export const SettingPage = () => {
 											key={option.status}
 											className="flex min-h-16 items-center gap-3 py-3"
 										>
-											<span className="size-2.5 rounded-full" style={{ backgroundColor: option.color }} />
+											<span
+												className="size-2.5 rounded-full"
+												style={{ backgroundColor: option.color }}
+											/>
 											<span className="flex-1">{option.label}</span>
 											<Checkbox
 												checked={draftStatuses.includes(option.status)}
