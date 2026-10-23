@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Pie, PieChart } from "recharts";
 import { Button } from "@/components/ui/button";
+import { ChartContainer } from "@/components/ui/chart";
 import { Skeleton } from "@/components/ui/skeleton";
 import { STATUS_COLOR_CONFIG } from "@/lib/colorStatusConfig";
 import type { MemberScanPeriod, MemberScanSummary } from "@/types/ppic";
@@ -37,10 +39,9 @@ export function MemberScanOverview({ memberId }: { memberId?: string }) {
 	const peak = data?.days.reduce((best, day) =>
 		day.count > best.count ? day : best,
 	);
-	const maxStatus = Math.max(
-		1,
-		...(data?.statuses.map((bucket) => bucket.count) ?? []),
-	);
+	const statusData = data?.statuses
+		.filter(({ count }) => count > 0)
+		.map((bucket) => ({ ...bucket, fill: STATUS_COLOR_CONFIG[bucket.status].color })) ?? [];
 	const change = data?.previousTotal
 		? Math.round(((data.total - data.previousTotal) / data.previousTotal) * 100)
 		: null;
@@ -204,44 +205,50 @@ export function MemberScanOverview({ memberId }: { memberId?: string }) {
 								</div>
 							</div>
 						</section>
-						<section className="rounded-2xl border border-border/30 bg-card p-4">
+						<section className="rounded-2xl border border-border/30 bg-card p-4" aria-label="Ringkasan scan per status">
 							<h3 className="mb-4 font-bold">
 								{memberId ? "Scan per status" : "Total scan per status"}
 							</h3>
-							<ul className="space-y-3">
-								{data.statuses.map(({ status, count }) => {
-									const config = STATUS_COLOR_CONFIG[status];
-									return (
-										<li
-											key={status}
-											className="flex items-center gap-3 text-xs"
-										>
-											<span className="flex w-24 shrink-0 items-center gap-2">
-												<span
-													className="size-2 rounded-full"
-													style={{ backgroundColor: config.color }}
-												/>
-												{config.shortLabel}
-											</span>
-											<div
-												className="h-2 flex-1 overflow-hidden rounded-full bg-muted"
-												aria-hidden="true"
-											>
-												<div
-													className="h-full rounded-full"
-													style={{
-														width: `${(count / maxStatus) * 100}%`,
-														backgroundColor: config.color,
-													}}
-												/>
+							<div className="flex items-center gap-4">
+								<div className="relative size-32 shrink-0">
+									<ChartContainer config={STATUS_COLOR_CONFIG} className="size-32 aspect-square" initialDimension={{ width: 128, height: 128 }} aria-hidden="true">
+										<PieChart accessibilityLayer={false}>
+											<Pie
+												data={statusData.length ? statusData : [{ count: 1, fill: "var(--muted)" }]}
+												dataKey="count"
+												nameKey="status"
+												innerRadius={42}
+												outerRadius={58}
+												startAngle={90}
+												endAngle={-270}
+												className="stroke-card stroke-2"
+												isAnimationActive={false}
+											/>
+										</PieChart>
+									</ChartContainer>
+									<div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+										<p className="max-w-20 truncate text-xl font-bold tabular-nums" aria-label={`Total ${data.total.toLocaleString("id-ID")} scan pada periode ini`}>
+											{data.total.toLocaleString("id-ID")}
+										</p>
+										<p className="text-[10px] text-muted-foreground">total scan</p>
+									</div>
+								</div>
+								<ul className="min-w-0 flex-1 space-y-3">
+									{statusData.map(({ status, count, fill }) => (
+										<li key={status} className="flex items-start gap-2 text-xs">
+											<span aria-hidden="true" className="mt-1 size-2 shrink-0 rounded-full" style={{ backgroundColor: fill }} />
+											<div className="min-w-0">
+												<p>{STATUS_COLOR_CONFIG[status].shortLabel}</p>
+												<p className="tabular-nums text-muted-foreground">
+													<strong className="font-semibold text-foreground">{count.toLocaleString("id-ID")}</strong>
+													{` · ${Math.round((count / data.total) * 100)}%`}
+												</p>
 											</div>
-											<span className="w-8 text-right font-semibold tabular-nums">
-												{count}
-											</span>
 										</li>
-									);
-								})}
-							</ul>
+									))}
+								</ul>
+								{!statusData.length && <p className="text-xs text-muted-foreground">Belum ada scan.</p>}
+							</div>
 						</section>
 						<p className="text-xs text-muted-foreground">
 							Berdasarkan scan berhasil yang tercatat. Waktu dalam WIB;{" "}
