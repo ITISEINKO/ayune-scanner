@@ -450,12 +450,13 @@ export const getPpicMemberScanSummary = async (
 			args: [userId, (previousStart - jakartaOffset) / 1000, Math.floor(now / 1000)],
 		},
 		{
-			sql: `SELECT MAX(unixepoch(scanned_at)) AS latest FROM ppic_scan_history
+			sql: `SELECT COUNT(*) AS total, MAX(unixepoch(scanned_at)) AS latest FROM ppic_scan_history
 				WHERE clickup_user_id = ? AND unixepoch(scanned_at) <= ?`,
 			args: [userId, Math.floor(now / 1000)],
 		},
 	], "read");
 	const summary: MemberScanSummary = {
+		lifetimeTotal: Number(latest.rows[0]?.total ?? 0),
 		total: 0,
 		today: 0,
 		previousTotal: 0,

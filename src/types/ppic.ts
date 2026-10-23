@@ -37,6 +37,7 @@ export type PpicProjectScanHistory = PpicScanHistory & {
 export type MemberScanPeriod = "7" | "30" | "month";
 
 export type MemberScanSummary = {
+	lifetimeTotal: number;
 	total: number;
 	today: number;
 	previousTotal: number;

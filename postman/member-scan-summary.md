@@ -20,6 +20,7 @@ calendar days. Today's counts are partial; the previous period includes full day
 200 JSON fields:
 
 - `total`: recorded successful scan events in the selected period, across projects.
+- `lifetimeTotal`: all recorded successful scan events for this member, excluding future timestamps.
 - `today`: today's recorded events.
 - `previousTotal`: events in the preceding period.
 - `lastScannedAt`: latest recorded scan as an ISO UTC timestamp, or null, across all history.
@@ -44,4 +45,27 @@ Drawer checks with intercepted summary responses and a local server/database:
 ```sh
 npm run build
 node --experimental-strip-types tests/settings-member-overview.cjs
+```
+
+## Member profile
+
+`GET /api/profile/scan-summary` returns the same fields for the authenticated
+member, with a fixed seven-day period. Identity comes from the signed
+`ppic_session`, falling back to the ClickUp token identity. The current database
+role must be `MEMBER`; inactive members may read their own history. Query
+parameters cannot select another user or change the period. This route does not
+fetch the panel member list. No writes; successful responses are private and
+not cached. Errors: 401 `UNAUTHORIZED`, 403 `FORBIDDEN`, 502 `DATABASE_ERROR`.
+
+The member profile shows lifetime and seven-day totals; daily and status charts
+cover the last seven Jakarta calendar days. The admin profile has no overview.
+
+`GET /api/profile` also returns `displayName: string | null` alongside `email`,
+`role`, and `allowedStatuses`. Name and email come from the same authenticated
+ClickUp user request. Profile headers capitalize the name for display and use a
+skeleton while loading; a missing name falls back to `Akun`.
+
+```sh
+node --experimental-strip-types tests/profile-scan-summary.cjs
+node tests/profile-overview.cjs # after npm run build; local server, intercepted UI data
 ```

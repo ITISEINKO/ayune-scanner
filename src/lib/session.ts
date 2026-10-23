@@ -52,7 +52,7 @@ export const clickUpUserId = async () => {
 	return token ? clickUpUserIdForToken(token) : null;
 };
 
-export const clickUpEmail = async () => {
+export const clickUpProfile = async () => {
 	const token = await clickUpToken();
 	if (!token) return null;
 	try {
@@ -62,11 +62,18 @@ export const clickUpEmail = async () => {
 		});
 		if (!response.ok) return null;
 		const body = (await response.json()) as {
-			user?: { email?: unknown };
+			user?: { email?: unknown; username?: unknown; name?: unknown };
 			email?: unknown;
+			username?: unknown;
+			name?: unknown;
 		};
 		const email = body.user?.email ?? body.email;
-		return typeof email === "string" ? email : null;
+		const displayName = [body.user?.username, body.user?.name, body.username, body.name]
+			.find((name) => typeof name === "string" && name.trim());
+		return {
+			email: typeof email === "string" ? email : null,
+			displayName: typeof displayName === "string" ? displayName.trim() : null,
+		};
 	} catch {
 		return null;
 	}
