@@ -17,6 +17,8 @@ import {
 } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MemberScanOverview } from "./MemberScanOverview";
 import { usePanelMembers } from "@/hooks/use-panel-members";
 import { PPIC_STATUSES } from "@/types/ppic";
 import {
@@ -331,96 +333,106 @@ export const SettingPage = () => {
 											{editingMember.name}
 										</DrawerTitle>
 										<DrawerDescription>
-											{draftRole === "SUPER_ADMIN" ? "Admin" : "Member"}
-											{draftRole === "MEMBER" &&
-												` · ${draftStatuses.length} dari ${statusOptions.length} akses aktif`}
+											{roles[editingMember.id] === "SUPER_ADMIN" ? "Admin" : "Member"}
+											{` · ${roles[editingMember.id] === "SUPER_ADMIN" || permissions[editingMember.id]?.length ? "Aktif" : "Nonaktif"}`}
 										</DrawerDescription>
 									</div>
 								</div>
 							</DrawerHeader>
 
-							<div className="overflow-y-auto px-6 py-5">
-								<p className="mb-2 text-sm text-muted-foreground">Peran</p>
-								<div className="grid grid-cols-2 rounded-xl bg-muted p-1">
-									<Button
-										type="button"
-										variant={draftRole === "MEMBER" ? "outline" : "ghost"}
-										className={
-											draftRole === "MEMBER"
-												? "min-h-10 bg-card"
-												: "min-h-10 bg-transparent"
-										}
-										onClick={() => setDraftRole("MEMBER")}
-									>
-										Member
-									</Button>
-									<Button
-										type="button"
-										variant={draftRole === "SUPER_ADMIN" ? "outline" : "ghost"}
-										className={
-											draftRole === "SUPER_ADMIN"
-												? "min-h-10 bg-card"
-												: "min-h-10 bg-transparent"
-										}
-										onClick={() => setDraftRole("SUPER_ADMIN")}
-									>
-										Admin
-									</Button>
-								</div>
-
-								<p className="mt-6 border-b pb-2 text-sm text-muted-foreground">
-									Akses halaman
-								</p>
-								<div className="divide-y">
-									{statusOptions.map((option) => (
-										<label
-											key={option.status}
-											className="flex min-h-16 items-center gap-3 py-3"
-										>
-											<span
-												className="size-2.5 rounded-full"
-												style={{ backgroundColor: option.color }}
-											/>
-											<span className="flex-1">{option.label}</span>
-											<Checkbox
-												checked={draftStatuses.includes(option.status)}
-												disabled={draftRole === "SUPER_ADMIN"}
-												className="h-7 w-12 justify-start rounded-full border-input bg-muted p-1 before:size-5 before:rounded-full before:bg-card before:shadow-sm before:transition-transform data-checked:bg-accent data-checked:border-input data-checked:before:translate-x-5 **:data-[slot=checkbox-indicator]:hidden"
-												onCheckedChange={(checked) =>
-													setDraftStatuses((current) =>
-														checked
-															? [...current, option.status]
-															: current.filter(
-																	(status) => status !== option.status,
-																),
-													)
+							<Tabs key={editingMember.id} defaultValue="overview" className="mt-4 min-h-0 gap-0">
+								<TabsList className="mx-6 mb-1 w-auto shrink-0 rounded-xl">
+									<TabsTrigger value="overview">Overview</TabsTrigger>
+									<TabsTrigger value="access">Akses halaman</TabsTrigger>
+								</TabsList>
+								<TabsContent value="overview" className="min-h-0 overflow-y-auto">
+									<MemberScanOverview memberId={editingMember.id} />
+								</TabsContent>
+								<TabsContent value="access" className="flex min-h-0 flex-col overflow-hidden">
+									<div className="overflow-y-auto px-6 py-5">
+										<p className="mb-2 text-sm text-muted-foreground">Peran</p>
+										<div className="grid grid-cols-2 rounded-xl bg-muted p-1">
+											<Button
+												type="button"
+												variant={draftRole === "MEMBER" ? "outline" : "ghost"}
+												className={
+													draftRole === "MEMBER"
+														? "min-h-10 bg-card"
+														: "min-h-10 bg-transparent"
 												}
-											/>
-										</label>
-									))}
-								</div>
-							</div>
+												onClick={() => setDraftRole("MEMBER")}
+											>
+												Member
+											</Button>
+											<Button
+												type="button"
+												variant={draftRole === "SUPER_ADMIN" ? "outline" : "ghost"}
+												className={
+													draftRole === "SUPER_ADMIN"
+														? "min-h-10 bg-card"
+														: "min-h-10 bg-transparent"
+												}
+												onClick={() => setDraftRole("SUPER_ADMIN")}
+											>
+												Admin
+											</Button>
+										</div>
 
-							<DrawerFooter className="grid grid-cols-2 gap-3 px-6 pb-6">
-								<DrawerClose
-									render={
+										<p className="mt-6 border-b pb-2 text-sm text-muted-foreground">
+											Akses halaman
+										</p>
+										<div className="divide-y">
+											{statusOptions.map((option) => (
+												<label
+													key={option.status}
+													className="flex min-h-16 items-center gap-3 py-3"
+												>
+													<span
+														className="size-2.5 rounded-full"
+														style={{ backgroundColor: option.color }}
+													/>
+													<span className="flex-1">{option.label}</span>
+													<Checkbox
+														checked={draftStatuses.includes(option.status)}
+														disabled={draftRole === "SUPER_ADMIN"}
+														className="h-7 w-12 justify-start rounded-full border-input bg-muted p-1 before:size-5 before:rounded-full before:bg-card before:shadow-sm before:transition-transform data-checked:bg-accent data-checked:border-input data-checked:before:translate-x-5 **:data-[slot=checkbox-indicator]:hidden"
+														onCheckedChange={(checked) =>
+															setDraftStatuses((current) =>
+																checked
+																	? [...current, option.status]
+																	: current.filter(
+																			(status) => status !== option.status,
+																		),
+															)
+														}
+													/>
+												</label>
+											))}
+										</div>
+									</div>
+
+									<DrawerFooter className="grid grid-cols-2 gap-3 px-6 pb-6">
+										<DrawerClose
+											render={
+												<Button
+													type="button"
+													variant="outline"
+													disabled={Boolean(savingMemberId)}
+												/>
+											}
+										>
+											Batal
+										</DrawerClose>
 										<Button
 											type="button"
-											variant="outline"
 											disabled={Boolean(savingMemberId)}
-										/>
-									}
-								>
-									Batal
-								</DrawerClose>
-								<Button
-									type="button"
-									disabled={Boolean(savingMemberId)}
-									onClick={() => void saveAccess()}
-								>
-									{savingMemberId ? "Menyimpan..." : "Simpan"}
-								</Button>
-							</DrawerFooter>
+											onClick={() => void saveAccess()}
+										>
+											{savingMemberId ? "Menyimpan..." : "Simpan"}
+										</Button>
+									</DrawerFooter>
+								</TabsContent>
+							</Tabs>
 						</>
 					)}
 				</DrawerContent>

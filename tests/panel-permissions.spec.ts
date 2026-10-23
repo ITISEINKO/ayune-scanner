@@ -103,6 +103,7 @@ test.describe("Admin member settings", () => {
 		await expect(card).toBeVisible();
 		await card.getByRole("button", { name: "Atur" }).click();
 		await expect(page.getByRole("dialog")).toContainText(memberName);
+		await page.getByRole("tab", { name: "Akses halaman", exact: true }).click();
 		return page.getByRole("dialog");
 	};
 

@@ -11,6 +11,8 @@ import type {
 	PpicScanHistory,
 	PpicStatus,
 	PpicStatuses,
+	MemberScanPeriod,
+	MemberScanSummary,
 } from "@/types/ppic";
 import type { PanelMember } from "@/types/clickup";
 import type { ProjectDashboard, ProjectStatusChange, ProjectStatusRow } from "@/types/project";
@@ -425,6 +427,64 @@ export const getPpicScanHistory = async (
 		taskName: String(row.task_name),
 		scannedAt: String(row.scanned_at),
 	}));
+};
+
+export const getPpicMemberScanSummary = async (
+	userId: string,
+	period: MemberScanPeriod,
+	now = Date.now(),
+): Promise<MemberScanSummary> => {
+	const dayMs = 86_400_000;
+	const jakartaOffset = 7 * 60 * 60 * 1000;
+	const localNow = new Date(now + jakartaOffset);
+	const today = Date.UTC(localNow.getUTCFullYear(), localNow.getUTCMonth(), localNow.getUTCDate());
+	const dayCount = period === "month" ? localNow.getUTCDate() : Number(period);
+	const start = today - (dayCount - 1) * dayMs;
+	const previousStart = start - dayCount * dayMs;
+	const [counts, latest] = await db.batch([
+		{
+			sql: `SELECT date(scanned_at, '+7 hours') AS day, status, COUNT(*) AS count
+				FROM ppic_scan_history
+				WHERE clickup_user_id = ? AND unixepoch(scanned_at) >= ? AND unixepoch(scanned_at) <= ?
+				GROUP BY day, status`,
+			args: [userId, (previousStart - jakartaOffset) / 1000, Math.floor(now / 1000)],
+		},
+		{
+			sql: `SELECT MAX(unixepoch(scanned_at)) AS latest FROM ppic_scan_history
+				WHERE clickup_user_id = ? AND unixepoch(scanned_at) <= ?`,
+			args: [userId, Math.floor(now / 1000)],
+		},
+	], "read");
+	const summary: MemberScanSummary = {
+		total: 0,
+		today: 0,
+		previousTotal: 0,
+		lastScannedAt: latest.rows[0]?.latest == null ? null : new Date(Number(latest.rows[0].latest) * 1000).toISOString(),
+		days: Array.from({ length: dayCount }, (_, index) => ({
+			date: new Date(start + index * dayMs).toISOString().slice(0, 10),
+			count: 0,
+		})),
+		statuses: PPIC_STATUSES.map((status) => ({ status, count: 0 })),
+	};
+	for (const row of counts.rows) {
+		const count = Number(row.count);
+		const day = summary.days.find((day) => day.date === String(row.day));
+		if (!day) {
+			summary.previousTotal += count;
+			continue;
+		}
+		day.count += count;
+		summary.total += count;
+		const status = isPpicStatus(row.status) ? row.status : "OTHER";
+		let bucket = summary.statuses.find((bucket) => bucket.status === status);
+		if (!bucket) {
+			bucket = { status, count: 0 };
+			summary.statuses.push(bucket);
+		}
+		bucket.count += count;
+	}
+	summary.today = summary.days.at(-1)!.count;
+	return summary;
 };
 
 export const getPpicProjectScanHistory = async (

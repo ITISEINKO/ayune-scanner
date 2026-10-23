@@ -203,6 +203,7 @@ async function main() {
 			await expectStatusBadge(memberCard.getByText(STATUS_COLOR_CONFIG[status].shortLabel, { exact: true }), status);
 		await memberCard.getByRole("button", { name: "Atur", exact: true }).click();
 		const settingsDrawer = page.getByRole("dialog", { name: "Color Test" });
+		await settingsDrawer.getByRole("tab", { name: "Akses halaman", exact: true }).click();
 		for (const status of ["BARANG_DITERIMA", "SEDANG_DIPACKING", "TERPASANG_DIGUNAKAN", "DALAM_PROSES_RETUR"]) {
 			const dot = settingsDrawer.locator("label").filter({ hasText: STATUS_COLOR_CONFIG[status].label }).locator("span").first();
 			await expect(dot).toHaveCSS("background-color", cssRgb(STATUS_COLOR_CONFIG[status].color));
