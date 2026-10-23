@@ -49,7 +49,7 @@ const { STATUS_COLOR_CONFIG } = require("../src/lib/colorStatusConfig.ts");
 				assert.equal(route.request().method(), "GET");
 				await summaryGate;
 				if (mode === "error") return route.fulfill({ status: 502, json: { error: "DATABASE_ERROR" } });
-				const counts = mode === "empty" ? [0, 0, 0, 0, 0, 0, 0] : [6, 0, 14, 16, 12, 18, 12];
+				const counts = ["empty", "old-only"].includes(mode) ? [0, 0, 0, 0, 0, 0, 0] : [6, 0, 14, 16, 12, 18, 12];
 				const statuses = mode === "mixed"
 					? ["BARANG_DITERIMA", "SEDANG_DIPACKING", "TERPASANG_DIGUNAKAN", "DALAM_PROSES_RETUR", "OTHER"].map((status, index) => ({ status, count: [10, 10, 20, 30, 8][index] }))
 					: [{ status: "TERPASANG_DIGUNAKAN", count: mode === "empty" ? 0 : mode === "single" ? 78 : 52 }, { status: "DALAM_PROSES_RETUR", count: ["empty", "single"].includes(mode) ? 0 : 26 }, { status: "BARANG_DITERIMA", count: 0 }];
@@ -59,6 +59,7 @@ const { STATUS_COLOR_CONFIG } = require("../src/lib/colorStatusConfig.ts");
 					lastScannedAt: mode === "empty" ? null : "2026-10-23T02:00:00.000Z",
 					days: counts.map((count, index) => ({ date: `2026-10-${17 + index}`, count })),
 					statuses,
+					lifetimeStatuses: statuses.map(({ status, count }) => ({ status, count: count * 16 })),
 				} });
 			}
 			if (url.pathname.startsWith("/_next/") || ["/profile", "/admin/profile"].includes(url.pathname)) return route.continue();
@@ -84,7 +85,7 @@ const { STATUS_COLOR_CONFIG } = require("../src/lib/colorStatusConfig.ts");
 		mkdirSync("test-results", { recursive: true });
 		await page.screenshot({ path: "test-results/profile-overview-loading.png", fullPage: true });
 		releaseSummary();
-		await expect(overview.getByText("1.248", { exact: true })).toBeVisible();
+		await expect(overview.getByText("1.248", { exact: true }).first()).toBeVisible();
 		await expect(page.getByRole("status", { name: "Memuat detail akun" })).toBeVisible();
 		releaseProfile();
 		await expect(page.getByText("member@example.test", { exact: true })).toBeVisible();
@@ -93,10 +94,11 @@ const { STATUS_COLOR_CONFIG } = require("../src/lib/colorStatusConfig.ts");
 		await expect(overview.getByText("78", { exact: true }).first()).toBeVisible();
 		await expect(overview.getByRole("heading", { name: "Total scan per status" })).toBeVisible();
 		const statusSummary = overview.getByRole("region", { name: "Ringkasan scan per status" });
-		await expect(statusSummary.locator('[aria-label="Total 78 scan pada periode ini"]')).toHaveText("78");
+		await expect(statusSummary.getByText("Sepanjang waktu", { exact: true })).toBeVisible();
+		await expect(statusSummary.locator('[aria-label="Total 1.248 scan sepanjang waktu"]')).toHaveText("1.248");
 		await expect(statusSummary.getByRole("listitem")).toHaveCount(2);
-		await expect(statusSummary.getByRole("listitem").filter({ hasText: "Terpasang" })).toContainText("52 · 67%");
-		await expect(statusSummary.getByRole("listitem").filter({ hasText: "Retur" })).toContainText("26 · 33%");
+		await expect(statusSummary.getByRole("listitem").filter({ hasText: "Terpasang" })).toContainText("832 · 67%");
+		await expect(statusSummary.getByRole("listitem").filter({ hasText: "Retur" })).toContainText("416 · 33%");
 		for (const status of ["TERPASANG_DIGUNAKAN", "DALAM_PROSES_RETUR"]) {
 			await expect(statusSummary.locator(`path.recharts-sector[fill="${STATUS_COLOR_CONFIG[status].color}"]`)).toHaveCount(1);
 		}
@@ -107,11 +109,11 @@ const { STATUS_COLOR_CONFIG } = require("../src/lib/colorStatusConfig.ts");
 		assert.ok(header.height < 120, "profile header stays compact");
 		await page.screenshot({ path: "test-results/profile-overview-mobile.png", fullPage: true });
 		await page.setViewportSize({ width: 1280, height: 900 });
-		await expect(overview.getByText("1.248", { exact: true })).toBeVisible();
+		await expect(overview.getByText("1.248", { exact: true }).first()).toBeVisible();
 		mode = "single";
 		await page.reload();
 		await expect(statusSummary.getByRole("listitem")).toHaveCount(1);
-		await expect(statusSummary.getByRole("listitem")).toContainText("78 · 100%");
+		await expect(statusSummary.getByRole("listitem")).toContainText("1.248 · 100%");
 		mode = "mixed";
 		await page.reload();
 		await expect(statusSummary.getByRole("listitem")).toHaveCount(5);
@@ -124,10 +126,16 @@ const { STATUS_COLOR_CONFIG } = require("../src/lib/colorStatusConfig.ts");
 		await page.setViewportSize({ width: 320, height: 844 });
 		assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
 		await statusSummary.screenshot({ path: "test-results/profile-status-doughnut-mixed.png" });
+		mode = "old-only";
+		await page.reload();
+		await expect(overview.getByText("Belum ada scan dalam 7 hari terakhir.", { exact: true })).toBeVisible();
+		await expect(statusSummary.locator('[aria-label="Total 1.248 scan sepanjang waktu"]')).toHaveText("1.248");
+		await expect(statusSummary.getByRole("listitem")).toHaveCount(2);
+		await expect(statusSummary.getByText("Belum ada scan.", { exact: true })).toHaveCount(0);
 		mode = "empty";
 		await page.reload();
 		await expect(overview.getByText("Belum ada riwayat scan.", { exact: true })).toBeVisible();
-		await expect(statusSummary.locator('[aria-label="Total 0 scan pada periode ini"]')).toHaveText("0");
+		await expect(statusSummary.locator('[aria-label="Total 0 scan sepanjang waktu"]')).toHaveText("0");
 		await expect(statusSummary.getByText("Belum ada scan.", { exact: true })).toBeVisible();
 		await expect(statusSummary.locator("path.recharts-sector")).toHaveCount(1);
 		assert.doesNotMatch(await statusSummary.innerText(), /NaN|Infinity/);
@@ -136,12 +144,12 @@ const { STATUS_COLOR_CONFIG } = require("../src/lib/colorStatusConfig.ts");
 		await expect(overview.getByRole("alert")).toBeVisible({ timeout: 15000 });
 		mode = "normal";
 		await overview.getByRole("button", { name: "Coba lagi" }).click();
-		await expect(overview.getByText("1.248", { exact: true })).toBeVisible();
+		await expect(overview.getByText("1.248", { exact: true }).first()).toBeVisible();
 		profileMode = "error";
 		await page.reload();
 		const account = page.getByRole("region", { name: "Account details" });
 		await expect(account.getByRole("alert")).toContainText("Gagal memuat detail akun.");
-		await expect(overview.getByText("1.248", { exact: true })).toBeVisible();
+		await expect(overview.getByText("1.248", { exact: true }).first()).toBeVisible();
 		profileMode = "normal";
 		await account.getByRole("button", { name: "Coba lagi" }).click();
 		await expect(account.getByText("member@example.test", { exact: true })).toBeVisible();

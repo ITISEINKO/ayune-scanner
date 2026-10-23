@@ -30,6 +30,7 @@ calendar days. Today's counts are partial; the previous period includes full day
 - `lastScannedAt`: latest recorded scan as an ISO UTC timestamp, or null, across all history.
 - `days`: ordered `{ date: "YYYY-MM-DD", count: number }` entries, including zero days.
 - `statuses`: `{ status, count }` entries for each PPIC status, plus `OTHER` if needed for legacy values.
+- `lifetimeStatuses`: the same status buckets across all recorded history, excluding future timestamps; counts sum to `lifetimeTotal`.
 
 Repeated scans count as separate events. Future timestamps are excluded.
 This reports scan history, not current component inventory or manual status edits.
@@ -60,8 +61,10 @@ parameters cannot select another user or change the period. This route does not
 fetch the panel member list. No writes; successful responses are private and
 not cached. Errors: 401 `UNAUTHORIZED`, 403 `FORBIDDEN`, 502 `DATABASE_ERROR`.
 
-The member profile shows lifetime and seven-day totals; daily and status charts
-cover the last seven Jakarta calendar days. The admin profile has no overview.
+The member profile shows lifetime and seven-day totals. The daily chart covers
+the last seven Jakarta calendar days; the status chart uses `lifetimeStatuses`
+and `lifetimeTotal`, labeled "Sepanjang waktu". Admin Settings status charts
+continue to use the selected period. The admin profile has no overview.
 
 `GET /api/profile` also returns `displayName: string | null` alongside `email`,
 `role`, and `allowedStatuses`. Name and email come from the same authenticated

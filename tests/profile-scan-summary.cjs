@@ -53,10 +53,14 @@ const { GET: adminSummary } = require("../src/app/api/panel/members/summary/rout
 		assert.equal(summary.days.reduce((sum, day) => sum + day.count, 0), 1);
 		assert.equal(summary.statuses.find((bucket) => bucket.status === "DALAM_PROSES_RETUR").count, 1);
 		assert.equal(summary.statuses.reduce((sum, bucket) => sum + bucket.count, 0), 1);
+		assert.equal(summary.lifetimeStatuses.find((bucket) => bucket.status === "BARANG_DITERIMA").count, 1, "status chart includes scans older than seven days");
+		assert.equal(summary.lifetimeStatuses.find((bucket) => bucket.status === "DALAM_PROSES_RETUR").count, 1);
+		assert.equal(summary.lifetimeStatuses.reduce((sum, bucket) => sum + bucket.count, 0), summary.lifetimeTotal);
 		const empty = await getPpicMemberScanSummary("empty", "7");
 		assert.equal(empty.lifetimeTotal, 0);
 		assert.equal(empty.total, 0);
 		assert.equal(empty.lastScannedAt, null);
+		assert.ok(empty.lifetimeStatuses.every(({ count }) => count === 0));
 		global.profileSession = { user_id: "admin", role: "MEMBER" };
 		assert.equal((await GET()).status, 403, "database role overrides stale session role");
 		global.profileSession = { user_id: "unknown", role: "MEMBER" };

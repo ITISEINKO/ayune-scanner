@@ -450,13 +450,14 @@ export const getPpicMemberScanSummary = async (
 			args: [userId, (previousStart - jakartaOffset) / 1000, Math.floor(now / 1000)],
 		},
 		{
-			sql: `SELECT COUNT(*) AS total, MAX(unixepoch(scanned_at)) AS latest FROM ppic_scan_history
-				WHERE clickup_user_id = ? AND unixepoch(scanned_at) <= ?`,
+			sql: `SELECT status, COUNT(*) AS total, MAX(unixepoch(scanned_at)) AS latest FROM ppic_scan_history
+				WHERE clickup_user_id = ? AND unixepoch(scanned_at) <= ?
+				GROUP BY status ORDER BY latest DESC`,
 			args: [userId, Math.floor(now / 1000)],
 		},
 	], "read");
 	const summary: MemberScanSummary = {
-		lifetimeTotal: Number(latest.rows[0]?.total ?? 0),
+		lifetimeTotal: latest.rows.reduce((total, row) => total + Number(row.total), 0),
 		total: 0,
 		today: 0,
 		previousTotal: 0,
@@ -466,7 +467,17 @@ export const getPpicMemberScanSummary = async (
 			count: 0,
 		})),
 		statuses: PPIC_STATUSES.map((status) => ({ status, count: 0 })),
+		lifetimeStatuses: PPIC_STATUSES.map((status) => ({ status, count: 0 })),
 	};
+	for (const row of latest.rows) {
+		const status = isPpicStatus(row.status) ? row.status : "OTHER";
+		let bucket = summary.lifetimeStatuses.find((bucket) => bucket.status === status);
+		if (!bucket) {
+			bucket = { status, count: 0 };
+			summary.lifetimeStatuses.push(bucket);
+		}
+		bucket.count += Number(row.total);
+	}
 	for (const row of counts.rows) {
 		const count = Number(row.count);
 		const day = summary.days.find((day) => day.date === String(row.day));

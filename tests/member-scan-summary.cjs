@@ -58,6 +58,9 @@ const request = (query = "user_id=member") => new Request(`http://localhost/api/
 	assert.equal(seven.lastScannedAt, "2026-10-23T02:00:00.000Z");
 	assert.equal(seven.days.reduce((sum, day) => sum + day.count, 0), seven.total);
 	assert.equal(seven.statuses.reduce((sum, bucket) => sum + bucket.count, 0), seven.total);
+	assert.equal(seven.lifetimeTotal, 6);
+	assert.deepEqual(seven.lifetimeStatuses.map(({ count }) => count), [2, 1, 1, 1, 1]);
+	assert.equal(seven.lifetimeStatuses.reduce((sum, bucket) => sum + bucket.count, 0), seven.lifetimeTotal);
 	const thirty = await getPpicMemberScanSummary("member", "30", now);
 	assert.equal(thirty.days[0].date, "2026-09-24");
 	assert.equal(thirty.days.length, 30);
@@ -81,6 +84,14 @@ const request = (query = "user_id=member") => new Request(`http://localhost/api/
 	const old = await getPpicMemberScanSummary("old-member", "7", now);
 	assert.equal(old.total, 0);
 	assert.equal(old.lastScannedAt, "2026-01-01T00:00:00.000Z");
+	assert.equal(old.lifetimeStatuses.find(({ status }) => status === "BARANG_DITERIMA").count, 1);
+	await add("2026-01-01 00:00:00", "legacy-a", "legacy-member");
+	await add("2026-02-01 00:00:00", "legacy-b", "legacy-member");
+	const legacy = await getPpicMemberScanSummary("legacy-member", "7", now);
+	assert.equal(legacy.total, 0);
+	assert.equal(legacy.lifetimeTotal, 2);
+	assert.equal(legacy.lifetimeStatuses.find(({ status }) => status === "OTHER").count, 2);
+	assert.equal(legacy.lastScannedAt, "2026-02-01T00:00:00.000Z");
 
 	global.summaryClickUpCalls = 0;
 	let outboundCalls = 0;

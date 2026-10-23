@@ -44,6 +44,7 @@ export type MemberScanSummary = {
 	lastScannedAt: string | null;
 	days: { date: string; count: number }[];
 	statuses: { status: PpicStatus | "OTHER"; count: number }[];
+	lifetimeStatuses: { status: PpicStatus | "OTHER"; count: number }[];
 };
 
 export const isPpicStatus = (value: unknown): value is PpicStatus =>

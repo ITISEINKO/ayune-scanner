@@ -40,12 +40,13 @@ export function MemberScanOverview({ memberId }: { memberId?: string }) {
 		day.count > best.count ? day : best,
 	);
 	const statusData =
-		data?.statuses
-			.filter(({ count }) => count > 0)
+		(data && (memberId ? data.statuses : data.lifetimeStatuses))
+			?.filter(({ count }) => count > 0)
 			.map((bucket) => ({
 				...bucket,
 				fill: STATUS_COLOR_CONFIG[bucket.status].color,
 			})) ?? [];
+	const statusTotal = (memberId ? data?.total : data?.lifetimeTotal) ?? 0;
 	const change = data?.previousTotal
 		? Math.round(((data.total - data.previousTotal) / data.previousTotal) * 100)
 		: null;
@@ -157,7 +158,7 @@ export function MemberScanOverview({ memberId }: { memberId?: string }) {
 						</div>
 						{data.total === 0 && (
 							<p className="text-sm text-muted-foreground">
-								Belum ada scan pada periode ini.
+								{memberId ? "Belum ada scan pada periode ini." : "Belum ada scan dalam 7 hari terakhir."}
 							</p>
 						)}
 						<section className="rounded-2xl border border-border/30 bg-card p-4">
@@ -213,9 +214,12 @@ export function MemberScanOverview({ memberId }: { memberId?: string }) {
 							className="rounded-2xl border border-border/30 bg-card p-4"
 							aria-label="Ringkasan scan per status"
 						>
-							<h3 className="mb-4 font-bold">
-								{memberId ? "Scan per status" : "Total scan per status"}
-							</h3>
+							<div className="mb-4">
+								<h3 className="font-bold">
+									{memberId ? "Scan per status" : "Total scan per status"}
+								</h3>
+								{!memberId && <p className="mt-1 text-xs text-muted-foreground">Sepanjang waktu</p>}
+							</div>
 							<div className="flex items-center gap-4">
 								<div className="relative size-32 shrink-0">
 									<ChartContainer
@@ -245,9 +249,9 @@ export function MemberScanOverview({ memberId }: { memberId?: string }) {
 									<div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
 										<p
 											className="max-w-20 truncate text-xl font-bold tabular-nums"
-											aria-label={`Total ${data.total.toLocaleString("id-ID")} scan pada periode ini`}
+											aria-label={`Total ${statusTotal.toLocaleString("id-ID")} scan ${memberId ? "pada periode ini" : "sepanjang waktu"}`}
 										>
-											{data.total.toLocaleString("id-ID")}
+											{statusTotal.toLocaleString("id-ID")}
 										</p>
 										<p className="text-[10px] text-muted-foreground">
 											total scan
@@ -268,7 +272,7 @@ export function MemberScanOverview({ memberId }: { memberId?: string }) {
 													<strong className="font-semibold text-foreground">
 														{count.toLocaleString("id-ID")}
 													</strong>
-													{` · ${Math.round((count / data.total) * 100)}%`}
+													{` · ${Math.round((count / statusTotal) * 100)}%`}
 												</p>
 											</div>
 										</li>
@@ -285,7 +289,7 @@ export function MemberScanOverview({ memberId }: { memberId?: string }) {
 							Berdasarkan scan berhasil yang tercatat. Waktu dalam WIB;{" "}
 							{memberId
 								? `periode ini mencakup hari ini yang belum selesai, dibandingkan dengan ${data.days.length} hari penuh sebelumnya.`
-								: "grafik dan status untuk 7 hari terakhir."}
+								: "grafik harian untuk 7 hari terakhir; total per status sepanjang waktu."}
 						</p>
 					</>
 				)
