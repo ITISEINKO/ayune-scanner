@@ -98,10 +98,12 @@ test.describe("Admin member settings", () => {
 	};
 
 	const openMember = async (page: Page) => {
+		const member = await stateOf();
+		await page.getByRole("button", { name: member.role !== "SUPER_ADMIN" && member.active === 0 ? "Nonaktif" : "Semua", exact: true }).click();
 		await page.getByRole("textbox", { name: "Search by name" }).fill(memberName);
 		const card = page.locator("article").filter({ hasText: memberName });
 		await expect(card).toBeVisible();
-		await card.getByRole("button", { name: "Atur" }).click();
+		await card.click();
 		await expect(page.getByRole("dialog")).toContainText(memberName);
 		await page.getByRole("tab", { name: "Akses halaman", exact: true }).click();
 		return page.getByRole("dialog");
@@ -201,7 +203,7 @@ test.describe("Admin member settings", () => {
 		await authenticateAdmin(page);
 		await page.goto("/admin/settings");
 		await expect(
-			page.getByRole("heading", { name: "Akses halaman PPIC" }),
+			page.getByRole("heading", { name: "Pengguna & aktivitas" }),
 		).toBeVisible();
 
 		const membersResponse = await page.request.get("/api/panel/members");

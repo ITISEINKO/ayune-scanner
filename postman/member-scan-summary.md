@@ -6,6 +6,12 @@ Requires the existing `clickup_access_token` cookie. The caller must currently
 have the `SUPER_ADMIN` database role; the target must be in the panel member list.
 No writes. Responses use `Cache-Control: private, no-store`.
 
+Identity uses the verified, signed `ppic_session` when available, avoiding the
+separate ClickUp user lookup. Missing or invalid sessions fall back to the existing
+token identity lookup. The database admin role is checked on every request;
+the session's role does not authorize access. Panel member validation still uses
+the existing 60-second cache and can call ClickUp when that cache expires.
+
 `user_id` is required. `period` is `7` (default), `30`, or `month`.
 Periods include today and use Asia/Jakarta calendar days. `month` starts on the
 first of the current month. Previous totals use the same number of preceding

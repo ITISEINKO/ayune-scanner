@@ -201,7 +201,7 @@ async function main() {
 		const memberCard = page.locator("article").filter({ hasText: "Color Test" });
 		for (const status of ["BARANG_DITERIMA", "SEDANG_DIPACKING", "TERPASANG_DIGUNAKAN", "DALAM_PROSES_RETUR"])
 			await expectStatusBadge(memberCard.getByText(STATUS_COLOR_CONFIG[status].shortLabel, { exact: true }), status);
-		await memberCard.getByRole("button", { name: "Atur", exact: true }).click();
+		await memberCard.click();
 		const settingsDrawer = page.getByRole("dialog", { name: "Color Test" });
 		await settingsDrawer.getByRole("tab", { name: "Akses halaman", exact: true }).click();
 		for (const status of ["BARANG_DITERIMA", "SEDANG_DIPACKING", "TERPASANG_DIGUNAKAN", "DALAM_PROSES_RETUR"]) {
