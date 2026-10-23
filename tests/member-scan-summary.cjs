@@ -11,10 +11,13 @@ registerHooks({
 			url: "data:text/javascript," + encodeURIComponent(`
 				export const ppicSession = async () => globalThis.summarySession ?? null;
 				export const clickUpUserId = async () => {
-					globalThis.summaryIdentityCalls = (globalThis.summaryIdentityCalls ?? 0) + 1;
-					return globalThis.summaryActor;
+					globalThis.summaryClickUpCalls++;
+					throw new Error('ClickUp identity lookup must not run');
 				};
-				export const panelChannelMembers = async () => ({ ok: true, members: [{ id: 'member', name: 'Member' }] });
+				export const panelChannelMembers = async () => {
+					globalThis.summaryClickUpCalls++;
+					throw new Error('ClickUp member lookup must not run');
+				};
 			`), shortCircuit: true,
 		};
 		return nextResolve(specifier.startsWith("@/")
@@ -29,8 +32,8 @@ const { GET } = require("../src/app/api/panel/members/summary/route.ts");
 const request = (query = "user_id=member") => new Request(`http://localhost/api/panel/members/summary?${query}`);
 
 (async () => {
-	await db.execute("CREATE TABLE ppic_permissions (clickup_user_id TEXT, role TEXT)");
-	await db.execute("INSERT INTO ppic_permissions VALUES ('admin', 'SUPER_ADMIN'), ('member', 'MEMBER')");
+	await db.execute("CREATE TABLE ppic_permissions (clickup_user_id TEXT, role TEXT, allowed_status TEXT, active INTEGER)");
+	await db.execute("INSERT INTO ppic_permissions VALUES ('admin', 'SUPER_ADMIN', NULL, 1), ('member', 'MEMBER', 'BARANG_DITERIMA', 1), ('inactive', 'MEMBER', NULL, 0)");
 	await db.execute("CREATE TABLE ppic_scan_history (clickup_user_id TEXT, status TEXT, scanned_at TEXT)");
 	const add = (date, status = "BARANG_DITERIMA", user = "member") => db.execute({
 		sql: "INSERT INTO ppic_scan_history VALUES (?, ?, ?)", args: [user, status, date],
@@ -55,6 +58,11 @@ const request = (query = "user_id=member") => new Request(`http://localhost/api/
 	assert.equal(seven.lastScannedAt, "2026-10-23T02:00:00.000Z");
 	assert.equal(seven.days.reduce((sum, day) => sum + day.count, 0), seven.total);
 	assert.equal(seven.statuses.reduce((sum, bucket) => sum + bucket.count, 0), seven.total);
+	const thirty = await getPpicMemberScanSummary("member", "30", now);
+	assert.equal(thirty.days[0].date, "2026-09-24");
+	assert.equal(thirty.days.length, 30);
+	assert.equal(thirty.total, 6);
+	assert.equal(thirty.previousTotal, 0);
 	const month = await getPpicMemberScanSummary("member", "month", now);
 	assert.equal(month.days[0].date, "2026-10-01");
 	assert.equal(month.days.length, 23);
@@ -74,42 +82,48 @@ const request = (query = "user_id=member") => new Request(`http://localhost/api/
 	assert.equal(old.total, 0);
 	assert.equal(old.lastScannedAt, "2026-01-01T00:00:00.000Z");
 
+	global.summaryClickUpCalls = 0;
+	let outboundCalls = 0;
+	global.fetch = async () => { outboundCalls++; throw new Error("Summary must not make outbound HTTP requests"); };
+	global.summarySession = null;
+	assert.equal((await GET(request())).status, 401, "missing or invalid signed session is rejected without token fallback");
 	global.summarySession = { user_id: "admin", role: "SUPER_ADMIN" };
-	global.summaryActor = null;
-	global.summaryIdentityCalls = 0;
-	assert.equal((await GET(request())).status, 200);
-	assert.equal(global.summaryIdentityCalls, 0, "signed-session identity skips the separate ClickUp user lookup");
+	assert.equal((await GET(request())).status, 200, "signed identity and current database admin role allow access");
 	await db.execute("UPDATE ppic_permissions SET role = 'MEMBER' WHERE clickup_user_id = 'admin'");
 	assert.equal((await GET(request())).status, 403, "cached admin session cannot bypass fresh database role checks");
-	assert.equal(global.summaryIdentityCalls, 0);
 	await db.execute("UPDATE ppic_permissions SET role = 'SUPER_ADMIN' WHERE clickup_user_id = 'admin'");
+	global.summarySession = { user_id: "admin", role: "MEMBER" };
+	assert.equal((await GET(request())).status, 200, "current database role overrides a stale member role");
 	global.summarySession = { user_id: "member", role: "SUPER_ADMIN" };
-	global.summaryActor = "admin";
-	assert.equal((await GET(request())).status, 403, "session role is not used as authorization");
-	assert.equal(global.summaryIdentityCalls, 0, "a denied session must not switch to a different token identity");
-	global.summarySession = null;
-	assert.equal((await GET(request())).status, 200);
-	assert.equal(global.summaryIdentityCalls, 1, "missing or invalid sessions retain the token identity fallback");
-
-	global.summaryActor = null;
-	assert.equal((await GET(request())).status, 401);
-	global.summaryActor = "member";
-	assert.equal((await GET(request())).status, 403);
-	global.summaryActor = "admin";
-	for (const query of ["", "user_id=", "user_id=member&period=all", "user_id=member&period=30", "user_id=member&period=7%20"])
+	assert.equal((await GET(request())).status, 403, "session role alone cannot grant admin access");
+	global.summarySession = { user_id: "outsider", role: "SUPER_ADMIN" };
+	assert.equal((await GET(request())).status, 403, "deleted or unknown local actor is denied");
+	global.summarySession = { user_id: "admin", role: "SUPER_ADMIN" };
+	for (const query of ["", "user_id=", "user_id=member&period=all", "user_id=member&period=7%20"])
 		assert.equal((await GET(request(query))).status, 400);
 	assert.equal((await GET(request("user_id=outsider"))).status, 404);
-	for (const period of ["7", "month"]) {
+	await db.execute("DELETE FROM ppic_permissions WHERE clickup_user_id = 'member'");
+	assert.equal((await GET(request())).status, 404, "history alone does not authorize an unknown local target");
+	await db.execute("INSERT INTO ppic_permissions VALUES ('member', 'MEMBER', 'BARANG_DITERIMA', 1)");
+	const inactiveResponse = await GET(request("user_id=inactive"));
+	assert.equal(inactiveResponse.status, 200, "inactive local members remain viewable");
+	assert.equal((await inactiveResponse.json()).total, 0);
+	assert.equal((await GET(request("user_id=admin"))).status, 200, "local admins remain viewable");
+	for (const period of ["7", "30", "month"]) {
 		const response = await GET(request(`user_id=member&period=${period}`));
 		assert.equal(response.status, 200);
 		assert.equal(response.headers.get("cache-control"), "private, no-store");
-		assert.ok(Array.isArray((await response.json()).days));
+		const summary = await response.json();
+		assert.ok(Array.isArray(summary.days));
+		if (period !== "month") assert.equal(summary.days.length, Number(period));
 	}
 	await db.execute("UPDATE ppic_permissions SET role = 'MEMBER' WHERE clickup_user_id = 'admin'");
 	assert.equal((await GET(request())).status, 403, "revoked admin loses access immediately");
 	await db.execute("UPDATE ppic_permissions SET role = 'SUPER_ADMIN' WHERE clickup_user_id = 'admin'");
 	await db.execute("DROP TABLE ppic_scan_history");
 	assert.equal((await GET(request())).status, 502);
+	assert.equal(global.summaryClickUpCalls, 0, "no identity or member lookup reaches ClickUp");
+	assert.equal(outboundCalls, 0, "no outbound HTTP requests across success and error paths");
 	db.close();
-	console.log("Member scan summary: calendar boundaries, status totals, isolation, signed-session identity, token fallback and fresh API authorization passed.");
+	console.log("Member scan summary: all periods, calendar boundaries, status totals, signed-session identity, fresh database authorization, local targets and zero ClickUp/outbound calls passed.");
 })().catch((error) => { console.error(error); process.exitCode = 1; });

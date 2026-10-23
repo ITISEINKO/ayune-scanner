@@ -39,9 +39,13 @@ export function MemberScanOverview({ memberId }: { memberId?: string }) {
 	const peak = data?.days.reduce((best, day) =>
 		day.count > best.count ? day : best,
 	);
-	const statusData = data?.statuses
-		.filter(({ count }) => count > 0)
-		.map((bucket) => ({ ...bucket, fill: STATUS_COLOR_CONFIG[bucket.status].color })) ?? [];
+	const statusData =
+		data?.statuses
+			.filter(({ count }) => count > 0)
+			.map((bucket) => ({
+				...bucket,
+				fill: STATUS_COLOR_CONFIG[bucket.status].color,
+			})) ?? [];
 	const change = data?.previousTotal
 		? Math.round(((data.total - data.previousTotal) / data.previousTotal) * 100)
 		: null;
@@ -126,12 +130,12 @@ export function MemberScanOverview({ memberId }: { memberId?: string }) {
 										? "Sepanjang waktu"
 										: change === null
 											? "Periode sebelumnya: 0"
-											: `${change > 0 ? "+" : ""}${change}% vs periode sebelumnya`}
+											: `${change > 0 ? "+" : ""}${change}% vs ${data.days.length} hari sebelumnya`}
 								</p>
 							</section>
 							<section className="rounded-2xl border border-border/30 bg-card p-4">
 								<h3 className="text-xs text-muted-foreground">
-									{memberId ? "Hari ini" : "Total scan"}
+									{memberId ? "Hari ini (sementara)" : "Total scan"}
 								</h3>
 								<p className="mt-1 text-3xl font-bold tabular-nums">
 									{(memberId ? data.today : data.total).toLocaleString("id-ID")}
@@ -191,7 +195,7 @@ export function MemberScanOverview({ memberId }: { memberId?: string }) {
 												{day.count}
 											</span>
 											<div
-												className={`w-full max-w-9 rounded-t-md ${index === data.days.length - 1 ? "bg-primary" : "bg-muted-foreground/30"}`}
+												className={`w-full max-w-9 rounded-t-md ${index === data.days.length - 1 ? "bg-accent" : "bg-muted"}`}
 												style={{
 													height: `${(day.count / Math.max(1, peak?.count ?? 0)) * 96}px`,
 													minHeight: 2,
@@ -205,16 +209,28 @@ export function MemberScanOverview({ memberId }: { memberId?: string }) {
 								</div>
 							</div>
 						</section>
-						<section className="rounded-2xl border border-border/30 bg-card p-4" aria-label="Ringkasan scan per status">
+						<section
+							className="rounded-2xl border border-border/30 bg-card p-4"
+							aria-label="Ringkasan scan per status"
+						>
 							<h3 className="mb-4 font-bold">
 								{memberId ? "Scan per status" : "Total scan per status"}
 							</h3>
 							<div className="flex items-center gap-4">
 								<div className="relative size-32 shrink-0">
-									<ChartContainer config={STATUS_COLOR_CONFIG} className="size-32 aspect-square" initialDimension={{ width: 128, height: 128 }} aria-hidden="true">
+									<ChartContainer
+										config={STATUS_COLOR_CONFIG}
+										className="size-32 aspect-square"
+										initialDimension={{ width: 128, height: 128 }}
+										aria-hidden="true"
+									>
 										<PieChart accessibilityLayer={false}>
 											<Pie
-												data={statusData.length ? statusData : [{ count: 1, fill: "var(--muted)" }]}
+												data={
+													statusData.length
+														? statusData
+														: [{ count: 1, fill: "var(--muted)" }]
+												}
 												dataKey="count"
 												nameKey="status"
 												innerRadius={42}
@@ -227,33 +243,48 @@ export function MemberScanOverview({ memberId }: { memberId?: string }) {
 										</PieChart>
 									</ChartContainer>
 									<div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-										<p className="max-w-20 truncate text-xl font-bold tabular-nums" aria-label={`Total ${data.total.toLocaleString("id-ID")} scan pada periode ini`}>
+										<p
+											className="max-w-20 truncate text-xl font-bold tabular-nums"
+											aria-label={`Total ${data.total.toLocaleString("id-ID")} scan pada periode ini`}
+										>
 											{data.total.toLocaleString("id-ID")}
 										</p>
-										<p className="text-[10px] text-muted-foreground">total scan</p>
+										<p className="text-[10px] text-muted-foreground">
+											total scan
+										</p>
 									</div>
 								</div>
 								<ul className="min-w-0 flex-1 space-y-3">
 									{statusData.map(({ status, count, fill }) => (
 										<li key={status} className="flex items-start gap-2 text-xs">
-											<span aria-hidden="true" className="mt-1 size-2 shrink-0 rounded-full" style={{ backgroundColor: fill }} />
+											<span
+												aria-hidden="true"
+												className="mt-1 size-2 shrink-0 rounded-full"
+												style={{ backgroundColor: fill }}
+											/>
 											<div className="min-w-0">
 												<p>{STATUS_COLOR_CONFIG[status].shortLabel}</p>
 												<p className="tabular-nums text-muted-foreground">
-													<strong className="font-semibold text-foreground">{count.toLocaleString("id-ID")}</strong>
+													<strong className="font-semibold text-foreground">
+														{count.toLocaleString("id-ID")}
+													</strong>
 													{` · ${Math.round((count / data.total) * 100)}%`}
 												</p>
 											</div>
 										</li>
 									))}
 								</ul>
-								{!statusData.length && <p className="text-xs text-muted-foreground">Belum ada scan.</p>}
+								{!statusData.length && (
+									<p className="text-xs text-muted-foreground">
+										Belum ada scan.
+									</p>
+								)}
 							</div>
 						</section>
 						<p className="text-xs text-muted-foreground">
 							Berdasarkan scan berhasil yang tercatat. Waktu dalam WIB;{" "}
 							{memberId
-								? `perbandingan dengan ${data.days.length} hari sebelumnya.`
+								? `periode ini mencakup hari ini yang belum selesai, dibandingkan dengan ${data.days.length} hari penuh sebelumnya.`
 								: "grafik dan status untuk 7 hari terakhir."}
 						</p>
 					</>

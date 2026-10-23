@@ -48,7 +48,7 @@ async function main() {
 				const period = url.searchParams.get("period");
 				summaryPeriods.push(period);
 				if (summaryMode === "error") return route.fulfill({ status: 502, json: { error: "DATABASE_ERROR" } });
-				const days = period === "7" ? 7 : 23;
+				const days = period === "month" ? 23 : Number(period);
 				const counts = summaryMode === "empty" ? Array(days).fill(0) : Array.from({ length: days }, (_, index) => index + 1);
 				const total = counts.reduce((sum, count) => sum + count, 0);
 				return route.fulfill({ json: {
@@ -137,13 +137,19 @@ async function main() {
 		await expect(settingsDrawer.getByRole("heading", { name: "Total scan", exact: true }).locator("..")).toContainText("28");
 		await expect(settingsDrawer.getByRole("button", { name: "Simpan", exact: true })).toHaveCount(0);
 		await page.screenshot({ path: "test-results/settings-member-overview-mobile.png", animations: "disabled" });
-		await expect(settingsDrawer.locator('[aria-label="Periode ringkasan"]').getByRole("button")).toHaveCount(2);
-		await expect(settingsDrawer.getByRole("button", { name: "30 hari", exact: true })).toHaveCount(0);
+		await expect(settingsDrawer.getByRole("heading", { name: "Hari ini (sementara)", exact: true })).toBeVisible();
+		await expect(settingsDrawer.getByText("+180% vs 7 hari sebelumnya", { exact: true })).toBeVisible();
+		await expect(settingsDrawer.getByText(/periode ini mencakup hari ini yang belum selesai, dibandingkan dengan 7 hari penuh sebelumnya/)).toBeVisible();
+		await expect(settingsDrawer.locator('[aria-label="Periode ringkasan"]').getByRole("button")).toHaveCount(3);
+		await settingsDrawer.getByRole("button", { name: "30 hari", exact: true }).click();
+		await expect(settingsDrawer.getByRole("heading", { name: "Total scan", exact: true }).locator("..")).toContainText("465");
+		await expect(settingsDrawer.getByRole("region", { name: /Grafik scan harian/ }).locator("[aria-label$='scan']")).toHaveCount(30);
 		await settingsDrawer.getByRole("button", { name: "Bulan ini", exact: true }).click();
 		await expect(settingsDrawer.getByRole("heading", { name: "Total scan", exact: true }).locator("..")).toContainText("276");
 		await expect(settingsDrawer.getByRole("region", { name: /Grafik scan harian/ }).locator("[aria-label$='scan']")).toHaveCount(23);
 		assert.ok(await settingsDrawer.getByRole("region", { name: /Grafik scan harian/ }).evaluate((element) => element.scrollWidth > element.clientWidth));
-		assert.deepEqual(summaryPeriods.slice(0, 2), ["7", "month"]);
+		await expect(settingsDrawer.getByText(/dibandingkan dengan 23 hari penuh sebelumnya/)).toBeVisible();
+		assert.deepEqual(summaryPeriods.slice(0, 3), ["7", "30", "month"]);
 		await settingsDrawer.getByRole("tab", { name: "Akses halaman", exact: true }).click();
 		for (const status of ["BARANG_DITERIMA", "SEDANG_DIPACKING", "TERPASANG_DIGUNAKAN", "DALAM_PROSES_RETUR"]) {
 			const dot = settingsDrawer.locator("label").filter({ hasText: STATUS_COLOR_CONFIG[status].label }).locator("span").first();

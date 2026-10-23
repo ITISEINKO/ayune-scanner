@@ -2,15 +2,19 @@
 
 `GET /api/panel/members/summary?user_id=<ClickUp member ID>&period=7`
 
-Requires the existing `clickup_access_token` cookie. The caller must currently
-have the `SUPER_ADMIN` database role; the target must be in the panel member list.
-No writes. Responses use `Cache-Control: private, no-store`.
+Requires a valid signed `ppic_session` cookie. The session supplies identity only;
+the caller must currently have the `SUPER_ADMIN` role in `ppic_permissions`, checked
+on every request. A stale session role cannot bypass a revoked local admin role.
+Missing or invalid sessions return 401 without a ClickUp token fallback.
 
-Identity uses the verified, signed `ppic_session` when available, avoiding the
-separate ClickUp user lookup. Missing or invalid sessions fall back to the existing
-token identity lookup. The database admin role is checked on every request;
-the session's role does not authorize access. Panel member validation still uses
-the existing 60-second cache and can call ClickUp when that cache expires.
+The target must have a local `ppic_permissions` record. Inactive members and
+admins remain viewable; a ClickUp-only member without a local record returns 404.
+This endpoint makes no ClickUp calls and performs no writes. Responses use
+`Cache-Control: private, no-store`.
+
+ClickUp-only access revocation is not checked by this endpoint; revoke the local
+admin role to block subsequent summary requests. Settings member-list loading,
+profile details, and session refresh retain their separate ClickUp calls.
 
 `user_id` is required. `period` is `7` (default), `30`, or `month`.
 Periods include today and use Asia/Jakarta calendar days. `month` starts on the
@@ -31,8 +35,7 @@ Repeated scans count as separate events. Future timestamps are excluded.
 This reports scan history, not current component inventory or manual status edits.
 
 Errors: 400 `INVALID_SUMMARY_FILTER`, 401 `UNAUTHORIZED`, 403 `FORBIDDEN`,
-404 `MEMBER_NOT_FOUND`, 502 `DATABASE_ERROR`. Panel member lookup failures return
-`MEMBERS_UNAVAILABLE` with the upstream helper's 401, 403, or 502 status.
+404 `MEMBER_NOT_FOUND` (no local target record), 502 `DATABASE_ERROR`.
 
 Local regression check with an in-memory database and session boundary stub:
 
