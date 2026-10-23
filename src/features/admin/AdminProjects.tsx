@@ -130,6 +130,11 @@ export const AdminProjects = () => {
 					<TabsTrigger value="to do">Todo</TabsTrigger>
 				</TabsList>
 				<TabsContent value={tab}>
+					<p className="mb-4 text-sm text-muted-foreground">
+						{tab === "in progress"
+							? "Project yang sedang dikerjakan. Pilih project untuk melihat detail dan progresnya."
+							: "Project yang belum dimulai. Pilih project untuk mengonfirmasi dan mulai pengerjaan."}
+					</p>
 					<div className="mb-4 flex items-center justify-between">
 						<h2
 							id="ongoing-projects"
