@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { Check, Search, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -19,39 +19,17 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePanelMembers } from "@/hooks/use-panel-members";
 import { PPIC_STATUSES } from "@/types/ppic";
+import {
+	STATUS_BADGE_CLASS_NAME,
+	STATUS_COLOR_CONFIG,
+} from "@/lib/colorStatusConfig";
 import type { PanelMember } from "@/types/clickup";
 import type { PpicRole, PpicStatus, PpicStatuses } from "@/types/ppic";
 
-const statusOptions = [
-	{
-		status: PPIC_STATUSES[0],
-		label: "Barang Diterima",
-		shortLabel: "Diterima",
-		variant: "green",
-		dot: "bg-emerald-600",
-	},
-	{
-		status: PPIC_STATUSES[1],
-		label: "Sedang Dipacking",
-		shortLabel: "Dipacking",
-		variant: "blue",
-		dot: "bg-blue-600",
-	},
-	{
-		status: PPIC_STATUSES[2],
-		label: "Terpasang / Digunakan",
-		shortLabel: "Terpasang",
-		variant: "purple",
-		dot: "bg-violet-600",
-	},
-	{
-		status: PPIC_STATUSES[3],
-		label: "Dalam Proses Retur",
-		shortLabel: "Retur",
-		variant: "destructive",
-		dot: "bg-red-600",
-	},
-] as const;
+const statusOptions = PPIC_STATUSES.map((status) => ({
+	status,
+	...STATUS_COLOR_CONFIG[status],
+}));
 
 export const SettingPage = () => {
 	const {
@@ -213,7 +191,7 @@ export const SettingPage = () => {
 			</header>
 
 			<section className="p-4">
-				<div className="flex gap-2 overflow-x-auto pb-1">
+				<div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
 					<Button
 						type="button"
 						size="sm"
@@ -228,8 +206,14 @@ export const SettingPage = () => {
 							key={option.status}
 							type="button"
 							size="sm"
-							variant={statusFilter === option.status ? "default" : "outline"}
-							className="rounded-full font-medium"
+							variant="outline"
+							className={`rounded-full font-medium ${statusFilter === option.status ? STATUS_BADGE_CLASS_NAME : ""}`}
+							style={
+								{
+									"--status-color": option.color,
+									"--status-text-color": option.textColor,
+								} as CSSProperties
+							}
 							onClick={() => setStatusFilter(option.status)}
 						>
 							{option.shortLabel}
@@ -299,10 +283,16 @@ export const SettingPage = () => {
 										return (
 											<Badge
 												key={option.status}
-												variant={active ? option.variant : "outline"}
+												variant="outline"
+												style={
+													{
+														"--status-color": option.color,
+														"--status-text-color": option.textColor,
+													} as CSSProperties
+												}
 												className={
 													active
-														? undefined
+														? STATUS_BADGE_CLASS_NAME
 														: "border-dashed text-muted-foreground"
 												}
 											>
@@ -387,7 +377,10 @@ export const SettingPage = () => {
 											key={option.status}
 											className="flex min-h-16 items-center gap-3 py-3"
 										>
-											<span className={`size-2.5 rounded-full ${option.dot}`} />
+											<span
+												className="size-2.5 rounded-full"
+												style={{ backgroundColor: option.color }}
+											/>
 											<span className="flex-1">{option.label}</span>
 											<Checkbox
 												checked={draftStatuses.includes(option.status)}

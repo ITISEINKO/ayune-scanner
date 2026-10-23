@@ -1,0 +1,4 @@
+version: 1
+name: admin-dashboard-clickup
+interceptRequests: true
+mockSrc: default.js

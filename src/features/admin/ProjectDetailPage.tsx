@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
+import { toast } from "sonner";
 import { Label, Pie, PieChart } from "recharts";
 import {
 	CalendarDays,
 	ChevronLeft,
+	ChevronRight,
 	RefreshCw,
 	ScanLine,
 	Timer,
@@ -14,7 +16,21 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ChartContainer, type ChartConfig } from "@/components/ui/chart";
+import { ChartContainer } from "@/components/ui/chart";
+import {
+	STATUS_BADGE_CLASS_NAME,
+	STATUS_COLOR_CONFIG,
+} from "@/lib/colorStatusConfig";
+import {
+	Drawer,
+	DrawerClose,
+	DrawerContent,
+	DrawerDescription,
+	DrawerFooter,
+	DrawerHeader,
+	DrawerTitle,
+	DrawerTrigger,
+} from "@/components/ui/drawer";
 import { applyProjectStatusChanges } from "@/lib/projectStatus";
 import { elapsedLabel, scanWindow } from "@/lib/projectTimeline";
 import { statusBarangScanOptions } from "@/lib/produksiPanel";
@@ -49,25 +65,20 @@ const trackingStatuses = [
 	"BARANG_DITERIMA",
 	"SEDANG_DIPACKING",
 	"TERPASANG_DIGUNAKAN",
+	"DALAM_PROSES_RETUR",
 	"OTHER",
 ] as const;
-const statusColors: Record<(typeof trackingStatuses)[number], string> = {
-	UNSCANNED: "bg-[#d9e7f2]",
-	BARANG_DITERIMA: "bg-[#e8d4a8]",
-	SEDANG_DIPACKING: "bg-[#c8b8df]",
-	TERPASANG_DIGUNAKAN: "bg-[#6f9276]",
-	OTHER: "bg-[#9a8f78]",
-};
-const trackingChartConfig = {
-	UNSCANNED: { label: "Belum scan", color: "#d9e7f2" },
-	BARANG_DITERIMA: { label: "Barang Diterima", color: "#e8d4a8" },
-	SEDANG_DIPACKING: { label: "Sedang Dipacking", color: "#c8b8df" },
-	TERPASANG_DIGUNAKAN: {
-		label: "Terpasang / Digunakan",
-		color: "#6f9276",
-	},
-	OTHER: { label: "Status lainnya", color: "#9a8f78" },
-} satisfies ChartConfig;
+const trackingStatusOf = (status: string | null) =>
+	!status
+		? "UNSCANNED"
+		: trackingStatuses.includes(status as (typeof trackingStatuses)[number])
+			? (status as (typeof trackingStatuses)[number])
+			: "OTHER";
+
+const isSupportingGroup = (name: string) =>
+	["MATERIAL REQUISITION FORM", "HARDWARE LIST"].includes(
+		name.trim().replace(/\s+/g, " ").toUpperCase(),
+	);
 
 const countsFor = (
 	components: ProjectDashboard["items"][number]["components"],
@@ -76,17 +87,136 @@ const countsFor = (
 		trackingStatuses.map((status) => [status, 0]),
 	);
 	for (const component of components) {
-		const status = !component.status
-			? "UNSCANNED"
-			: trackingStatuses.includes(
-						component.status as (typeof trackingStatuses)[number],
-				  )
-				? (component.status as (typeof trackingStatuses)[number])
-				: "OTHER";
+		const status = trackingStatusOf(component.status);
 		counts.set(status, (counts.get(status) ?? 0) + 1);
 	}
 	return counts;
 };
+
+function GroupStatusBar({ counts }: { counts: ReturnType<typeof countsFor> }) {
+	return (
+		<span
+			role="img"
+			aria-label={trackingStatuses
+				.map(
+					(status) =>
+						`${STATUS_COLOR_CONFIG[status].label}: ${counts.get(status) ?? 0}`,
+				)
+				.join(", ")}
+			className="flex h-2.5 w-full overflow-hidden rounded-full bg-muted"
+		>
+			{[
+				...trackingStatuses.filter((status) => status !== "UNSCANNED"),
+				"UNSCANNED" as const,
+			]
+				.filter((status) => (counts.get(status) ?? 0) > 0)
+				.map((status) => {
+					const color = STATUS_COLOR_CONFIG[status];
+					return (
+						<span
+							key={status}
+							aria-hidden="true"
+							style={{
+								flex: counts.get(status),
+								backgroundColor:
+									"progressColor" in color ? color.progressColor : color.color,
+							}}
+						/>
+					);
+				})}
+		</span>
+	);
+}
+
+function GroupComponentList({
+	components,
+	supporting,
+}: {
+	components: ProjectDashboard["items"][number]["components"];
+	supporting: boolean;
+}) {
+	const [showUnscannedOnly, setShowUnscannedOnly] = useState(false);
+	const unscannedCount = components.filter(
+		(component) => trackingStatusOf(component.status) === "UNSCANNED",
+	).length;
+	const visibleComponents = showUnscannedOnly
+		? components.filter(
+				(component) => trackingStatusOf(component.status) === "UNSCANNED",
+			)
+		: components;
+	return (
+		<>
+			{!supporting && (
+				<div className="shrink-0 px-4 py-3">
+					<Button
+						type="button"
+						variant={showUnscannedOnly ? "secondary" : "outline"}
+						size="sm"
+						aria-pressed={showUnscannedOnly}
+						disabled={!unscannedCount}
+						onClick={() => setShowUnscannedOnly((show) => !show)}
+					>
+						{showUnscannedOnly
+							? "Tampilkan semua item"
+							: `Belum discan (${unscannedCount})`}
+					</Button>
+				</div>
+			)}
+			<ul className="min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain p-4">
+				{visibleComponents.map((component) => {
+					const status = trackingStatusOf(component.status);
+					const presentation = STATUS_COLOR_CONFIG[status];
+					return (
+						<li
+							key={component.id}
+							className="flex items-center gap-3 rounded-2xl bg-card px-3 py-3"
+						>
+							{!supporting && (
+								<span
+									aria-hidden="true"
+									className="size-2.5 shrink-0 rounded-full"
+									style={{ backgroundColor: presentation.color }}
+								/>
+							)}
+							<div className="min-w-0 flex-1">
+								<p className="wrap-break-word text-sm font-bold">
+									{component.serialNumber ?? component.name}
+								</p>
+								{component.serialNumber &&
+									component.serialNumber !== component.name && (
+										<p className="wrap-break-word text-xs text-muted-foreground">
+											{component.name}
+										</p>
+									)}
+							</div>
+							{!supporting && (
+								<Badge
+									variant="outline"
+									style={
+										{
+											"--status-color": presentation.color,
+											"--status-text-color": presentation.textColor,
+										} as CSSProperties
+									}
+									className={`h-auto max-w-[42%] rounded-full px-2 py-1 text-[10px] whitespace-normal ${STATUS_BADGE_CLASS_NAME}`}
+								>
+									{presentation.shortLabel}
+								</Badge>
+							)}
+						</li>
+					);
+				})}
+				{!visibleComponents.length && (
+					<li className="py-3 text-sm text-muted-foreground">
+						{showUnscannedOnly
+							? "Tidak ada item yang belum discan."
+							: "Belum ada item pada subtask ini."}
+					</li>
+				)}
+			</ul>
+		</>
+	);
+}
 
 export const ProjectDetailPage = ({
 	dashboard,
@@ -99,21 +229,30 @@ export const ProjectDetailPage = ({
 	const [isSyncing, setIsSyncing] = useState(false);
 	const router = useRouter();
 	const syncDashboard = async () => {
-		if (isSyncing) return;
+		if (isSyncing || !currentDashboard) return;
 		setIsSyncing(true);
 		try {
-			const response = await fetch("/api/project/sync", { method: "POST" });
+			const response = await fetch("/api/project/sync", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ task_id: currentDashboard.project.task_id }),
+			});
 			if (!response.ok) throw new Error("SYNC_FAILED");
-			router.refresh();
+			const result = (await response.json()) as { dashboard: ProjectDashboard };
+			setCurrentDashboard(result.dashboard);
+			toast.success("Status berhasil diperbarui.");
 		} catch {
+			toast.error("Gagal memperbarui status", {
+				description: "Data terakhir tetap ditampilkan. Coba lagi.",
+			});
 		} finally {
 			setIsSyncing(false);
 		}
 	};
 	useEffect(() => setCurrentDashboard(dashboard), [dashboard]);
 	useEffect(() => {
-		if (!dashboard) return;
-		let since = dashboard.statusUpdatedAt;
+		if (!currentDashboard) return;
+		let since = currentDashboard.statusUpdatedAt;
 		let delay = 10_000;
 		let timer: number | undefined;
 		let stopped = false;
@@ -125,13 +264,14 @@ export const ProjectDetailPage = ({
 			}
 			try {
 				const response = await fetch(
-					`/api/project/changes?project=${encodeURIComponent(dashboard.project.task_id)}&since=${since}`,
+					`/api/project/changes?project=${encodeURIComponent(currentDashboard.project.task_id)}&since=${since}`,
 					{ cache: "no-store" },
 				);
 				if (!response.ok) throw new Error("STATUS_POLL_FAILED");
 				const { changes = [] } = (await response.json()) as {
 					changes?: ProjectStatusChange[];
 				};
+				if (stopped) return;
 				if (changes?.length) {
 					since = Math.max(...changes.map((change) => change.updatedAt));
 					setCurrentDashboard((current) =>
@@ -157,7 +297,7 @@ export const ProjectDetailPage = ({
 			if (timer !== undefined) window.clearTimeout(timer);
 			document.removeEventListener("visibilitychange", onVisibilityChange);
 		};
-	}, [dashboard]);
+	}, [currentDashboard?.project.task_id, currentDashboard?.syncedAt]);
 
 	if (!currentDashboard)
 		return (
@@ -166,35 +306,66 @@ export const ProjectDetailPage = ({
 					← Kembali ke project
 				</Link>
 				<p className="mt-6 text-sm text-destructive">{error}</p>
+				<Button className="mt-3" onClick={() => router.refresh()}>
+					Coba lagi
+				</Button>
 			</main>
 		);
 
 	const { project, items, recentHistory, memberContribution, memberNames } =
 		currentDashboard;
-	const components = items.flatMap((item) => item.components);
+	const components = items
+		.filter((item) => !isSupportingGroup(item.name))
+		.flatMap((item) => item.components);
 	const statusTotals = countsFor(components);
 	const totalComponents = components.length;
 	const completedComponents = statusTotals.get("TERPASANG_DIGUNAKAN") ?? 0;
-	const progressPercent = totalComponents
-		? Math.round((completedComponents / totalComponents) * 100)
-		: 0;
 	const trackingChartData = trackingStatuses
-		.map((status) => ({
-			status,
-			value: statusTotals.get(status) ?? 0,
-			fill: trackingChartConfig[status].color,
-		}))
+		.map((status) => {
+			const color = STATUS_COLOR_CONFIG[status];
+			return {
+				status,
+				value: statusTotals.get(status) ?? 0,
+				fill: "progressColor" in color ? color.progressColor : color.color,
+			};
+		})
 		.filter(({ value }) => value > 0);
-	const itemRows = items.map((item) => ({
-		...item,
-		counts: countsFor(item.components),
-		complete:
-			item.components.length > 0 &&
-			item.components.every(
-				(component) => component.status === "TERPASANG_DIGUNAKAN",
-			),
-	}));
-	const completedItems = itemRows.filter((item) => item.complete).length;
+	const itemRows = items
+		.map((item) => {
+			const counts = countsFor(item.components);
+			const total = item.components.length;
+			const remaining = counts.get("UNSCANNED") ?? 0;
+			const parts = item.name.split("+").map((part) => part.trim());
+			const hasMetadata =
+				parts.length === 3 && /^\d+(?:[.,]\d+)?$/.test(parts[2]);
+			const title = hasMetadata
+				? parts[0]
+						.split("-")
+						.map((word, index) =>
+							index === 0
+								? word
+								: word.charAt(0).toUpperCase() + word.slice(1).toLowerCase(),
+						)
+						.join(" ")
+				: item.name;
+			const tags = hasMetadata ? [parts[1], `${parts[2]} mm`] : [];
+			return {
+				...item,
+				supporting: isSupportingGroup(item.name),
+				counts,
+				total,
+				remaining,
+				scanned: total - remaining,
+				title,
+				tags,
+				label: [title, ...tags].join(" · "),
+			};
+		})
+		.sort(
+			(a, b) =>
+				Number(a.supporting) - Number(b.supporting) ||
+				b.remaining - a.remaining,
+		);
 
 	return (
 		<main className="mx-auto min-h-dvh max-w-lg  bg-muted ">
@@ -232,14 +403,12 @@ export const ProjectDetailPage = ({
 				<h1 className="mt-5  text-2xl font-extrabold leading-tight tracking-tight text-primary-foreground">
 					{project.name ?? "Tanpa nama"}
 				</h1>
-				<div className="mt-5 flex items-end gap-2">
-					<strong className="text-7xl leading-none tracking-tight text-primary-foreground">
-						{completedComponents}
-					</strong>
-					<span className="pb-1 text-xl font-bold text-primary-foreground/80">
-						/ {totalComponents}
-					</span>
-				</div>
+				{currentDashboard.syncedAt && (
+					<p className="mt-2 text-xs text-primary-foreground/80">
+						Terakhir diperbarui{" "}
+						{formatDate(String(currentDashboard.syncedAt), true)}
+					</p>
+				)}
 			</header>
 
 			<div className="relative -mt-8 space-y-3 rounded-t-4xl bg-background pb-28  p-4 pt-6">
@@ -288,7 +457,7 @@ export const ProjectDetailPage = ({
 						</div>
 
 						<ChartContainer
-							config={trackingChartConfig}
+							config={STATUS_COLOR_CONFIG}
 							className="mx-auto mt-2 aspect-2/1 max-h-45 w-full max-w-90"
 						>
 							<PieChart>
@@ -341,14 +510,20 @@ export const ProjectDetailPage = ({
 							{trackingStatuses.map((status) => (
 								<div
 									key={status}
-									className="min-w-0 flex-1 basis-[calc(50%-0.25rem)] rounded-md px-3 py-2 last:basis-full"
+									className="min-w-0 flex-1 basis-[calc(50%-0.25rem)] rounded-md px-3 py-2"
 									style={{
-										backgroundColor: `${trackingChartConfig[status].color}18`,
+										backgroundColor: `color-mix(in srgb, ${STATUS_COLOR_CONFIG[status].color} 12%, transparent)`,
 									}}
 								>
 									<div className="flex items-center gap-2">
 										<span
-											className={`size-3 shrink-0 rounded-full ${statusColors[status]}`}
+											className="size-3 shrink-0 rounded-full"
+											style={{
+												backgroundColor:
+													status === "UNSCANNED"
+														? STATUS_COLOR_CONFIG.UNSCANNED.progressColor
+														: STATUS_COLOR_CONFIG[status].color,
+											}}
 										/>
 										<strong className="text-base leading-none">
 											{statusTotals.get(status) ?? 0}
@@ -361,60 +536,90 @@ export const ProjectDetailPage = ({
 							))}
 						</div>
 					</div>
-					<div className="mt-4 space-y-2">
-						{itemRows.map((row) => {
-							const total = [...row.counts.values()].reduce(
-								(sum, count) => sum + count,
-								0,
-							);
-							return (
-								<div
-									key={row.id}
-									className="space-y-2 rounded-[18px] bg-card p-3 shadow-sm"
-								>
-									<div className="flex items-baseline justify-between gap-2">
-										<p className="min-w-0 truncate text-sm font-extrabold">
-											{row.name}
-										</p>
-										<p className="shrink-0 text-xs text-muted-foreground">
-											<strong className="text-base text-foreground">
-												{row.counts.get("TERPASANG_DIGUNAKAN") ?? 0}
-											</strong>
-											/{total}
-										</p>
-									</div>
-									<div className="flex h-2 overflow-hidden rounded-full bg-muted">
-										{trackingStatuses
-											.filter((status) => (row.counts.get(status) ?? 0) > 0)
-											.map((status) => (
-												<div
-													key={status}
-													className={`rounded-sm ${statusColors[status]}`}
-													style={{ flex: row.counts.get(status) ?? 0 }}
+					<section className="mt-6" aria-label="Kelompok item">
+						<div className="mb-3 flex items-center justify-between gap-3">
+							<h2 className="text-[11px] font-medium tracking-[0.2em] text-muted-foreground uppercase">
+								Kelompok Item
+							</h2>
+						</div>
+						<div
+							className="divide-y overflow-hidden rounded-3xl bg-card"
+							aria-label="Daftar subtask"
+						>
+							{itemRows.map((row) => (
+								<Drawer key={row.id} showSwipeHandle>
+									<DrawerTrigger
+										aria-label={`Lihat detail ${row.label}`}
+										className="block w-full space-y-2 p-4 text-left hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+									>
+										<span className="flex items-start justify-between gap-3">
+											<span className="min-w-0 wrap-break-word text-sm font-bold">
+												{row.label}
+											</span>
+											<span className="flex shrink-0 items-center gap-2 text-sm tabular-nums">
+												{!row.supporting && (
+													<span>
+														<strong>{row.scanned}</strong>
+														<span className="text-muted-foreground">
+															/{row.total}
+														</span>
+													</span>
+												)}
+												<ChevronRight
+													aria-hidden="true"
+													className="size-3 text-muted-foreground"
 												/>
-											))}
-									</div>
-									<div className="grid grid-cols-5 gap-2 text-xs font-bold">
-										{trackingStatuses.map((status) => (
-											<div key={status} className="flex items-center gap-1.5">
-												<span
-													className={`size-2.5 rounded-full  ${statusColors[status]}`}
-												/>
-												{row.counts.get(status) ?? 0}
-											</div>
-										))}
-									</div>
-								</div>
-							);
-						})}
-						{!itemRows.length && (
-							<p className="p-4 text-sm text-muted-foreground">
-								Belum ada item pada project ini.
-							</p>
-						)}
-					</div>
+											</span>
+										</span>
+										<span className="flex items-center justify-between gap-2">
+											<span className="shrink-0 text-[11px] text-muted-foreground">
+												{row.supporting ? "Grup pendukung" : ``}
+											</span>
+										</span>
+										{!row.supporting && <GroupStatusBar counts={row.counts} />}
+									</DrawerTrigger>
+									<DrawerContent className="[--drawer-inset:0px]! mx-auto max-w-lg rounded-t-3xl bg-background">
+										<DrawerHeader className="gap-2 text-left!">
+											<DrawerTitle className="wrap-break-word text-lg font-bold">
+												{row.label}
+											</DrawerTitle>
+											<DrawerDescription>
+												{row.supporting ? (
+													"Grup pendukung · tidak termasuk progres scan"
+												) : (
+													<>
+														<strong className="text-foreground">
+															{row.scanned}/{row.total}
+														</strong>{" "}
+														sudah di-scan
+													</>
+												)}
+											</DrawerDescription>
+											{!row.supporting && (
+												<GroupStatusBar counts={row.counts} />
+											)}
+										</DrawerHeader>
+										<GroupComponentList
+											components={row.components}
+											supporting={row.supporting}
+										/>
+										<DrawerFooter>
+											<DrawerClose render={<Button variant="outline" />}>
+												Tutup
+											</DrawerClose>
+										</DrawerFooter>
+									</DrawerContent>
+								</Drawer>
+							))}
+							{!itemRows.length && (
+								<p className="p-4 text-sm text-muted-foreground">
+									Belum ada item pada project ini.
+								</p>
+							)}
+						</div>
+					</section>
 				</div>
-				<section className="hidden rounded-xl border bg-card p-4 shadow-sm">
+				<section className="hidden rounded-xl border bg-card p-4 shadow-xs">
 					<h2 className="text-xs font-semibold tracking-[0.2em] text-muted-foreground uppercase">
 						Riwayat scan per item
 					</h2>
@@ -455,7 +660,7 @@ export const ProjectDetailPage = ({
 					</div>
 				</section>
 
-				<section className="rounded-xl border bg-card p-4 shadow-sm">
+				<section className="rounded-xl border border-border/30 bg-card p-4 shadow-xs">
 					<h2 className="flex items-center gap-2 text-xs tracking-[0.2em] text-muted-foreground uppercase">
 						<Users aria-hidden="true" className="size-4" /> Kontribusi member
 					</h2>
@@ -472,7 +677,7 @@ export const ProjectDetailPage = ({
 					</div>
 				</section>
 
-				<section className="overflow-hidden rounded-xl border bg-card shadow-sm">
+				<section className="overflow-hidden rounded-xl border border-border/30 bg-card shadow-xs">
 					<div className="flex items-center gap-2 px-4 py-3">
 						<ScanLine aria-hidden="true" className="size-4" />
 						<h2 className="text-xs tracking-[0.2em] text-muted-foreground uppercase">

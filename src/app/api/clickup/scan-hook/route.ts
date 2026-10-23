@@ -7,8 +7,7 @@ const unauthorized = () =>
 	NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
 
 export async function POST(request: Request) {
-	const secret =
-		process.env.CLICKUP_WEBHOOK_SECRET || process.env.CLICKUP_SCAN_HOOK_SECRET;
+	const secret = process.env.CLICKUP_SCAN_HOOK_SECRET;
 	const received = request.headers.get("x-signature");
 	if (!secret || !received) return unauthorized();
 	const expectedBytes = createHmac("sha256", secret)

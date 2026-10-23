@@ -40,6 +40,7 @@ export type ProjectDashboardItem = {
 };
 
 export type ProjectDashboard = {
+	syncedAt?: number;
 	project: SelectedProject & { startDate: string | null; dueDate: string | null };
 	items: ProjectDashboardItem[];
 	recentHistory: PpicProjectScanHistory[];

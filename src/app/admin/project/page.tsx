@@ -7,6 +7,8 @@ import {
 import type { SelectedProject } from "@/types/project";
 import { redirect } from "next/navigation";
 
+export const maxDuration = 60;
+
 export default async function ProjectDetail({
 	searchParams,
 }: {

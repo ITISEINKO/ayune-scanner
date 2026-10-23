@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
 	return {
-		name: "Warehouse Scanner",
+		name: "Production Scanner",
 		short_name: "Scanner",
 		description: "Mobile production scanner",
 		start_url: "/",
