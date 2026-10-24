@@ -53,6 +53,20 @@ http.createServer((req, res) => {
 	} else if (req.method !== "GET") {
 		status = 501;
 		body = { error: "Unexpected mutation" };
+	} else if (mode?.startsWith("home") && url.pathname === "/api/v2/user") {
+		body = { user: { id: "local-admin" } };
+	} else if (mode?.startsWith("home") && url.pathname.endsWith("/members")) {
+		body = { data: [
+			{ id: "local-admin", username: "Admin" },
+			{ id: "budi", username: "Budi Contoh" },
+			{ id: "rudi", username: "Rudi Contoh" },
+			{ id: "dewi", username: "Dewi Contoh" },
+			{ id: "agus", username: "Agus Contoh" },
+			{ id: "sari", username: "Sari Contoh" },
+		] };
+	} else if (mode?.startsWith("home") && url.pathname === `/api/v2/list/${listId}/task`) {
+		status = mode === "home-error" ? 503 : 200;
+		body = mode === "home-empty" ? { tasks: [], last_page: true } : { tasks: [{ id: "project", name: "Project" }], last_page: true };
 	} else if (url.pathname === "/api/v2/task/project/time_in_status") {
 		body = { current_status: { status: "in progress", total_time: { by_minute: 60, since: "1000" } } };
 	} else if (url.pathname === "/api/v2/task/project") {

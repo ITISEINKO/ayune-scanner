@@ -20,6 +20,7 @@
 # production
 /build
 /docs/
+/user-flow/
 
 # misc
 /AGENTS.md

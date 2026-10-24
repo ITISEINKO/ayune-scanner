@@ -31,7 +31,13 @@ import {
 	DrawerTitle,
 	DrawerTrigger,
 } from "@/components/ui/drawer";
-import { applyProjectStatusChanges } from "@/lib/projectStatus";
+import {
+	applyProjectStatusChanges,
+	countsFor,
+	isSupportingGroup,
+	trackingStatuses,
+	trackingStatusOf,
+} from "@/lib/projectStatus";
 import { elapsedLabel, scanWindow } from "@/lib/projectTimeline";
 import { statusBarangScanOptions } from "@/lib/produksiPanel";
 import type { ProjectDashboard, ProjectStatusChange } from "@/types/project";
@@ -58,39 +64,6 @@ const statusLabel = (status: string) => {
 	return label
 		.toLowerCase()
 		.replace(/\b\p{L}/gu, (letter) => letter.toUpperCase());
-};
-
-const trackingStatuses = [
-	"UNSCANNED",
-	"BARANG_DITERIMA",
-	"SEDANG_DIPACKING",
-	"TERPASANG_DIGUNAKAN",
-	"DALAM_PROSES_RETUR",
-	"OTHER",
-] as const;
-const trackingStatusOf = (status: string | null) =>
-	!status
-		? "UNSCANNED"
-		: trackingStatuses.includes(status as (typeof trackingStatuses)[number])
-			? (status as (typeof trackingStatuses)[number])
-			: "OTHER";
-
-const isSupportingGroup = (name: string) =>
-	["MATERIAL REQUISITION FORM", "HARDWARE LIST"].includes(
-		name.trim().replace(/\s+/g, " ").toUpperCase(),
-	);
-
-const countsFor = (
-	components: ProjectDashboard["items"][number]["components"],
-) => {
-	const counts = new Map<(typeof trackingStatuses)[number], number>(
-		trackingStatuses.map((status) => [status, 0]),
-	);
-	for (const component of components) {
-		const status = trackingStatusOf(component.status);
-		counts.set(status, (counts.get(status) ?? 0) + 1);
-	}
-	return counts;
 };
 
 function GroupStatusBar({ counts }: { counts: ReturnType<typeof countsFor> }) {
@@ -302,7 +275,7 @@ export const ProjectDetailPage = ({
 	if (!currentDashboard)
 		return (
 			<main className="mx-auto min-h-dvh max-w-lg bg-muted/30 p-4 pb-28">
-				<Link href="/admin" className="text-sm font-semibold text-primary">
+				<Link href="/admin/projects" className="text-sm font-semibold text-primary">
 					← Kembali ke project
 				</Link>
 				<p className="mt-6 text-sm text-destructive">{error}</p>
@@ -372,7 +345,7 @@ export const ProjectDetailPage = ({
 			<header className="bg-primary px-5 pt-3 pb-16">
 				<div className="flex items-center justify-between gap-3">
 					<Link
-						href="/admin"
+						href="/admin/projects"
 						aria-label="Kembali ke project"
 						className="-ml-2 inline-flex size-10 items-center justify-center rounded-full text-primary-foreground transition-colors hover:bg-primary-foreground/10 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary-foreground/40"
 					>

@@ -3,6 +3,7 @@
 import {
 	FolderKanban,
 	History,
+	House,
 	ScanLine,
 	User,
 	Users,
@@ -13,7 +14,8 @@ import { usePathname } from "next/navigation";
 import type { PpicRole } from "@/types/ppic";
 
 const superAdminItems = [
-	{ href: "/admin", label: "Projects", icon: FolderKanban },
+	{ href: "/admin", label: "Home", icon: House },
+	{ href: "/admin/projects", label: "Projects", icon: FolderKanban },
 	{ href: "/admin/ubah-manual", label: "Scan", icon: ScanLine },
 	{ href: "/admin/settings", label: "Member", icon: Users },
 	{ href: "/admin/profile", label: "Profile", icon: User },
@@ -46,8 +48,9 @@ export function BottomNavigation({
 			className="fixed inset-x-0 bottom-0 z-50 mx-auto flex max-w-lg items-center rounded-t-2xl border border-border/70 bg-primary px-3 py-3 shadow-lg"
 		>
 			{navigationItems.map(({ href, label, icon: Icon }, index) => {
-				const active = pathname === href;
-				const className = `flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-md px-3 py-2 text-xs text-white ${
+				const active = pathname === href ||
+					(href === "/admin/projects" && pathname === "/admin/project");
+				const className = `flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-md px-1 py-2 text-xs text-white ${
 					active ? "font-bold bg-white/10" : "font-medium"
 				}`;
 				const content = (
@@ -65,7 +68,7 @@ export function BottomNavigation({
 						{index > 0 && (
 							<span
 								aria-hidden="true"
-								className="mx-2 h-7 w-px shrink-0 bg-white/10"
+								className="mx-1 h-7 w-px shrink-0 bg-white/10"
 							/>
 						)}
 						<Link
