@@ -438,10 +438,10 @@ export const getPpicScanHistory = async (
 	}));
 };
 
-export const getPpicTeamDailyScans = async (
+export const getPpicTeamScanOverview = async (
 	userIds: string[],
 	now = Date.now(),
-): Promise<TeamDailyScanDay[]> => {
+) => {
 	const dayMs = 86_400_000;
 	const jakartaOffset = 7 * 60 * 60 * 1000;
 	const today = Math.floor((now + jakartaOffset) / dayMs) * dayMs;
@@ -451,13 +451,16 @@ export const getPpicTeamDailyScans = async (
 		count: 0,
 		statuses: { BARANG_DITERIMA: 0, SEDANG_DIPACKING: 0, TERPASANG_DIGUNAKAN: 0, DALAM_PROSES_RETUR: 0, OTHER: 0 },
 	}));
-	if (!userIds.length) return days;
+	const summaries: Record<string, Pick<MemberScanSummary, "today" | "total" | "days">> = Object.fromEntries(
+		userIds.map((id) => [id, { today: 0, total: 0, days: days.slice(-7).map(({ date }) => ({ date, count: 0 })) }]),
+	);
+	if (!userIds.length) return { dailyScans: days, summaries };
 	const result = await db.execute({
-		sql: `SELECT date(scanned_at, '+7 hours') AS day, status, COUNT(*) AS count
+		sql: `SELECT clickup_user_id, date(scanned_at, '+7 hours') AS day, status, COUNT(*) AS count
 			FROM ppic_scan_history
 			WHERE clickup_user_id IN (${userIds.map(() => "?").join(", ")})
 				AND unixepoch(scanned_at) >= ? AND unixepoch(scanned_at) <= ?
-			GROUP BY day, status`,
+			GROUP BY clickup_user_id, day, status`,
 		args: [...userIds, (start - jakartaOffset) / 1000, Math.floor(now / 1000)],
 	});
 	for (const row of result.rows) {
@@ -466,8 +469,15 @@ export const getPpicTeamDailyScans = async (
 		const count = Number(row.count);
 		day.count += count;
 		day.statuses[isPpicStatus(row.status) ? row.status : "OTHER"] += count;
+		const summary = summaries[String(row.clickup_user_id)];
+		const memberDay = summary.days.find((memberDay) => memberDay.date === day.date);
+		if (memberDay) {
+			memberDay.count += count;
+			summary.total += count;
+			if (memberDay === summary.days.at(-1)) summary.today += count;
+		}
 	}
-	return days;
+	return { dailyScans: days, summaries };
 };
 
 export const getPpicMemberScanSummary = async (

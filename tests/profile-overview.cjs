@@ -29,6 +29,8 @@ const { STATUS_COLOR_CONFIG } = require("../src/lib/colorStatusConfig.ts");
 		let role = "MEMBER";
 		let mode = "normal";
 		let profileMode = "normal";
+		let displayName = "nickia habibi";
+		let email = "member@example.test";
 		let requests = 0;
 		let releaseProfile, releaseSummary;
 		let profileGate = new Promise((done) => { releaseProfile = done; });
@@ -40,7 +42,7 @@ const { STATUS_COLOR_CONFIG } = require("../src/lib/colorStatusConfig.ts");
 				await profileGate;
 				if (profileMode === "error") return route.fulfill({ status: 502, json: {} });
 				return route.fulfill({ json: {
-					email: "member@example.test", displayName: "nickia habibi", role, allowedStatuses: ["TERPASANG_DIGUNAKAN", "DALAM_PROSES_RETUR"],
+					email, displayName, role, allowedStatuses: profileMode === "no-access" ? [] : ["TERPASANG_DIGUNAKAN", "DALAM_PROSES_RETUR"],
 				} });
 			}
 			if (url.pathname === "/api/profile/scan-summary") {
@@ -62,7 +64,7 @@ const { STATUS_COLOR_CONFIG } = require("../src/lib/colorStatusConfig.ts");
 					lifetimeStatuses: statuses.map(({ status, count }) => ({ status, count: count * 16 })),
 				} });
 			}
-			if (url.pathname.startsWith("/_next/") || ["/profile", "/admin/profile"].includes(url.pathname)) return route.continue();
+			if (url.pathname.startsWith("/_next/") || ["/profile", "/admin/profile", "/ayune-14.svg"].includes(url.pathname)) return route.continue();
 			return route.fulfill({ status: 401, json: {} });
 		});
 		const setSession = async () => {
@@ -89,6 +91,11 @@ const { STATUS_COLOR_CONFIG } = require("../src/lib/colorStatusConfig.ts");
 		await expect(page.getByRole("status", { name: "Memuat detail akun" })).toBeVisible();
 		releaseProfile();
 		await expect(page.getByText("member@example.test", { exact: true })).toBeVisible();
+		await expect(page.getByRole("heading", { name: "Akses administrator" })).toHaveCount(0);
+		const accountDetails = page.getByRole("region", { name: "Account details" });
+		await expect(accountDetails.getByText("Terpasang", { exact: true })).toBeVisible();
+		await expect(accountDetails.getByText("Retur", { exact: true })).toBeVisible();
+		await expect(accountDetails.getByRole("link", { name: /Logout/ })).toHaveAttribute("href", "/api/auth/logout");
 		await expect(page.locator("main > header").getByText("nickia habibi", { exact: true })).toHaveCSS("text-transform", "capitalize");
 		await expect(page.getByText("Akun Kamu", { exact: true })).toHaveCount(0);
 		await expect(overview.getByText("78", { exact: true }).first()).toBeVisible();
@@ -106,7 +113,7 @@ const { STATUS_COLOR_CONFIG } = require("../src/lib/colorStatusConfig.ts");
 		await expect(overview.locator('[aria-label="Periode ringkasan"]')).toHaveCount(0);
 		assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
 		const header = await page.locator("main > header").boundingBox();
-		assert.ok(header.height < 120, "profile header stays compact");
+		assert.ok(header.height < 200, "profile identity leaves room for the member overview");
 		await page.screenshot({ path: "test-results/profile-overview-mobile.png", fullPage: true });
 		await page.setViewportSize({ width: 1280, height: 900 });
 		await expect(overview.getByText("1.248", { exact: true }).first()).toBeVisible();
@@ -153,7 +160,12 @@ const { STATUS_COLOR_CONFIG } = require("../src/lib/colorStatusConfig.ts");
 		profileMode = "normal";
 		await account.getByRole("button", { name: "Coba lagi" }).click();
 		await expect(account.getByText("member@example.test", { exact: true })).toBeVisible();
+		profileMode = "no-access";
+		await page.reload();
+		await expect(account.getByText("No scan access", { exact: true })).toBeVisible();
+		profileMode = "normal";
 		role = "SUPER_ADMIN";
+		displayName = "Dharma Ayomi Ramadhani";
 		await setSession();
 		const before = requests;
 		profileGate = new Promise((done) => { releaseProfile = done; });
@@ -163,6 +175,19 @@ const { STATUS_COLOR_CONFIG } = require("../src/lib/colorStatusConfig.ts");
 		releaseProfile();
 		await expect(page.getByText("member@example.test", { exact: true })).toBeVisible();
 		await expect(page.getByText("SUPER ADMIN", { exact: true })).toHaveCount(1);
+		await expect(page.getByRole("heading", { name: "Akses administrator" })).toBeVisible();
+		await expect(account.getByText("Akses scan", { exact: true })).toHaveCount(0);
+		await page.setViewportSize({ width: 390, height: 844 });
+		assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+		await page.screenshot({ path: "test-results/profile-admin-mobile.png", fullPage: true });
+		displayName = "NamaPenggunaTanpaSpasi".repeat(5);
+		email = `${"long-email".repeat(7)}@example.test`;
+		await page.reload();
+		await expect(page.getByText(email, { exact: true })).toBeVisible();
+		for (const width of [320, 1280]) {
+			await page.setViewportSize({ width, height: 900 });
+			assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `profile fits ${width}px with long account fields`);
+		}
 		await expect(page.getByText("Allowed status", { exact: true })).toHaveCount(0);
 		await expect(page.getByRole("heading", { name: "Overview kamu" })).toHaveCount(0);
 		assert.equal(requests, before, "admin profile must not fetch member scan history");

@@ -357,8 +357,8 @@ const cachedPanelChannelMembers = unstable_cache(
 	{ revalidate: 60, tags: [PANEL_MEMBERS_CACHE_TAG] },
 );
 
-export const panelChannelMembers = async (): Promise<PanelMembersResult> => {
-	const token = await clickUpToken();
+export const panelChannelMembers = async (token?: string): Promise<PanelMembersResult> => {
+	token ??= (await clickUpToken()) ?? undefined;
 	return token ? cachedPanelChannelMembers(token) : { ok: false, status: 401 };
 };
 

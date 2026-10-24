@@ -1,6 +1,6 @@
 # AdminDashboard data flow, calculations, and edge cases
 
-Reviewed: 2026-10-24. Describes the current working tree, including the daily stacked scan chart. This is implementation documentation; live ClickUp/Turso contents and deployment behavior were not verified. Older plans such as [PLAN_ADMIN_DASHBOARD.md](PLAN_ADMIN_DASHBOARD.md) describe proposals and must not be treated as the current implementation.
+Reviewed: 2026-10-24. Describes the current working tree, including the cached dashboard endpoint and daily stacked scan chart. This is implementation documentation; live ClickUp/Turso contents and deployment behavior were not verified. Older plans such as [PLAN_ADMIN_DASHBOARD.md](PLAN_ADMIN_DASHBOARD.md) describe proposals and must not be treated as the current implementation.
 
 ## What the numbers measure
 
@@ -20,8 +20,15 @@ A component can be scanned several times and contribute one current component bu
 flowchart TD
     Browser[Browser opens /admin] --> Home[AdminHome server component]
     Home --> Auth[requireSuperAdmin + clickUpToken]
-    Auth --> Projects[inProgressProjects]
-    Auth --> Roster[panelChannelMembers]
+    Auth --> LocalRole[Fresh local admin role]
+    LocalRole --> Last[(Saved dashboard summary)]
+    Last -->|found| UI
+    Last -->|missing| Shell[Render matching skeleton]
+    Shell --> Endpoint[GET /api/admin/dashboard?refresh=1]
+    UI -->|explicit refresh only| Endpoint
+    Endpoint --> Guard[Signed identity + token + fresh local admin role]
+    Guard --> Projects[inProgressProjects]
+    Guard --> Roster[panelChannelMembers]
     Projects --> Dashboards[getProjectDashboard for every project]
     Dashboards --> Snapshot[(Turso project snapshot)]
     Snapshot -->|miss only| ClickUp[ClickUp parent + paginated descendants + duration]
@@ -30,11 +37,12 @@ flowchart TD
     Dashboards --> Overlay[(Newer Turso component statuses)]
     Roster --> Access[(Turso roles and permissions)]
     Access --> Members[Exclude SUPER_ADMIN members]
-    Members --> Summaries[One 7-day scan summary per member]
-    Members --> Daily[One 30-day team query grouped by day and status]
+    Members --> Daily[One 30-day query grouped by member, day and status]
+    Daily --> Summaries[Derive 7-day member summaries]
     Dashboards --> Totals[summarizeAdminOverview]
     Summaries --> Totals
-    Totals --> UI[AdminDashboard props]
+    Totals -->|complete and newer| Last
+    Totals --> UI[AdminDashboard React Query data]
     Daily --> UI
     UI -->|7 / 30 hari| Slice[Local slice of dailyScans; no request]
     UI -->|tap active member| Drawer[MemberScanOverview]
@@ -42,19 +50,21 @@ flowchart TD
     API --> History[(Turso scan history)]
 ```
 
-Initial loading uses server helpers directly. `AdminDashboard.tsx` does **not** fetch `/api/projects` or an overview API. Its props are `now`, `totals`, `projectsReady`, `projectCount`, `members`, and `dailyScans`.
+Initial page loading performs fresh local admin authorization and reads the saved presentation payload from `ppic_admin_dashboard_snapshot`. `AdminDashboard` receives that payload as React Query initial data; reopening, reloading, reconnecting, or changing the login token does not trigger a dashboard API request or calculation. Without a saved result, the shared `AdminDashboardSkeleton` appears while the first calculation runs. **Perbarui dashboard** explicitly requests a new calculation. The endpoint calls [`src/lib/adminDashboard.ts`](../src/lib/adminDashboard.ts); the payload remains `now`, `totals`, `projectsReady`, `projectCount`, `members`, and `dailyScans`. See [the endpoint contract](ADMIN_DASHBOARD_API.md).
 
 ### 1. Authentication and parallel loading
 
-[`src/app/admin/page.tsx`](../src/app/admin/page.tsx), `AdminHome`:
+[`src/app/admin/(dashboard)/page.tsx`](../src/app/admin/(dashboard)/page.tsx), [`src/app/api/admin/dashboard/route.ts`](../src/app/api/admin/dashboard/route.ts), and `getAdminDashboard`:
 
-1. Await `requireSuperAdmin()`. A valid PPIC session uses its role; without one, `requireFreshSuperAdmin()` checks identity/local role. Unauthorized users redirect. A missing ClickUp token redirects to `/login`.
-2. Capture one `now = Date.now()` for the heading and all initial history queries. This keeps date boundaries consistent even if loading crosses midnight.
-3. Run project and team branches with `Promise.allSettled`. A failure in one branch does not discard the other.
+1. Await `requireSuperAdmin()`, require the ClickUp token and signed-session identity, then check the current local `SUPER_ADMIN` role before reading any saved summary. Missing credentials redirect to `/login`; revoked/non-admin access redirects to `/unauthorized`.
+2. Render the saved summary without another dashboard request. A first calculation or explicit refresh uses the endpoint, which independently checks signed-session identity, token, and fresh local admin role. Missing credentials return 401, revoked/non-admin access 403, unexpected failures 502.
+3. On an aggregate cache rebuild, capture one `now = Date.now()` for the heading/history cutoff and run project and team branches with `Promise.allSettled`. A failure in one branch does not discard the other.
 4. Within the project branch, load each dashboard concurrently with another `Promise.allSettled`. Keep fulfilled dashboards, but mark project totals unavailable unless **all** listed projects loaded.
-5. Within the team branch, fetch the roster, load local roles/permissions, exclude `SUPER_ADMIN`, then run member summaries and the daily chart query concurrently. Each member-summary failure becomes `summary: null`; a chart-query failure becomes `dailyScans: null` independently.
+5. Within the team branch, fetch the roster using the explicit token (no cookie read inside the cache), load local roles/permissions, exclude `SUPER_ADMIN`, and run one grouped 30-day history query. Derive every member's seven-day `today`, `total`, and `days` from those same rows. A grouped-history failure sets every member summary and `dailyScans` to null, while retaining the roster.
 
-There is no concurrency limit on the per-project or per-member fan-out. The page has `maxDuration = 60`; this is not a timeout on each operation.
+There is no concurrency limit on the per-project fan-out. The endpoint has `maxDuration = 60`; this is not a timeout on each operation. Home no longer runs per-member lifetime queries: history SQL statements fall from `2 * memberCount + 1` to one per aggregate rebuild.
+
+The last complete presentation payload is stored in `ppic_admin_dashboard_snapshot`, scoped by a hash of signed admin user ID, Panel list, database URL, and chat workspace/channel configuration. It survives a new login token or Jakarta date and does not expire automatically. Partial calculations do not overwrite it; a conditional upsert prevents a slower older calculation from replacing a newer saved result. The header shows `Data terakhir` with the calculation date/time in WIB. Team labels such as `hari ini` refer to that saved calculation date until explicitly refreshed. A first-ever visit still needs a calculation. Client `staleTime` is infinite, with no polling, focus refetch, or reconnect refetch. Successful HTTP responses are `private, no-store`; authorization still runs on every page/API request. Ordinary endpoint reads reuse the saved result; `?refresh=1` calculates again.
 
 ### 2. Project fetching and freshness
 
@@ -76,7 +86,7 @@ A 60-second database lease prevents simultaneous cold builds for the same scope.
 
 **Loading can write local data:** a cold build seeds `ppic_component_status` and saves the snapshot. It performs no ClickUp mutation. Seeding only overwrites older local status timestamps, protecting updates recorded after the build started. Afterward, `applyProjectStatusChanges` overlays newer/equal status timestamps and removes `DIHAPUSKAN` components. It does not add missing components or move them between groups.
 
-**Refresh is not Resync:** the home error button calls `router.refresh()` in a transition. This reruns the server load but can reuse the 60-second project list, cached roster, and persistent project snapshots. The home component has no polling, Ably subscription, or midnight timer. A project-specific `POST /api/project/sync` with `{ "task_id": "..." }` forces a rebuild through `getProjectDashboard(..., true)`; the home button does not call it. Returning to/refetching home is needed to display later changes.
+**Refresh is not Resync:** the home **Perbarui dashboard** and error buttons call `GET /api/admin/dashboard?refresh=1`. This waits for a rebuilt summary while keeping existing displayed data during the request. A failed HTTP refresh preserves that data and shows an error. Partial responses still show the existing incomplete-data warnings but do not replace the complete saved summary. Rebuilding can reuse the 60-second project list, cached roster, and persistent project snapshots. The home component has no polling, Ably subscription, or midnight timer. A project-specific `POST /api/project/sync` with `{ "task_id": "..." }` forces a project rebuild through `getProjectDashboard(..., true)`; the home button does not call it.
 
 ### 3. Which components are counted
 
@@ -116,9 +126,9 @@ Missing summaries contribute zero inside the aggregate helper, but the client hi
 
 Example: 10 included components with 4 unscanned, 3 received, 1 packing, 1 return, and 1 `DRY_FIT` give `recorded = 6`, `percentage = 60`, and `returns = 1`. Extra scans of one component do not change these inventory totals. A 1/1 project and a 0/9 project together give 1/10 = 10%, not 50%.
 
-### Member summary calendar math
+### Member drawer summary calendar math
 
-`getPpicMemberScanSummary(userId, "7", now)` uses `ppic_scan_history` filtered by `clickup_user_id`; there is no ongoing-project filter.
+The separate drawer endpoint calls `getPpicMemberScanSummary(userId, "7", now)` against `ppic_scan_history` filtered by `clickup_user_id`; there is no ongoing-project filter. Home no longer calls this helper; it derives the equivalent seven-day fields from the batched query below.
 
 1. Derive today's Jakarta date with UTC+7.
 2. Build seven ascending date buckets, today minus six days through today, initialized to zero.
@@ -132,18 +142,18 @@ Repeated **stored history rows** count individually. This does not mean every ca
 
 ### Stacked Scan per hari chart
 
-`getPpicTeamDailyScans(memberIds, now)` runs one read-only query over the **last 30 Jakarta calendar days** for the same non-admin roster used by the home KPIs:
+`getPpicTeamScanOverview(memberIds, now)` runs one read-only query over the **last 30 Jakarta calendar days** for the same non-admin roster used by the home KPIs:
 
 ```sql
-SELECT date(scanned_at, '+7 hours') AS day, status, COUNT(*) AS count
+SELECT clickup_user_id, date(scanned_at, '+7 hours') AS day, status, COUNT(*) AS count
 FROM ppic_scan_history
 WHERE clickup_user_id IN (?, ...)
   AND unixepoch(scanned_at) >= ?
   AND unixepoch(scanned_at) <= ?
-GROUP BY day, status
+GROUP BY clickup_user_id, day, status
 ```
 
-Member IDs and both time bounds are bound parameters. The lower bound is midnight WIB 29 days before today; the upper bound is `Math.floor(now / 1000)`. An empty roster returns 30 zero days without querying history. This helper makes no ClickUp calls or writes, and failures propagate for the page to convert to null.
+Member IDs and both time bounds are bound parameters. The lower bound is midnight WIB 29 days before today; the upper bound is `Math.floor(now / 1000)`. An empty roster returns 30 zero days and an empty summaries map without querying history. This helper makes no ClickUp calls or writes, and failures propagate for the loader to convert to null. The return value is `{ dailyScans, summaries }`; each summary contains seven ascending zero-filled `days`, `total`, and `today`. It omits unused lifetime, previous-period, and per-status member fields.
 
 Each `dailyScans` entry has `date`, `count`, and `statuses` (the four `PPIC_STATUSES` plus `OTHER`). All dates/statuses are zero-filled; legacy statuses merge into `OTHER`.
 
@@ -158,11 +168,11 @@ Each `dailyScans` entry has `date`, `count`, and `statuses` (the four `PPIC_STAT
 | Narrow screens | Seven columns fit the card; 30 columns scroll inside a keyboard-focusable region, using 38 pixels per day as minimum chart width |
 | Accessibility | Each ordered-list item exposes the full date, total, and per-status counts through its accessible name; decorative stacks are hidden from screen readers |
 
-For the same roster and database state, the last seven chart totals sum to `totals.week`, and the final bar equals `totals.today`. The aggregate query and per-member queries are separate reads, so concurrent writes can produce a temporary mismatch even though their date cutoff is shared. Switching periods also rescales heights: compare the numeric totals, not the pixel height across views.
+The last seven chart totals sum to `totals.week`, and the final bar equals `totals.today`, because chart and member metrics now use the same query result. Switching periods rescales heights: compare numeric totals, not pixel height across views. The aggregate cache reuses this consistent payload until a rebuild.
 
 ## Team list, attention, and detail fetching
 
-`panelChannelMembers()` uses a cached ClickUp chat-channel roster (`unstable_cache`, `revalidate: 60`, tag `panel-channel-members`), then `getPpicMemberAccess` reads current local permissions. The roster comes from `GET /api/v3/workspaces/{workspaceId}/chat/channels/{channelId}/members`; the helper also verifies token identity/local admin status on a cache miss. It reads one roster response, with no pagination loop. Malformed member records are skipped. A non-array member collection becomes an empty list rather than a fetch failure.
+`panelChannelMembers()` uses a cached ClickUp chat-channel roster (`unstable_cache`, `revalidate: 60`, tag `panel-members`), then `getPpicMemberAccess` reads local permissions during an aggregate rebuild. The roster comes from `GET /api/v3/workspaces/{workspaceId}/chat/channels/{channelId}/members`; the helper also verifies token identity/local admin status on a cache miss. It reads one roster response, with no pagination loop. Malformed member records are skipped. A non-array member collection becomes an empty list rather than a fetch failure.
 
 `Tim hari ini` includes only members whose available summary has `today > 0`, sorted by today's count descending, seven-day count descending, then name. A member without access can still appear because historical events remain valid. Zero-scan members do not appear here. Each sparkline is independently normalized to that member's highest daily count with a 2px minimum; equal heights across different members do not imply equal counts.
 
@@ -186,8 +196,7 @@ Drawer totals/statuses use the **selected period**. Its percentage change is `Ma
 | Ongoing project with no countable components | Included in project count; contributes zero to denominator. An all-empty inventory shows 0%, not 100%. |
 | One project dashboard fails | `projectsReady = false`; inventory percentage/count/status bar and return alert are withheld. Listed project count can still be known. |
 | Entire project-list request fails | Project count becomes null and displays a dash; team data can remain available. |
-| One member summary fails | `teamReady = false`; team KPIs and idle alert are withheld. Successfully loaded active members can still appear; the independently loaded chart may remain available. |
-| Daily chart query fails | Chart shows unavailable and the page offers retry; other successfully loaded metrics remain visible. Zero bars are not substituted for a failure. |
+| Grouped history query fails | `teamReady = false`; member summaries and chart become unavailable together, team KPIs and idle alert are withheld, and roster-based no-access alerts can still appear. Inventory can still render. Zero bars are not substituted for a failure. |
 | Roster/permission load fails | Members and daily chart become null; inventory can still render. |
 | Empty roster or only admins | `members = []` is a ready team (`every` is true); team KPIs are zero, chart has zero days, and list shows no active members. |
 | No scans in selected chart period | Zero totals remain visible for every date plus an explicit empty-period message. |
@@ -217,8 +226,8 @@ node tests/admin-home.cjs
 git diff --check
 ```
 
-The daily-query check uses an in-memory database and blocks outbound fetches. It covers WIB midnight/window boundaries, future-row exclusion, repeated events, legacy-status stacks, caller-supplied roster scope, zero days, leap day, errors, and reconciliation with existing seven-day member summaries. The overview/member-summary checks cover existing formulas and summary authorization/calendar behavior.
+The daily-query check uses an in-memory database and blocks outbound fetches. It asserts one SQL statement for all home history data and covers WIB midnight/window boundaries, future-row exclusion, repeated events, legacy-status stacks, caller-supplied roster scope, zero days, leap day, errors, and exact agreement with existing seven-day member summaries. The overview/member-summary checks cover existing formulas and summary authorization/calendar behavior.
 
-The home browser check uses a local database and the repository's synthetic ClickUp Postman simulation. It checks totals, four stacked statuses, 7/30 switching, contained horizontal scrolling at 320/390/1440px, member detail, and empty/error states. This verifies local rendering/integration; it does not establish live ClickUp completeness, production latency, database scale, deployed behavior, or touch-device behavior.
+The home browser check uses a local database and the repository's synthetic ClickUp Postman simulation. It checks totals, four stacked statuses, 7/30 switching, contained horizontal scrolling at 320/390/1440px, member detail, and empty/error states. API/browser checks cover saved-result reuse without automatic requests, login-token rotation and old calculation dates, explicit refresh after database changes, fresh page/API authorization, isolated admin accounts, incomplete-result retention, concurrent refresh ordering, and the shared skeleton during a cold load. This verifies local rendering/integration; it does not establish live ClickUp completeness, production latency, database scale, deployed behavior, or touch-device behavior.
 
-When changing this flow, review `AdminHome`, `AdminDashboard`, `adminOverview`, `projectDashboard`, `projects`, `projectStatus`, `db`, `session`, `MemberScanOverview`, `ReactQueryProviders`, and `types/ppic` together. Keep current-component counts separate from event counts, and keep the home chart's roster/timezone aligned with the home team KPIs.
+When changing this flow, review `AdminHome`, `AdminDashboard`, `/api/admin/dashboard`, `adminDashboard`, `adminOverview`, `projectDashboard`, `projects`, `projectStatus`, `db`, `session`, `MemberScanOverview`, `ReactQueryProviders`, and `types/ppic` together. Keep current-component counts separate from event counts, and keep the home chart's roster/timezone aligned with the home team KPIs. Member drawer code is dynamically imported when opened rather than included in the initial dashboard chart bundle.

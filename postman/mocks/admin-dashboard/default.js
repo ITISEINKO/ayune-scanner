@@ -124,6 +124,10 @@ http.createServer((req, res) => {
 		status = 501;
 		body = { error: "Endpoint not modeled" };
 	}
-	res.writeHead(status, { "Content-Type": "application/json" });
-	res.end(JSON.stringify(body));
+	const respond = () => {
+		res.writeHead(status, { "Content-Type": "application/json" });
+		res.end(JSON.stringify(body));
+	};
+	if (mode === "home-slow" && url.pathname.endsWith("/time_in_status")) setTimeout(respond, 2000);
+	else respond();
 }).listen(process.env.PORT);
