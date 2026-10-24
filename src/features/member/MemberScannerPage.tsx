@@ -29,6 +29,7 @@ const messageFor = (error?: string) =>
 			"Status sudah diubah, tetapi riwayat belum tersimpan. Scan ulang serial ini.",
 		RATE_LIMITED: "Terlalu banyak permintaan. Coba lagi sebentar.",
 		NO_SELECTED_PROJECT: "Pilih project sebelum mulai scan.",
+		PROJECT_NOT_AVAILABLE: "Project sudah tidak aktif. Pilih project lain sebelum scan.",
 		SERIAL_NOT_IN_SELECTED_PROJECT:
 			"Serial number bukan bagian dari project aktif.",
 		INVALID_TASK_HIERARCHY: "Data hierarchy serial tidak valid.",

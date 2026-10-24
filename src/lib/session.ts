@@ -52,7 +52,7 @@ export const clickUpUserId = async () => {
 	return token ? clickUpUserIdForToken(token) : null;
 };
 
-export const clickUpEmail = async () => {
+export const clickUpProfile = async () => {
 	const token = await clickUpToken();
 	if (!token) return null;
 	try {
@@ -62,11 +62,22 @@ export const clickUpEmail = async () => {
 		});
 		if (!response.ok) return null;
 		const body = (await response.json()) as {
-			user?: { email?: unknown };
+			user?: { email?: unknown; username?: unknown; name?: unknown };
 			email?: unknown;
+			username?: unknown;
+			name?: unknown;
 		};
 		const email = body.user?.email ?? body.email;
-		return typeof email === "string" ? email : null;
+		const displayName = [
+			body.user?.username,
+			body.user?.name,
+			body.username,
+			body.name,
+		].find((name) => typeof name === "string" && name.trim());
+		return {
+			email: typeof email === "string" ? email : null,
+			displayName: typeof displayName === "string" ? displayName.trim() : null,
+		};
 	} catch {
 		return null;
 	}
@@ -96,7 +107,10 @@ export const encodePpicSession = (
 	return signature ? `${payload}.${signature}` : null;
 };
 
-export const encodeSelectedProject = (userId: string, project: SelectedProject) => {
+export const encodeSelectedProject = (
+	userId: string,
+	project: SelectedProject,
+) => {
 	const payload = Buffer.from(
 		JSON.stringify({ user_id: userId, ...project }),
 	).toString("base64url");
@@ -104,7 +118,9 @@ export const encodeSelectedProject = (userId: string, project: SelectedProject) 
 	return signature ? `${payload}.${signature}` : null;
 };
 
-export const selectedProject = async (userId: string): Promise<SelectedProject | null> => {
+export const selectedProject = async (
+	userId: string,
+): Promise<SelectedProject | null> => {
 	const value = (await cookies()).get(PPIC_SELECTED_PROJECT_COOKIE)?.value;
 	if (!value) return null;
 	const [payload, signature] = value.split(".");
@@ -121,17 +137,15 @@ export const selectedProject = async (userId: string): Promise<SelectedProject |
 		const selected = JSON.parse(
 			Buffer.from(payload, "base64url").toString("utf8"),
 		) as { user_id?: unknown } & Partial<SelectedProject>;
-		return (
-			selected.user_id === userId &&
+		return selected.user_id === userId &&
 			typeof selected.task_id === "string" &&
 			(typeof selected.name === "string" || selected.name === null) &&
 			(typeof selected.custom_id === "string" || selected.custom_id === null)
-		)
 			? {
-				task_id: selected.task_id,
-				name: selected.name,
-				custom_id: selected.custom_id,
-			}
+					task_id: selected.task_id,
+					name: selected.name,
+					custom_id: selected.custom_id,
+				}
 			: null;
 	} catch {
 		return null;
@@ -178,7 +192,9 @@ export const ppicSession = async () => {
 				refreshed_at: session.refreshed_at,
 			};
 		const allowedStatus =
-			session.allowed_status === null ? null : ppicStatuses(session.allowed_status);
+			session.allowed_status === null
+				? null
+				: ppicStatuses(session.allowed_status);
 		if (session.role === "MEMBER" && allowedStatus)
 			return {
 				user_id: session.user_id,
@@ -218,8 +234,7 @@ export const postLoginPathForUser = async (userId: string) =>
 
 export const postLoginPath = async () => {
 	const session = await ppicSession();
-	if (session)
-		return session.role === "SUPER_ADMIN" ? "/admin/projects" : "/projects";
+	if (session) return session.role === "SUPER_ADMIN" ? "/admin" : "/projects";
 	const userId = await clickUpUserId();
 	return userId ? postLoginPathForUser(userId) : "/login";
 };
@@ -248,7 +263,8 @@ export const requireFreshPpicStatusAccess = async (status: string) => {
 	if (
 		access?.role !== "MEMBER" ||
 		Number(access.active) !== 1 ||
-		!Array.isArray(access.allowed_status) || !access.allowed_status.includes(status)
+		!Array.isArray(access.allowed_status) ||
+		!access.allowed_status.includes(status)
 	)
 		redirect("/unauthorized");
 	return userId;
@@ -258,7 +274,10 @@ export const requirePpicStatusAccess = async (status: string) => {
 	if (!isPpicStatus(status)) redirect("/unauthorized");
 	const session = await ppicSession();
 	if (session) {
-		if (session.role === "SUPER_ADMIN" || session.allowed_status?.includes(status))
+		if (
+			session.role === "SUPER_ADMIN" ||
+			session.allowed_status?.includes(status)
+		)
 			return;
 		redirect("/unauthorized");
 	}
@@ -276,14 +295,12 @@ export const requireSelectedMemberProject = async () => {
 export const requireSelectedAdminProject = async () => {
 	const session = await ppicSession();
 	const userId =
-		session?.role === "SUPER_ADMIN"
-			? session.user_id
-			: await clickUpUserId();
+		session?.role === "SUPER_ADMIN" ? session.user_id : await clickUpUserId();
 	if (!userId) redirect("/login");
 	if (session?.role !== "SUPER_ADMIN" && !(await isPpicSuperAdmin(userId)))
 		redirect("/unauthorized");
 	const project = await selectedProject(userId);
-	if (!project) redirect("/admin");
+	if (!project) redirect("/admin/projects");
 	return project;
 };
 
@@ -340,8 +357,8 @@ const cachedPanelChannelMembers = unstable_cache(
 	{ revalidate: 60, tags: [PANEL_MEMBERS_CACHE_TAG] },
 );
 
-export const panelChannelMembers = async (): Promise<PanelMembersResult> => {
-	const token = await clickUpToken();
+export const panelChannelMembers = async (token?: string): Promise<PanelMembersResult> => {
+	token ??= (await clickUpToken()) ?? undefined;
 	return token ? cachedPanelChannelMembers(token) : { ok: false, status: 401 };
 };
 

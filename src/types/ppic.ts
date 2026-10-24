@@ -34,6 +34,25 @@ export type PpicProjectScanHistory = PpicScanHistory & {
 	componentTaskId: string;
 };
 
+export type MemberScanPeriod = "7" | "30" | "month";
+
+export type TeamDailyScanDay = {
+	date: string;
+	count: number;
+	statuses: Record<PpicStatus | "OTHER", number>;
+};
+
+export type MemberScanSummary = {
+	lifetimeTotal: number;
+	total: number;
+	today: number;
+	previousTotal: number;
+	lastScannedAt: string | null;
+	days: { date: string; count: number }[];
+	statuses: { status: PpicStatus | "OTHER"; count: number }[];
+	lifetimeStatuses: { status: PpicStatus | "OTHER"; count: number }[];
+};
+
 export const isPpicStatus = (value: unknown): value is PpicStatus =>
 	typeof value === "string" && PPIC_STATUSES.includes(value as PpicStatus);
 

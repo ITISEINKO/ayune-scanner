@@ -1,5 +1,5 @@
-import { ProfilePage } from "@/features/profile";
+import { AdminProfilePage } from "@/features/profile/AdminProfilePage";
 
 export default function Profile() {
-	return <ProfilePage />;
+	return <AdminProfilePage />;
 }
