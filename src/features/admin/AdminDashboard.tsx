@@ -29,22 +29,32 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { AdminDashboardSkeleton } from "@/features/admin/AdminDashboardSkeleton";
-import type {
-	AdminDashboardData,
-	OverviewMember,
-} from "@/lib/adminOverview";
+import type { AdminDashboardData, OverviewMember } from "@/lib/adminOverview";
 import { STATUS_COLOR_CONFIG } from "@/lib/colorStatusConfig";
 import { PPIC_STATUSES } from "@/types/ppic";
 
-const MemberScanOverview = dynamic(() => import("@/features/settings/MemberScanOverview").then((module) => module.MemberScanOverview));
+const MemberScanOverview = dynamic(() =>
+	import("@/features/settings/MemberScanOverview").then(
+		(module) => module.MemberScanOverview,
+	),
+);
 
-async function loadDashboard(refresh = false, signal?: AbortSignal): Promise<AdminDashboardData> {
-	const response = await fetch(`/api/admin/dashboard${refresh ? "?refresh=1" : ""}`, { cache: "no-store", signal });
+async function loadDashboard(
+	refresh = false,
+	signal?: AbortSignal,
+): Promise<AdminDashboardData> {
+	const response = await fetch(
+		`/api/admin/dashboard${refresh ? "?refresh=1" : ""}`,
+		{ cache: "no-store", signal },
+	);
 	if (!response.ok) throw new Error("DASHBOARD_UNAVAILABLE");
 	return response.json();
 }
 
-export function AdminDashboard({ userId, initialData }: {
+export function AdminDashboard({
+	userId,
+	initialData,
+}: {
 	userId: string;
 	initialData?: AdminDashboardData;
 }) {
@@ -56,16 +66,34 @@ export function AdminDashboard({ userId, initialData }: {
 		refetchOnReconnect: false,
 	});
 	if (!data && !isError) return <AdminDashboardSkeleton />;
-	if (!data) return (
-		<main className="mx-auto min-h-dvh max-w-lg space-y-4 p-4 pb-28" aria-busy={isFetching}>
-			<h1 className="mt-6 text-[27px] font-extrabold">Dashboard produksi</h1>
-			<div role="alert" className="rounded-2xl border p-4 text-sm">
-				<p>Dashboard belum dapat dimuat.</p>
-				<Button className="mt-3" variant="outline" disabled={isFetching} onClick={() => void refetch()}>Coba lagi</Button>
-			</div>
-		</main>
+	if (!data)
+		return (
+			<main
+				className="mx-auto min-h-dvh max-w-lg space-y-4 p-4 pb-28"
+				aria-busy={isFetching}
+			>
+				<h1 className="mt-6 text-[27px] font-extrabold">Dashboard produksi</h1>
+				<div role="alert" className="rounded-2xl border p-4 text-sm">
+					<p>Dashboard belum dapat dimuat.</p>
+					<Button
+						className="mt-3"
+						variant="outline"
+						disabled={isFetching}
+						onClick={() => void refetch()}
+					>
+						Coba lagi
+					</Button>
+				</div>
+			</main>
+		);
+	return (
+		<AdminDashboardContent
+			{...data}
+			refreshing={isFetching}
+			refresh={() => void refetch()}
+			refreshError={isError}
+		/>
 	);
-	return <AdminDashboardContent {...data} refreshing={isFetching} refresh={() => void refetch()} refreshError={isError} />;
 }
 
 function AdminDashboardContent({
@@ -151,8 +179,18 @@ function AdminDashboardContent({
 				/>
 
 				<div className="relative mt-4">
-					<Button aria-label="Perbarui dashboard" variant="outline" size="icon" className="absolute top-0 right-0" onClick={refresh} disabled={refreshing}>
-						<RefreshCw aria-hidden="true" className={refreshing ? "animate-spin" : ""} />
+					<Button
+						aria-label="Perbarui dashboard"
+						variant="outline"
+						size="icon"
+						className="absolute top-0 right-0"
+						onClick={refresh}
+						disabled={refreshing}
+					>
+						<RefreshCw
+							aria-hidden="true"
+							className={refreshing ? "animate-spin" : ""}
+						/>
 					</Button>
 					<p className="text-xs font-bold text-muted-foreground">{date}</p>
 					<h1 className="mt-1 text-[27px] font-extrabold tracking-tight">
@@ -161,20 +199,42 @@ function AdminDashboardContent({
 					<p className="mt-1 text-sm leading-6 text-muted-foreground">
 						Kondisi semua project dan tim, langsung dari hasil scan.
 					</p>
-					<p className="mt-3 text-[11px] leading-4 text-muted-foreground" role="status">
-						{refreshing ? "Memperbarui dashboard…" : <>Data terakhir: <time dateTime={new Date(now).toISOString()}>{new Intl.DateTimeFormat("id-ID", { timeZone: "Asia/Jakarta", dateStyle: "medium", timeStyle: "short" }).format(now)} WIB</time></>}
+					<p
+						className="mt-3 text-[11px] leading-4 text-muted-foreground"
+						role="status"
+					>
+						{refreshing ? (
+							"Memperbarui dashboard…"
+						) : (
+							<>
+								Data terakhir:{" "}
+								<time dateTime={new Date(now).toISOString()}>
+									{new Intl.DateTimeFormat("id-ID", {
+										timeZone: "Asia/Jakarta",
+										dateStyle: "medium",
+										timeStyle: "short",
+									}).format(now)}{" "}
+									WIB
+								</time>
+							</>
+						)}
 					</p>
 				</div>
 			</header>
 
 			<div className="space-y-4 px-4 pt-4" aria-busy={refreshing}>
-				{(!projectsReady || !teamReady || dailyScans === null || refreshError) && (
+				{(!projectsReady ||
+					!teamReady ||
+					dailyScans === null ||
+					refreshError) && (
 					<div
 						role="alert"
 						className="rounded-2xl border border-border p-4 text-sm"
 					>
 						<p>
-							{refreshError ? "Gagal memperbarui dashboard. Data sebelumnya tetap ditampilkan. " : ""}
+							{refreshError
+								? "Gagal memperbarui dashboard. Data sebelumnya tetap ditampilkan. "
+								: ""}
 							{!projectsReady
 								? "Ringkasan barang belum tersedia lengkap. "
 								: ""}
@@ -421,8 +481,8 @@ function AdminDashboardContent({
 						</p>
 					</div>
 				</section>
-
-				<section aria-labelledby="attention-heading">
+				{/* do not delete this as this is still in dev mode , u need to inform or confirm with me before delete this  */}
+				{/* <section aria-labelledby="attention-heading">
 					<div className="mb-2 flex items-center justify-between px-1 text-xs font-bold text-muted-foreground">
 						<h2 id="attention-heading" className="tracking-wide uppercase">
 							Perlu perhatian
@@ -451,7 +511,7 @@ function AdminDashboardContent({
 							</p>
 						)}
 					</div>
-				</section>
+				</section> */}
 
 				<section
 					id="team-today"
