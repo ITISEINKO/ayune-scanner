@@ -10,6 +10,7 @@ import {
 } from "@/lib/projectSerialCache";
 import { CF_PANEL, PANEL_LIST_ID, STATUS_BARANG_SCAN } from "@/lib/produksiPanel";
 import { taskProjectScope } from "@/lib/projectScope";
+import { getPanelProject } from "@/lib/projects";
 import {
 	clickUpToken,
 	ppicSession,
@@ -103,6 +104,9 @@ export async function POST(request: Request) {
 	let taskId: string;
 	let name: string | null;
 	try {
+		const project = await getPanelProject(token, mainTaskId);
+		if (project.status?.status?.toLowerCase() !== "in progress")
+			return error(409, "PROJECT_NOT_AVAILABLE");
 		const cache = await projectSerialCache(mainTaskId);
 		const cached = cache?.entries[serialNumber];
 		if (cached) {

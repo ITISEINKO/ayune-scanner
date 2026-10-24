@@ -1,5 +1,5 @@
 import { AdminDashboard } from "@/features/admin/AdminDashboard";
-import { getPpicMemberAccess, getPpicMemberScanSummary } from "@/lib/db";
+import { getPpicMemberAccess, getPpicMemberScanSummary, getPpicTeamDailyScans } from "@/lib/db";
 import { inProgressProjects } from "@/lib/projects";
 import { getProjectDashboard } from "@/lib/projectDashboard";
 import { summarizeAdminOverview } from "@/lib/adminOverview";
@@ -29,20 +29,24 @@ export default async function AdminHome() {
 			const { roles, permissions } = await getPpicMemberAccess(
 				result.members.map((member) => member.id),
 			);
-			// shortcut: one existing summary per member; batch queries if team size makes home loads slow.
-			return Promise.all(
-				result.members.filter((member) => roles[member.id] !== "SUPER_ADMIN")
-					.map(async (member) => ({
+			const team = result.members.filter((member) => roles[member.id] !== "SUPER_ADMIN");
+			const [members, dailyScans] = await Promise.all([
+				// shortcut: one existing summary per member; batch queries if team size makes home loads slow.
+				Promise.all(
+					team.map(async (member) => ({
 						...member,
 						hasAccess: !!permissions[member.id]?.length,
 						summary: await getPpicMemberScanSummary(member.id, "7", now).catch(() => null),
 					})),
-			);
+				),
+				getPpicTeamDailyScans(team.map((member) => member.id), now).catch(() => null),
+			]);
+			return { members, dailyScans };
 		}),
 	]);
 	const projects = projectResult.status === "fulfilled" ? projectResult.value : null;
 	const dashboards = projects?.dashboards.flatMap((result) => result.status === "fulfilled" ? [result.value] : []) ?? [];
-	const members = teamResult.status === "fulfilled" ? teamResult.value : null;
+	const members = teamResult.status === "fulfilled" ? teamResult.value.members : null;
 	return (
 		<AdminDashboard
 			now={now}
@@ -50,6 +54,7 @@ export default async function AdminHome() {
 			projectsReady={projects !== null && dashboards.length === projects.count}
 			totals={summarizeAdminOverview(dashboards, members ?? [])}
 			members={members}
+			dailyScans={teamResult.status === "fulfilled" ? teamResult.value.dailyScans : null}
 		/>
 	);
 }

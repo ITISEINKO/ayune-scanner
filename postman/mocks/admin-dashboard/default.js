@@ -3,6 +3,8 @@ const http = require("node:http");
 const listId = "1100830000000087";
 let projectStarted = false;
 let projectWrites = 0;
+let projectCompleted = false;
+let completeWrites = 0;
 const component = (id, status) => ({
 	id, parent: "group", name: id,
 	custom_fields: [
@@ -16,7 +18,40 @@ http.createServer((req, res) => {
 	const mode = req.headers["x-test-mode"];
 	let status = 200;
 	let body;
-	if (mode?.startsWith("project-start")) {
+	if (mode?.startsWith("project-complete")) {
+		const task = { id: "complete-project", name: "Rak Buku · Kantor Contoh", parent: null, list: { id: listId }, status: { status: projectCompleted ? "complete" : "in progress" } };
+		if (url.pathname === "/test/reset") {
+			projectCompleted = false; completeWrites = 0; body = {};
+		} else if (url.pathname === "/test/writes") {
+			body = { writes: completeWrites };
+		} else if (url.pathname === `/api/v2/list/${listId}/task`) {
+			body = { tasks: projectCompleted ? [] : [task], last_page: true };
+		} else if (url.pathname === "/api/v2/team/90182186539/task") {
+			if (url.searchParams.get("parent") !== task.id || url.searchParams.get("subtasks") !== "true" || url.searchParams.get("include_closed") !== "true") {
+				status = 400; body = { error: "Invalid hierarchy query" };
+			} else if (url.searchParams.get("page") === "0") {
+				body = { tasks: [{ id: "group", parent: task.id }, component("one", "22619cd5-078e-4b12-a6d2-96d723eed52b")], last_page: false };
+			} else if (mode === "project-complete-rate-limit") {
+				status = 429; body = {};
+			} else if (mode === "project-complete-malformed") {
+				body = { last_page: true };
+			} else {
+				const value = mode === "project-complete-unscanned" ? null : mode === "project-complete-unknown" ? "unknown" : "dc6eef4c-6843-4043-9938-b14388511be0";
+				body = { tasks: [component("two", value), { id: "document", parent: "group" }], last_page: true };
+			}
+		} else if (req.method === "GET" && url.pathname.startsWith("/api/v2/task/")) {
+			const id = url.pathname.split("/").pop();
+			body = { ...task, id,
+				...(id === "child" ? { parent: task.id } : {}),
+				...(id === "foreign" ? { list: { id: "other-list" } } : {}),
+				...(id === "todo" ? { status: { status: "to do" } } : {}),
+			};
+		} else if (req.method === "PUT" && url.pathname === `/api/v2/task/${task.id}`) {
+			if (mode === "project-complete-update-fail") { status = 503; body = {}; }
+			else if (req.body?.status !== "complete" || Object.keys(req.body).length !== 1) { status = 400; body = {}; }
+			else { projectCompleted = true; completeWrites++; body = { ...task, status: { status: "complete" } }; }
+		} else { status = 501; body = { error: "Endpoint not modeled" }; }
+	} else if (mode?.startsWith("project-start")) {
 		const task = { id: "todo-project", name: "Todo project", parent: null, list: { id: listId }, status: { status: projectStarted ? "in progress" : "to do" } };
 		if (url.pathname === "/test/reset") {
 			projectStarted = false;

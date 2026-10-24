@@ -5,10 +5,11 @@ import {
 	getPpicMemberNames,
 	getPpicProjectScanHistory,
 	getPpicProjectStatuses,
+	invalidateAdminProjectSnapshots,
 	seedPpicProjectStatuses,
 } from "@/lib/db";
 import { createHash, randomUUID } from "node:crypto";
-import { panelListId } from "@/lib/projects";
+import { getPanelProject, invalidateProjectLists, panelListId } from "@/lib/projects";
 import { clickUpHeaders } from "@/lib/clickup";
 import { getScanStatus, serialNumberOf } from "@/lib/projectSerialCache";
 import { applyProjectStatusChanges } from "@/lib/projectStatus";
@@ -119,6 +120,27 @@ const itemIdFor = (
 	return null;
 };
 
+export const completeProject = async (token: string, taskId: string) => {
+	const task = await getPanelProject(token, taskId);
+	const status = task.status?.status?.toLowerCase();
+	if (status !== "in progress" && status !== "complete")
+		throw new Error("PROJECT_STATUS_CHANGED");
+	if (status !== "complete") {
+		const tasks = await loadDescendantTasks(token, taskId, AbortSignal.timeout(45_000));
+		if (tasks.some((component) => serialNumberOf(component)?.trim() && !getScanStatus(component)))
+			throw new Error("PROJECT_HAS_UNSCANNED_SERIALS");
+		const response = await fetch(`https://api.clickup.com/api/v2/task/${encodeURIComponent(taskId)}`, {
+			method: "PUT",
+			headers: { ...clickUpHeaders(token), "Content-Type": "application/json" },
+			body: JSON.stringify({ status: "complete" }),
+		});
+		if (!response.ok) throw clickUpError(response);
+	}
+	invalidateProjectLists();
+	await invalidateAdminProjectSnapshots(taskId);
+	return { ...task, status: { status: "complete" } };
+};
+
 const buildProjectDashboard = async (
 	token: string,
 	project: SelectedProject,
@@ -190,6 +212,7 @@ const buildProjectDashboard = async (
 			...project,
 			name: parent.name ?? null,
 			custom_id: parent.custom_id ?? null,
+			status: parent.status?.status ?? null,
 			startDate: parent.start_date ?? null,
 			dueDate: parent.due_date ?? null,
 		},

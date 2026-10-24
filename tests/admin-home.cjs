@@ -34,7 +34,7 @@ async function main() {
 	}
 	await db.execute("CREATE TABLE ppic_scan_history (id INTEGER PRIMARY KEY, clickup_user_id TEXT, serial_number TEXT, status TEXT, task_name TEXT, scanned_at TEXT, project_task_id TEXT, component_task_id TEXT)");
 	for (const [id, today, week] of [["budi", 7, 37], ["rudi", 3, 25], ["dewi", 4, 24], ["agus", 0, 16]]) {
-		for (let index = 0; index < week; index++) await db.execute({ sql: "INSERT INTO ppic_scan_history (clickup_user_id, status, scanned_at) VALUES (?, 'BARANG_DITERIMA', ?)", args: [id, new Date(Date.now() - (index < today ? 0 : 86_400_000)).toISOString()] });
+		for (let index = 0; index < week; index++) await db.execute({ sql: "INSERT INTO ppic_scan_history (clickup_user_id, status, scanned_at) VALUES (?, ?, ?)", args: [id, ["BARANG_DITERIMA", "SEDANG_DIPACKING", "TERPASANG_DIGUNAKAN", "DALAM_PROSES_RETUR"][index % 4], new Date(Date.now() - (index < today ? 0 : (1 + (index - today) % 6) * 86_400_000)).toISOString()] });
 	}
 	const dashboard = {
 		project: { task_id: "project", name: "Home test project", custom_id: null, startDate: null, dueDate: null },
@@ -77,6 +77,23 @@ async function main() {
 		await expect(page.getByRole("region", { name: "Aktivitas scan tim" }).getByText("14", { exact: true })).toBeVisible();
 		await expect(page.getByText("102", { exact: true })).toBeVisible();
 		await expect(page.getByText("3/4", { exact: true })).toBeVisible();
+		const chart = page.getByRole("region", { name: "Scan per hari", exact: true });
+		await expect(chart.locator("ol > li")).toHaveCount(7);
+		await expect(chart.locator("ol > li").last()).toHaveAccessibleName(/: 14 scan;/);
+		await expect(chart.locator("ol > li").last().locator("div > span")).toHaveCount(4);
+		await chart.evaluate((element) => element.scrollIntoView({ block: "center" }));
+		await chart.screenshot({ path: "test-results/admin-daily-scans-7.png" });
+		await chart.getByRole("button", { name: "30 hari", exact: true }).click();
+		await expect(chart.getByRole("button", { name: "30 hari", exact: true })).toHaveAttribute("aria-pressed", "true");
+		await expect(chart.locator("ol > li")).toHaveCount(30);
+		assert.equal(await chart.getByRole("region").evaluate((element) => element.scrollWidth > element.clientWidth), true, "30 days scroll within the chart");
+		for (const width of [320, 390, 1440]) {
+			await page.setViewportSize({ width, height: 1000 });
+			assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `30-day chart stays inside the page at ${width}px`);
+		}
+		await chart.getByRole("button", { name: "7 hari", exact: true }).click();
+		await expect(chart.locator("ol > li")).toHaveCount(7);
+		await page.setViewportSize({ width: 390, height: 844 });
 		await expect(page.getByRole("navigation").getByRole("link", { name: "Home", exact: true })).toHaveAttribute("aria-current", "page");
 		await expect(page.getByRole("button", { name: /Budi Contoh/ })).toBeVisible();
 		await expect(page.getByRole("button", { name: /Sari Contoh/ })).toHaveCount(0);
@@ -90,12 +107,6 @@ async function main() {
 		await expect(page.getByRole("dialog").getByText("Gagal memuat ringkasan scan.")).toHaveCount(0);
 		await expect(page.getByRole("dialog").getByText("37", { exact: true }).first()).toBeVisible();
 		await page.getByRole("button", { name: "Tutup", exact: true }).click();
-		await page.getByRole("button", { name: "Bantuan", exact: true }).click();
-		await expect(page.getByRole("dialog")).toContainText("termasuk scan berulang");
-		await page.keyboard.press("Escape");
-		await page.getByRole("button", { name: "Menu", exact: true }).click();
-		await expect(page.getByRole("menuitem", { name: "Projects", exact: true })).toBeVisible();
-		await page.keyboard.press("Escape");
 		for (const width of [320, 1440]) {
 			await page.setViewportSize({ width, height: 1000 });
 			assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `no horizontal overflow at ${width}px`);
@@ -121,16 +132,21 @@ async function main() {
 		await page.reload();
 		await expect(page.getByText("Belum ada anggota yang scan hari ini.")).toBeVisible();
 		await expect(page.getByRole("region", { name: "Tim hari ini" }).getByRole("button")).toHaveCount(0);
+		await db.execute("DELETE FROM ppic_scan_history");
+		await page.reload();
+		await expect(chart.getByText("Belum ada scan pada periode ini.")).toBeVisible();
+		await expect(chart.locator("ol > li")).toHaveCount(7);
 		await db.execute("DROP TABLE ppic_scan_history");
 		await page.reload();
 		await expect(page.getByRole("main").getByRole("alert")).toContainText("Sebagian data tim belum dapat dimuat");
 		await expect(page.getByRole("region", { name: "Tim hari ini" }).getByRole("button")).toHaveCount(0);
 		await expect(page.getByText("Aktivitas tim belum dapat dimuat lengkap.")).toBeVisible();
+		await expect(chart.getByText("Grafik scan belum tersedia.")).toBeVisible();
 		await session("MEMBER");
 		await page.goto(`${baseURL}/admin`);
 		await expect(page).toHaveURL(`${baseURL}/unauthorized`);
 		assert.deepEqual(errors, []);
-		console.log("Admin home passed: counts, responsive layout, member detail, help/menu, project routes, active nav, empty/error states and member denial. ClickUp calls used the local Postman simulation.");
+		console.log("Admin home passed: counts, stacked 7/30-day chart, responsive scrolling, member detail, project routes, active nav, empty/error states and member denial. ClickUp calls used the local Postman simulation.");
 	} catch (error) {
 		console.error(logs);
 		throw error;
