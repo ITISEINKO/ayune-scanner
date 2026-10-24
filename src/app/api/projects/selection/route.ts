@@ -66,7 +66,7 @@ export async function POST(request: Request) {
 	const token = await clickUpToken();
 	if (!token) return error(401, "UNAUTHORIZED");
 	try {
-		const project = (await inProgressProjects(token)).find((task) => task.id === taskId);
+		const project = (await inProgressProjects(token, true)).find((task) => task.id === taskId);
 		if (!project) return error(403, "PROJECT_NOT_AVAILABLE");
 		const selection: SelectedProject = {
 			task_id: project.id,

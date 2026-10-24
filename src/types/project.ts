@@ -41,7 +41,7 @@ export type ProjectDashboardItem = {
 
 export type ProjectDashboard = {
 	syncedAt?: number;
-	project: SelectedProject & { startDate: string | null; dueDate: string | null };
+	project: SelectedProject & { startDate: string | null; dueDate: string | null; status?: string | null };
 	items: ProjectDashboardItem[];
 	recentHistory: PpicProjectScanHistory[];
 	memberContribution: { userId: string; name: string; scans: number }[];

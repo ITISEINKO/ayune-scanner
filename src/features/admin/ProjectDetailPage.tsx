@@ -4,9 +4,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type CSSProperties } from "react";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 import { Label, Pie, PieChart } from "recharts";
 import {
 	CalendarDays,
+	Check,
+	CircleAlert,
 	ChevronLeft,
 	ChevronRight,
 	RefreshCw,
@@ -17,6 +20,14 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ChartContainer } from "@/components/ui/chart";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogTitle,
+} from "@/components/ui/dialog";
+import type { ClickUpTask } from "@/types/clickup";
 import {
 	STATUS_BADGE_CLASS_NAME,
 	STATUS_COLOR_CONFIG,
@@ -31,7 +42,13 @@ import {
 	DrawerTitle,
 	DrawerTrigger,
 } from "@/components/ui/drawer";
-import { applyProjectStatusChanges } from "@/lib/projectStatus";
+import {
+	applyProjectStatusChanges,
+	countsFor,
+	isSupportingGroup,
+	trackingStatuses,
+	trackingStatusOf,
+} from "@/lib/projectStatus";
 import { elapsedLabel, scanWindow } from "@/lib/projectTimeline";
 import { statusBarangScanOptions } from "@/lib/produksiPanel";
 import type { ProjectDashboard, ProjectStatusChange } from "@/types/project";
@@ -58,39 +75,6 @@ const statusLabel = (status: string) => {
 	return label
 		.toLowerCase()
 		.replace(/\b\p{L}/gu, (letter) => letter.toUpperCase());
-};
-
-const trackingStatuses = [
-	"UNSCANNED",
-	"BARANG_DITERIMA",
-	"SEDANG_DIPACKING",
-	"TERPASANG_DIGUNAKAN",
-	"DALAM_PROSES_RETUR",
-	"OTHER",
-] as const;
-const trackingStatusOf = (status: string | null) =>
-	!status
-		? "UNSCANNED"
-		: trackingStatuses.includes(status as (typeof trackingStatuses)[number])
-			? (status as (typeof trackingStatuses)[number])
-			: "OTHER";
-
-const isSupportingGroup = (name: string) =>
-	["MATERIAL REQUISITION FORM", "HARDWARE LIST"].includes(
-		name.trim().replace(/\s+/g, " ").toUpperCase(),
-	);
-
-const countsFor = (
-	components: ProjectDashboard["items"][number]["components"],
-) => {
-	const counts = new Map<(typeof trackingStatuses)[number], number>(
-		trackingStatuses.map((status) => [status, 0]),
-	);
-	for (const component of components) {
-		const status = trackingStatusOf(component.status);
-		counts.set(status, (counts.get(status) ?? 0) + 1);
-	}
-	return counts;
 };
 
 function GroupStatusBar({ counts }: { counts: ReturnType<typeof countsFor> }) {
@@ -227,6 +211,10 @@ export const ProjectDetailPage = ({
 }) => {
 	const [currentDashboard, setCurrentDashboard] = useState(dashboard);
 	const [isSyncing, setIsSyncing] = useState(false);
+	const [completeOpen, setCompleteOpen] = useState(false);
+	const [completing, setCompleting] = useState(false);
+	const [completeError, setCompleteError] = useState("");
+	const queryClient = useQueryClient();
 	const router = useRouter();
 	const syncDashboard = async () => {
 		if (isSyncing || !currentDashboard) return;
@@ -302,7 +290,10 @@ export const ProjectDetailPage = ({
 	if (!currentDashboard)
 		return (
 			<main className="mx-auto min-h-dvh max-w-lg bg-muted/30 p-4 pb-28">
-				<Link href="/admin" className="text-sm font-semibold text-primary">
+				<Link
+					href="/admin/projects"
+					className="text-sm font-semibold text-primary"
+				>
 					← Kembali ke project
 				</Link>
 				<p className="mt-6 text-sm text-destructive">{error}</p>
@@ -320,6 +311,56 @@ export const ProjectDetailPage = ({
 	const statusTotals = countsFor(components);
 	const totalComponents = components.length;
 	const completedComponents = statusTotals.get("TERPASANG_DIGUNAKAN") ?? 0;
+	const serials = items
+		.flatMap((item) => item.components)
+		.filter((component) => component.serialNumber?.trim());
+	const unscannedSerials = serials.filter(
+		(component) => !component.status,
+	).length;
+	const returnSerials = serials.filter(
+		(component) => component.status === "DALAM_PROSES_RETUR",
+	).length;
+	const projectComplete = project.status?.toLowerCase() === "complete";
+	const confirmComplete = async () => {
+		if (completing || unscannedSerials) return;
+		setCompleting(true);
+		setCompleteError("");
+		try {
+			const response = await fetch("/api/project/complete", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ task_id: project.task_id }),
+			});
+			if (response.redirected)
+				throw new Error("Sesi berakhir. Silakan login kembali.");
+			const result = (await response.json()) as { error?: string };
+			if (!response.ok)
+				throw new Error(
+					result.error === "PROJECT_HAS_UNSCANNED_SERIALS"
+						? "Masih ada serial tanpa Status Barang Scan di ClickUp. Gunakan Resync sebelum mencoba lagi."
+						: "Project belum dapat ditandai selesai. Coba lagi atau periksa status di ClickUp.",
+				);
+			await queryClient.cancelQueries({ queryKey: ["projects"] });
+			queryClient.setQueryData<ClickUpTask[]>(["projects"], (tasks) =>
+				tasks?.filter((task) => task.id !== project.task_id),
+			);
+			setCurrentDashboard((current) =>
+				current
+					? { ...current, project: { ...current.project, status: "complete" } }
+					: current,
+			);
+			setCompleteOpen(false);
+			toast.success("Project berhasil ditandai selesai.");
+		} catch (cause) {
+			setCompleteError(
+				cause instanceof Error
+					? cause.message
+					: "Project tidak dapat ditandai selesai.",
+			);
+		} finally {
+			setCompleting(false);
+		}
+	};
 	const trackingChartData = trackingStatuses
 		.map((status) => {
 			const color = STATUS_COLOR_CONFIG[status];
@@ -372,7 +413,7 @@ export const ProjectDetailPage = ({
 			<header className="bg-primary px-5 pt-3 pb-16">
 				<div className="flex items-center justify-between gap-3">
 					<Link
-						href="/admin"
+						href="/admin/projects"
 						aria-label="Kembali ke project"
 						className="-ml-2 inline-flex size-10 items-center justify-center rounded-full text-primary-foreground transition-colors hover:bg-primary-foreground/10 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary-foreground/40"
 					>
@@ -386,7 +427,7 @@ export const ProjectDetailPage = ({
 						)}
 						<Button
 							aria-label="Sinkronkan dashboard"
-							disabled={isSyncing}
+							disabled={isSyncing || completing}
 							onClick={syncDashboard}
 							size="icon-sm"
 							title="Sinkronkan dashboard"
@@ -412,6 +453,34 @@ export const ProjectDetailPage = ({
 			</header>
 
 			<div className="relative -mt-8 space-y-3 rounded-t-4xl bg-background pb-28  p-4 pt-6">
+				<section className="flex items-center justify-between gap-3 rounded-2xl bg-card p-4">
+					<div className="min-w-0">
+						<h2 className="text-sm font-extrabold">
+							{projectComplete
+								? "Project sudah selesai"
+								: "Pengerjaan sudah beres?"}
+						</h2>
+						<p className="mt-1 text-xs text-muted-foreground">
+							{projectComplete
+								? "Data dan riwayat tetap tersimpan."
+								: unscannedSerials
+									? `Masih ada ${unscannedSerials} barang belum discan.`
+									: "Semua serial sudah memiliki status scan."}
+						</p>
+					</div>
+					{!projectComplete && (
+						<Button
+							variant="outline"
+							className="shrink-0 rounded-xl"
+							onClick={() => {
+								setCompleteError("");
+								setCompleteOpen(true);
+							}}
+						>
+							<Check aria-hidden="true" /> Tandai selesai
+						</Button>
+					)}
+				</section>
 				<section className="overflow-hidden rounded-[1.35rem] border border-border/40 bg-card shadow-sm">
 					<div className="grid grid-cols-2 divide-x text-sm">
 						<div className="p-4">
@@ -706,6 +775,96 @@ export const ProjectDetailPage = ({
 					</ul>
 				</section>
 			</div>
+			<Dialog
+				open={completeOpen}
+				onOpenChange={(open) => {
+					if (!completing) setCompleteOpen(open);
+				}}
+			>
+				<DialogContent
+					showCloseButton={!completing}
+					className="top-auto bottom-0 max-h-dvh max-w-lg translate-y-0 gap-4 overflow-y-auto rounded-b-none bg-background p-5 pt-7 **:data-[slot=dialog-close]:rounded-full **:data-[slot=dialog-close]:bg-muted **:data-[slot=dialog-close]:text-foreground sm:top-1/2 sm:bottom-auto sm:max-w-md sm:-translate-y-1/2 sm:rounded-b-3xl"
+				>
+					<DialogTitle className="pr-10 text-xl leading-snug font-extrabold wrap-anywhere">
+						Tandai {project.name ?? "project ini"} selesai?
+					</DialogTitle>
+					<DialogDescription className="space-y-2 text-foreground">
+						{(unscannedSerials > 0 || returnSerials > 0) && (
+							<span className="flex items-start gap-3 rounded-2xl bg-amber-100 p-3 text-amber-900 dark:bg-amber-950 dark:text-amber-100">
+								<CircleAlert
+									aria-hidden="true"
+									className="mt-0.5 size-4 shrink-0"
+								/>
+								<span>
+									<strong>
+										{unscannedSerials
+											? "Belum bisa ditandai selesai"
+											: "Masih ada barang dalam proses retur"}
+									</strong>
+									<span className="mt-1 block">
+										{unscannedSerials > 0 &&
+											`${unscannedSerials} barang belum memiliki Status Barang Scan. `}
+										{returnSerials > 0 &&
+											`${returnSerials} barang masih dalam proses retur.`}
+									</span>
+								</span>
+							</span>
+						)}
+						<span className="flex items-start gap-3 rounded-2xl bg-card p-3">
+							<Check
+								aria-hidden="true"
+								className="mt-0.5 size-4 shrink-0 text-emerald-600"
+							/>
+							<span>
+								Status project di ClickUp berubah jadi{" "}
+								<strong>Complete.</strong>
+							</span>
+						</span>
+						<span className="flex items-start gap-3 rounded-2xl bg-card p-3">
+							<Check
+								aria-hidden="true"
+								className="mt-0.5 size-4 shrink-0 text-emerald-600"
+							/>
+							<span>
+								Project hilang dari daftar pilihan petugas, jadi tidak bisa
+								discan lagi.
+							</span>
+						</span>
+						<span className="flex items-start gap-3 rounded-2xl bg-card p-3">
+							<Check
+								aria-hidden="true"
+								className="mt-0.5 size-4 shrink-0 text-emerald-600"
+							/>
+							<span>
+								Data dan riwayat tetap tersimpan. Bisa{" "}
+								<strong>dibuka lagi</strong> kapan saja.
+							</span>
+						</span>
+					</DialogDescription>
+					{completeError && (
+						<p role="alert" className="text-sm text-destructive">
+							{completeError}
+						</p>
+					)}
+					<DialogFooter className="-mx-5 -mb-5 grid grid-cols-2 border-t px-5 py-3 sm:grid">
+						<Button
+							variant="outline"
+							className="h-auto min-h-14 rounded-2xl bg-card"
+							disabled={completing}
+							onClick={() => setCompleteOpen(false)}
+						>
+							Batal
+						</Button>
+						<Button
+							className="h-auto min-h-14 rounded-2xl bg-primary whitespace-normal text-primary-foreground hover:bg-primary/90"
+							disabled={completing || unscannedSerials > 0 || isSyncing}
+							onClick={() => void confirmComplete()}
+						>
+							{completing ? "Menyimpan..." : "Ya, tandai selesai"}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 		</main>
 	);
 };

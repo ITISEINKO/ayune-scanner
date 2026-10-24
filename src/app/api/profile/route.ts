@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
-import { clickUpEmail, ppicSession } from "@/lib/session";
+import { clickUpProfile, ppicSession } from "@/lib/session";
 
 export async function GET() {
-	const [session, email] = await Promise.all([ppicSession(), clickUpEmail()]);
+	const [session, profile] = await Promise.all([ppicSession(), clickUpProfile()]);
 	return NextResponse.json({
-		email,
+		email: profile?.email ?? null,
+		displayName: profile?.displayName ?? null,
 		role: session?.role ?? null,
 		allowedStatuses: session?.allowed_status ?? null,
 	});

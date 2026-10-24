@@ -20,6 +20,8 @@
 # production
 /build
 /docs/
+/user-flow
+/postman
 
 # misc
 /AGENTS.md
