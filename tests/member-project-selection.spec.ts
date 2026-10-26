@@ -400,7 +400,7 @@ test.describe("Member project selection", () => {
 		await page
 			.getByRole("menuitemradio", { name: "Sedang Dipacking" })
 			.click();
-		await page.keyboard.press("Escape");
+		await expect(page.getByRole("menu")).toBeHidden();
 		await expect(page.getByRole("button", { name: "Keyboard" })).toBeEnabled();
 
 		await page.route("**/api/panel/scan", async (route) => {

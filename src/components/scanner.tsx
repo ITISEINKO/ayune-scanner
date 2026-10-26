@@ -212,7 +212,7 @@ export function Scanner({
 								if (!option) return [];
 								const Icon = option.icon;
 								return (
-									<DropdownMenuRadioItem key={status} value={status}>
+									<DropdownMenuRadioItem key={status} value={status} closeOnClick>
 										<Badge variant={option.variant}>
 											<Icon />
 											{option.label}

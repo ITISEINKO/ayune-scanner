@@ -7,6 +7,7 @@ const loadProfile = async () => {
 	const response = await fetch("/api/profile");
 	const profile = (await response.json()) as {
 		email: string | null;
+		displayName: string | null;
 		role: PpicRole | null;
 		allowedStatuses: PpicStatuses | null;
 	};

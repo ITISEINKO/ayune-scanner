@@ -1,11 +1,13 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { test, expect } from '@playwright/test';
 
 test.describe.configure({ mode: 'serial' });
 
+const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3000';
+
 const env = (name: string) =>
 	process.env[name] ??
-	readFileSync('.env', 'utf8')
+	(existsSync('.env') ? readFileSync('.env', 'utf8') : '')
 		.split(/\r?\n/)
 		.find((line) => line.startsWith(`${name}=`))
 		?.slice(name.length + 1) ?? '';
@@ -18,7 +20,7 @@ test('T06 non-admin sees Access denied on settings', async ({ page, context }) =
 		{
 			name: 'clickup_access_token',
 			value: token,
-			url: 'http://localhost:3000',
+			url: baseURL,
 		},
 	]);
 	await page.goto('/admin/settings');
@@ -34,7 +36,7 @@ test('configured active member reaches only its assigned panel', async ({
 	const token = env('CLICKUP_MEMBER_TOKEN');
 	test.skip(!token, 'CLICKUP_MEMBER_TOKEN is required for the active-member check');
 	await context.addCookies([
-		{ name: 'clickup_access_token', value: token, url: 'http://localhost:3000' },
+		{ name: 'clickup_access_token', value: token, url: baseURL },
 	]);
 
 	await page.goto('/');

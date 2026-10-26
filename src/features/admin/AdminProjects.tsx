@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, RefreshCw, Search } from "lucide-react";
+import { ArrowRight, Check, Play, RefreshCw, Search } from "lucide-react";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -133,7 +133,7 @@ export const AdminProjects = () => {
 					<p className="mb-4 text-sm text-muted-foreground">
 						{tab === "in progress"
 							? "Project yang sedang dikerjakan. Pilih project untuk melihat detail dan progresnya."
-							: "Project yang belum dimulai. Pilih project untuk mengonfirmasi dan mulai pengerjaan."}
+							: "Project yang belum dimulai. Klik Mulai agar petugas bisa memilih project dan mulai scan."}
 					</p>
 					<div className="mb-4 flex items-center justify-between">
 						<h2
@@ -155,6 +155,32 @@ export const AdminProjects = () => {
 					</div>
 					<div className="space-y-3">
 						{visibleProjects.map((project) => {
+							if (tab === "to do") return (
+								<article key={project.id} className="rounded-[1.35rem] border border-border/40 bg-card p-4 text-card-foreground">
+									<div className="min-w-0">
+										<Badge className="h-auto min-h-6 max-w-full rounded-md bg-primary px-2 py-1 text-[11px] font-bold whitespace-normal text-primary-foreground">
+											<span className="wrap-anywhere">{project.custom_id ?? project.id}</span>
+										</Badge>
+										<h3 className="mt-3 text-[17px] leading-snug font-extrabold tracking-tight wrap-anywhere">
+											{project.name ?? "Tanpa nama"}
+										</h3>
+										<p className="mt-1 text-sm text-muted-foreground">
+											Belum dimulai
+										</p>
+									</div>
+									<Button
+										className="mt-4 min-h-14 w-full gap-2 rounded-2xl bg-accent text-base text-white hover:bg-accent/80"
+										aria-label={`Mulai project ${project.name ?? project.custom_id ?? project.id}`}
+										onClick={() => {
+											setStartError("");
+											setSelectedProject(project);
+										}}
+									>
+										<Play aria-hidden="true" />
+										Mulai project
+									</Button>
+								</article>
+							);
 							const className =
 								"block w-full text-left rounded-[1.35rem] border border-border/40 bg-card text-card-foreground transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30";
 							const content = (
@@ -168,11 +194,7 @@ export const AdminProjects = () => {
 										{project.name ?? "Tanpa nama"}
 									</h3>
 									<div className="mt-7 flex items-center justify-between">
-										<p className="text-sm font-bold">
-											{tab === "in progress"
-												? "Lihat detail project"
-												: "Mulai project"}
-										</p>
+											<p className="text-sm font-bold">Lihat detail project</p>
 										<span
 											aria-hidden="true"
 											className="flex size-8 items-center justify-center rounded-full bg-primary text-primary-foreground"
@@ -182,7 +204,7 @@ export const AdminProjects = () => {
 									</div>
 								</div>
 							);
-							return tab === "in progress" ? (
+							return (
 								<Link
 									key={project.id}
 									href={`/admin/project?task_id=${encodeURIComponent(project.id)}`}
@@ -190,18 +212,6 @@ export const AdminProjects = () => {
 								>
 									{content}
 								</Link>
-							) : (
-								<button
-									key={project.id}
-									type="button"
-									className={className}
-									onClick={() => {
-										setStartError("");
-										setSelectedProject(project);
-									}}
-								>
-									{content}
-								</button>
 							);
 						})}
 						{loading &&
@@ -238,27 +248,44 @@ export const AdminProjects = () => {
 					if (!open && !starting) setSelectedProject(null);
 				}}
 			>
-				<DialogContent showCloseButton={!starting}>
-					<DialogTitle>Mulai project?</DialogTitle>
-					<DialogDescription>
-						Status parent task {selectedProject?.name ?? selectedProject?.id}{" "}
-						akan diubah menjadi in progress di ClickUp.
+				<DialogContent
+					showCloseButton={!starting}
+					className="top-auto bottom-0 max-h-dvh max-w-lg translate-y-0 gap-4 overflow-y-auto rounded-b-none bg-background p-4 pt-7 sm:top-1/2 sm:bottom-auto sm:max-w-md sm:-translate-y-1/2 sm:rounded-b-3xl"
+				>
+					<span aria-hidden="true" className="absolute top-2 left-1/2 h-1 w-10 -translate-x-1/2 rounded-full bg-border sm:hidden" />
+					<DialogTitle className="pr-10 text-xl leading-snug font-extrabold wrap-anywhere">
+						Mulai {selectedProject?.name ?? selectedProject?.custom_id ?? selectedProject?.id}?
+					</DialogTitle>
+					<DialogDescription className="space-y-2 text-foreground">
+						<span className="flex items-start gap-3 rounded-2xl bg-card p-3">
+							<Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-emerald-600" />
+							<span>Status project di ClickUp berubah jadi <strong>In Progress.</strong></span>
+						</span>
+						<span className="flex items-start gap-3 rounded-2xl bg-card p-3">
+							<Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-emerald-600" />
+							<span>Petugas langsung bisa memilih project ini dan mulai scan.</span>
+						</span>
 					</DialogDescription>
 					{startError && (
 						<p role="alert" className="text-sm text-destructive">
 							{startError}
 						</p>
 					)}
-					<DialogFooter>
+					<DialogFooter className="-mx-4 -mb-4 grid grid-cols-2 border-t border-border px-4 py-3 sm:grid">
 						<Button
 							variant="outline"
+							className="rounded-2xl bg-card"
 							disabled={starting}
 							onClick={() => setSelectedProject(null)}
 						>
-							Batal
+							Nanti dulu
 						</Button>
-						<Button disabled={starting} onClick={() => void confirmStart()}>
-							{starting ? "Memulai..." : "Mulai project"}
+						<Button
+							className="rounded-2xl bg-accent text-accent-foreground hover:bg-accent/80"
+							disabled={starting}
+							onClick={() => void confirmStart()}
+						>
+							{starting ? "Memulai..." : "Ya, mulai"}
 						</Button>
 					</DialogFooter>
 				</DialogContent>

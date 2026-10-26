@@ -1,7 +1,5 @@
 import { AdminProjects } from "@/features/admin/AdminProjects";
 
-const AdminHome = () => {
+export default function Projects() {
 	return <AdminProjects />;
-};
-
-export default AdminHome;
+}

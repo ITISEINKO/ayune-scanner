@@ -11,6 +11,9 @@ import type {
 	PpicScanHistory,
 	PpicStatus,
 	PpicStatuses,
+	MemberScanPeriod,
+	MemberScanSummary,
+	TeamDailyScanDay,
 } from "@/types/ppic";
 import type { PanelMember } from "@/types/clickup";
 import type { ProjectDashboard, ProjectStatusChange, ProjectStatusRow } from "@/types/project";
@@ -50,6 +53,14 @@ export const getAdminProjectSnapshot = async (scopeKey: string) => {
 	});
 	const json = result.rows[0]?.dashboard_json;
 	return json ? JSON.parse(String(json)) as ProjectDashboard : null;
+};
+
+export const invalidateAdminProjectSnapshots = async (taskId: string) => {
+	await ensureDashboardSnapshotSchema();
+	await db.execute({
+		sql: "DELETE FROM ppic_admin_project_snapshot WHERE json_extract(dashboard_json, '$.project.task_id') = ?",
+		args: [taskId],
+	});
 };
 
 export const claimAdminProjectRefresh = async (scopeKey: string, refreshId: string) => {
@@ -425,6 +436,118 @@ export const getPpicScanHistory = async (
 		taskName: String(row.task_name),
 		scannedAt: String(row.scanned_at),
 	}));
+};
+
+export const getPpicTeamScanOverview = async (
+	userIds: string[],
+	now = Date.now(),
+) => {
+	const dayMs = 86_400_000;
+	const jakartaOffset = 7 * 60 * 60 * 1000;
+	const today = Math.floor((now + jakartaOffset) / dayMs) * dayMs;
+	const start = today - 29 * dayMs;
+	const days: TeamDailyScanDay[] = Array.from({ length: 30 }, (_, index) => ({
+		date: new Date(start + index * dayMs).toISOString().slice(0, 10),
+		count: 0,
+		statuses: { BARANG_DITERIMA: 0, SEDANG_DIPACKING: 0, TERPASANG_DIGUNAKAN: 0, DALAM_PROSES_RETUR: 0, OTHER: 0 },
+	}));
+	const summaries: Record<string, Pick<MemberScanSummary, "today" | "total" | "days">> = Object.fromEntries(
+		userIds.map((id) => [id, { today: 0, total: 0, days: days.slice(-7).map(({ date }) => ({ date, count: 0 })) }]),
+	);
+	if (!userIds.length) return { dailyScans: days, summaries };
+	const result = await db.execute({
+		sql: `SELECT clickup_user_id, date(scanned_at, '+7 hours') AS day, status, COUNT(*) AS count
+			FROM ppic_scan_history
+			WHERE clickup_user_id IN (${userIds.map(() => "?").join(", ")})
+				AND unixepoch(scanned_at) >= ? AND unixepoch(scanned_at) <= ?
+			GROUP BY clickup_user_id, day, status`,
+		args: [...userIds, (start - jakartaOffset) / 1000, Math.floor(now / 1000)],
+	});
+	for (const row of result.rows) {
+		const day = days.find((day) => day.date === String(row.day));
+		if (!day) continue;
+		const count = Number(row.count);
+		day.count += count;
+		day.statuses[isPpicStatus(row.status) ? row.status : "OTHER"] += count;
+		const summary = summaries[String(row.clickup_user_id)];
+		const memberDay = summary.days.find((memberDay) => memberDay.date === day.date);
+		if (memberDay) {
+			memberDay.count += count;
+			summary.total += count;
+			if (memberDay === summary.days.at(-1)) summary.today += count;
+		}
+	}
+	return { dailyScans: days, summaries };
+};
+
+export const getPpicMemberScanSummary = async (
+	userId: string,
+	period: MemberScanPeriod,
+	now = Date.now(),
+): Promise<MemberScanSummary> => {
+	const dayMs = 86_400_000;
+	const jakartaOffset = 7 * 60 * 60 * 1000;
+	const localNow = new Date(now + jakartaOffset);
+	const today = Date.UTC(localNow.getUTCFullYear(), localNow.getUTCMonth(), localNow.getUTCDate());
+	const dayCount = period === "month" ? localNow.getUTCDate() : Number(period);
+	const start = today - (dayCount - 1) * dayMs;
+	const previousStart = start - dayCount * dayMs;
+	const [counts, latest] = await db.batch([
+		{
+			sql: `SELECT date(scanned_at, '+7 hours') AS day, status, COUNT(*) AS count
+				FROM ppic_scan_history
+				WHERE clickup_user_id = ? AND unixepoch(scanned_at) >= ? AND unixepoch(scanned_at) <= ?
+				GROUP BY day, status`,
+			args: [userId, (previousStart - jakartaOffset) / 1000, Math.floor(now / 1000)],
+		},
+		{
+			sql: `SELECT status, COUNT(*) AS total, MAX(unixepoch(scanned_at)) AS latest FROM ppic_scan_history
+				WHERE clickup_user_id = ? AND unixepoch(scanned_at) <= ?
+				GROUP BY status ORDER BY latest DESC`,
+			args: [userId, Math.floor(now / 1000)],
+		},
+	], "read");
+	const summary: MemberScanSummary = {
+		lifetimeTotal: latest.rows.reduce((total, row) => total + Number(row.total), 0),
+		total: 0,
+		today: 0,
+		previousTotal: 0,
+		lastScannedAt: latest.rows[0]?.latest == null ? null : new Date(Number(latest.rows[0].latest) * 1000).toISOString(),
+		days: Array.from({ length: dayCount }, (_, index) => ({
+			date: new Date(start + index * dayMs).toISOString().slice(0, 10),
+			count: 0,
+		})),
+		statuses: PPIC_STATUSES.map((status) => ({ status, count: 0 })),
+		lifetimeStatuses: PPIC_STATUSES.map((status) => ({ status, count: 0 })),
+	};
+	for (const row of latest.rows) {
+		const status = isPpicStatus(row.status) ? row.status : "OTHER";
+		let bucket = summary.lifetimeStatuses.find((bucket) => bucket.status === status);
+		if (!bucket) {
+			bucket = { status, count: 0 };
+			summary.lifetimeStatuses.push(bucket);
+		}
+		bucket.count += Number(row.total);
+	}
+	for (const row of counts.rows) {
+		const count = Number(row.count);
+		const day = summary.days.find((day) => day.date === String(row.day));
+		if (!day) {
+			summary.previousTotal += count;
+			continue;
+		}
+		day.count += count;
+		summary.total += count;
+		const status = isPpicStatus(row.status) ? row.status : "OTHER";
+		let bucket = summary.statuses.find((bucket) => bucket.status === status);
+		if (!bucket) {
+			bucket = { status, count: 0 };
+			summary.statuses.push(bucket);
+		}
+		bucket.count += count;
+	}
+	summary.today = summary.days.at(-1)!.count;
+	return summary;
 };
 
 export const getPpicProjectScanHistory = async (
