@@ -32,6 +32,9 @@ Installation runs `next build` through `postinstall`, so configure the environme
 | `pnpm build`                         | Create a production build                             |
 | `pnpm start`                         | Run the production build                              |
 | `pnpm test`                          | Run status and dashboard unit checks                  |
+| `pnpm test:smoke`                    | Check unauthenticated login routing in Chromium       |
+| `pnpm test:api`                      | Run API checks against the local ClickUp simulation   |
+| `pnpm test:browser`                  | Run isolated admin, profile, and Settings UI checks    |
 | `node tests/panel-members-cache.cjs` | Check Settings cache refresh and subscription cleanup |
 
 ## Code layout
@@ -43,4 +46,18 @@ Installation runs `next build` through `postinstall`, so configure the environme
 - `src/types/` — shared TypeScript types.
 - `tests/` — focused checks and Playwright suites; some suites require explicit opt-in and mutate live data.
 
-testing pr
+## Continuous integration
+
+[Tests](.github/workflows/playwright.yml) runs on every push, pull request, or manual dispatch. It uses Node 22 and the pnpm version pinned in `package.json`, validates the frozen lockfile, runs unit/authorization checks, builds once, and runs Chromium smoke and regression checks. API checks use the committed Postman ClickUp simulation and temporary local databases. No GitHub secrets or production services are required. Screenshots, the Playwright report, and simulation logs are uploaded as `test-results`.
+
+CI installs dependencies with `--ignore-scripts` so `postinstall` does not trigger a build during installation. The explicit build step uses local test environment values. Live permission/ClickUp fixtures remain opt-in and are not included in the push checks.
+
+To run the same isolated checks locally, build the app and start the simulation in another terminal:
+
+```sh
+pnpm test
+pnpm build
+postman simulation run postman/simulations/admin-dashboard.sim.yaml --port 4900 --output ndjson
+```
+
+Then run `pnpm test:api` and `pnpm test:browser`. Install Chromium first with `pnpm exec playwright install chromium` if needed. `CI=1 pnpm test:smoke` uses the production build; keep the optional `CLICKUP_NON_ADMIN_TOKEN` and `CLICKUP_MEMBER_TOKEN` empty for the same login-only smoke coverage as CI.
