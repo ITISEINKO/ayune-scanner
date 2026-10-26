@@ -1,7 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Check, Play, RefreshCw, Search } from "lucide-react";
+import {
+	ArrowRight,
+	Check,
+	FolderCheck,
+	FolderClock,
+	FolderOpen,
+	Play,
+	RefreshCw,
+	Search,
+	SearchX,
+} from "lucide-react";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -10,7 +20,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProjects } from "@/hooks/use-projects";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import {
 	Dialog,
 	DialogContent,
@@ -19,10 +35,41 @@ import {
 	DialogFooter,
 } from "@/components/ui/dialog";
 import type { ClickUpTask } from "@/types/clickup";
+import type { ProjectListStatus } from "@/types/project";
+
+const projectStatuses = {
+	"in progress": {
+		label: "In progress",
+		description:
+			"Project yang sedang dikerjakan. Pilih project untuk melihat detail dan progresnya.",
+		emptyTitle: "Belum ada project berjalan",
+		emptyDescription:
+			"Project yang sudah dimulai akan muncul di sini. Pilih project di Todo untuk mulai bekerja.",
+		emptyIcon: FolderOpen,
+	},
+	"to do": {
+		label: "Todo",
+		description:
+			"Project yang belum dimulai. Klik Mulai agar petugas bisa memilih project dan mulai scan.",
+		emptyTitle: "Belum ada project Todo",
+		emptyDescription:
+			"Belum ada project yang menunggu dimulai. Gunakan Sync untuk memeriksa daftar terbaru.",
+		emptyIcon: FolderClock,
+	},
+	complete: {
+		label: "Completed",
+		description:
+			"Project yang sudah selesai. Pilih project untuk melihat detail dan riwayatnya.",
+		emptyTitle: "Belum ada project selesai",
+		emptyDescription:
+			"Project yang ditandai selesai akan muncul di sini, lengkap dengan ringkasan dan riwayatnya.",
+		emptyIcon: FolderCheck,
+	},
+};
 
 export const AdminProjects = () => {
 	const [search, setSearch] = useState("");
-	const [tab, setTab] = useState<"in progress" | "to do">("in progress");
+	const [status, setStatus] = useState<ProjectListStatus>("in progress");
 	const [selectedProject, setSelectedProject] = useState<ClickUpTask | null>(
 		null,
 	);
@@ -35,12 +82,13 @@ export const AdminProjects = () => {
 		isFetching,
 		isError: error,
 		sync,
-	} = useProjects(tab);
+	} = useProjects(status);
 	const visibleProjects = projects.filter((project) =>
 		`${project.custom_id ?? ""} ${project.name ?? ""}`
 			.toLowerCase()
 			.includes(search.trim().toLowerCase()),
 	);
+	const EmptyIcon = search.trim() ? SearchX : projectStatuses[status].emptyIcon;
 	const syncProjects = () =>
 		void sync().catch(() =>
 			toast.error("Project tidak dapat diperbarui. Coba lagi."),
@@ -66,7 +114,7 @@ export const AdminProjects = () => {
 				task,
 			]);
 			setSelectedProject(null);
-			setTab("in progress");
+			setStatus("in progress");
 			toast.success("Project berhasil dimulai.");
 		} catch {
 			setStartError(
@@ -88,7 +136,7 @@ export const AdminProjects = () => {
 				/>
 				<div className="relative z-10 flex items-center gap-3">
 					<div className="mr-auto">
-						<p className="text-md text-muted-foreground/80">Pekerjaan Aktif</p>
+						<p className="text-md text-muted-foreground/80">Daftar pekerjaan</p>
 
 						<h1 className="text-2xl text- font-extrabold tracking-tight">
 							Pilih project
@@ -120,31 +168,46 @@ export const AdminProjects = () => {
 				</div>
 			</header>
 
-			<Tabs
-				value={tab}
-				onValueChange={(value) => setTab(value as typeof tab)}
-				className="space-y-5 px-4 pt-5"
-			>
-				<TabsList className="w-full" aria-label="Status project">
-					<TabsTrigger value="in progress">In progress</TabsTrigger>
-					<TabsTrigger value="to do">Todo</TabsTrigger>
-				</TabsList>
-				<TabsContent value={tab}>
+			<section className="space-y-4 px-4 pt-5" aria-label="Daftar project">
+				<div className="space-y-2">
+					<label htmlFor="project-status" className="text-sm font-semibold">
+						Status project
+					</label>
+					<Select
+						value={status}
+						onValueChange={(value) => {
+							if (value) setStatus(value);
+						}}
+					>
+						<SelectTrigger
+							id="project-status"
+							className="min-h-11 w-full rounded-xl border-border bg-card"
+						>
+							<SelectValue>{projectStatuses[status].label}</SelectValue>
+						</SelectTrigger>
+						<SelectContent alignItemWithTrigger={false}>
+							{Object.entries(projectStatuses).map(([value, { label }]) => (
+								<SelectItem key={value} value={value}>
+									{label}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+				</div>
+				<div>
 					<p className="mb-4 text-sm text-muted-foreground">
-						{tab === "in progress"
-							? "Project yang sedang dikerjakan. Pilih project untuk melihat detail dan progresnya."
-							: "Project yang belum dimulai. Klik Mulai agar petugas bisa memilih project dan mulai scan."}
+						{projectStatuses[status].description}
 					</p>
 					<div className="mb-4 flex items-center justify-between">
 						<h2
-							id="ongoing-projects"
+							id="filtered-projects"
 							className="flex items-center gap-2 text-[11px] font-bold tracking-[0.18em] text-muted-foreground uppercase"
 						>
 							<span
 								aria-hidden="true"
 								className="size-1.5 rounded-full bg-primary/40"
 							/>
-							{tab === "in progress" ? "Ongoing" : "Todo"}
+							{projectStatuses[status].label}
 						</h2>
 						<Badge
 							variant="muted"
@@ -155,32 +218,38 @@ export const AdminProjects = () => {
 					</div>
 					<div className="space-y-3">
 						{visibleProjects.map((project) => {
-							if (tab === "to do") return (
-								<article key={project.id} className="rounded-[1.35rem] border border-border/40 bg-card p-4 text-card-foreground">
-									<div className="min-w-0">
-										<Badge className="h-auto min-h-6 max-w-full rounded-md bg-primary px-2 py-1 text-[11px] font-bold whitespace-normal text-primary-foreground">
-											<span className="wrap-anywhere">{project.custom_id ?? project.id}</span>
-										</Badge>
-										<h3 className="mt-3 text-[17px] leading-snug font-extrabold tracking-tight wrap-anywhere">
-											{project.name ?? "Tanpa nama"}
-										</h3>
-										<p className="mt-1 text-sm text-muted-foreground">
-											Belum dimulai
-										</p>
-									</div>
-									<Button
-										className="mt-4 min-h-14 w-full gap-2 rounded-2xl bg-accent text-base text-white hover:bg-accent/80"
-										aria-label={`Mulai project ${project.name ?? project.custom_id ?? project.id}`}
-										onClick={() => {
-											setStartError("");
-											setSelectedProject(project);
-										}}
+							if (status === "to do")
+								return (
+									<article
+										key={project.id}
+										className="rounded-[1.35rem] border border-border/40 bg-card p-4 text-card-foreground"
 									>
-										<Play aria-hidden="true" />
-										Mulai project
-									</Button>
-								</article>
-							);
+										<div className="min-w-0">
+											<Badge className="h-auto min-h-6 max-w-full rounded-md bg-primary px-2 py-1 text-[11px] font-bold whitespace-normal text-primary-foreground">
+												<span className="wrap-anywhere">
+													{project.custom_id ?? project.id}
+												</span>
+											</Badge>
+											<h3 className="mt-3 text-[17px] leading-snug font-extrabold tracking-tight wrap-anywhere">
+												{project.name ?? "Tanpa nama"}
+											</h3>
+											<p className="mt-1 text-sm text-muted-foreground">
+												Belum dimulai
+											</p>
+										</div>
+										<Button
+											className="mt-4 min-h-14 w-full gap-2 rounded-2xl bg-accent text-base text-white hover:bg-accent/80"
+											aria-label={`Mulai project ${project.name ?? project.custom_id ?? project.id}`}
+											onClick={() => {
+												setStartError("");
+												setSelectedProject(project);
+											}}
+										>
+											<Play aria-hidden="true" />
+											Mulai project
+										</Button>
+									</article>
+								);
 							const className =
 								"block w-full text-left rounded-[1.35rem] border border-border/40 bg-card text-card-foreground transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30";
 							const content = (
@@ -194,7 +263,7 @@ export const AdminProjects = () => {
 										{project.name ?? "Tanpa nama"}
 									</h3>
 									<div className="mt-7 flex items-center justify-between">
-											<p className="text-sm font-bold">Lihat detail project</p>
+										<p className="text-sm font-bold">Lihat detail project</p>
 										<span
 											aria-hidden="true"
 											className="flex size-8 items-center justify-center rounded-full bg-primary text-primary-foreground"
@@ -207,7 +276,7 @@ export const AdminProjects = () => {
 							return (
 								<Link
 									key={project.id}
-									href={`/admin/project?task_id=${encodeURIComponent(project.id)}`}
+									href={`/admin/project?task_id=${encodeURIComponent(project.id)}${status === "complete" ? "&review=completed" : ""}`}
 									className={className}
 								>
 									{content}
@@ -230,9 +299,57 @@ export const AdminProjects = () => {
 								</article>
 							))}
 						{!loading && !error && !visibleProjects.length && (
-							<p className="text-sm text-muted-foreground">
-								Tidak ada project {tab === "in progress" ? "ongoing" : "todo"}.
-							</p>
+							<div
+								role="status"
+								className="rounded-3xl border border-border/60 bg-card/60 px-5 pt-5 pb-7 text-center"
+							>
+								<div
+									aria-hidden="true"
+									className="relative mx-auto mb-2 w-52 max-w-full"
+								>
+									<img
+										src="/empty-projects.svg"
+										alt=""
+										width={240}
+										height={180}
+										className="h-auto w-full"
+									/>
+								</div>
+								<h3 className="text-lg leading-snug font-extrabold tracking-tight">
+									{search.trim()
+										? "Project tidak ditemukan"
+										: projectStatuses[status].emptyTitle}
+								</h3>
+								<p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed wrap-anywhere text-muted-foreground">
+									{search.trim()
+										? `Tidak ada project ${projectStatuses[status].label.toLowerCase()} yang cocok dengan “${search.trim()}”. Coba kode atau nama lain.`
+										: projectStatuses[status].emptyDescription}
+								</p>
+								{search.trim() ? (
+									<Button
+										variant="outline"
+										className="mt-5 rounded-xl bg-card"
+										onClick={() => setSearch("")}
+									>
+										<SearchX aria-hidden="true" /> Hapus pencarian
+									</Button>
+								) : (
+									<Button
+										variant="outline"
+										className="mt-5 rounded-xl bg-card"
+										onClick={() =>
+											setStatus(
+												status === "in progress" ? "to do" : "in progress",
+											)
+										}
+									>
+										{status === "in progress"
+											? "Lihat project Todo"
+											: "Lihat project berjalan"}
+										<ArrowRight aria-hidden="true" />
+									</Button>
+								)}
+							</div>
 						)}
 						{error && (
 							<p className="text-sm text-destructive">
@@ -240,8 +357,8 @@ export const AdminProjects = () => {
 							</p>
 						)}
 					</div>
-				</TabsContent>
-			</Tabs>
+				</div>
+			</section>
 			<Dialog
 				open={!!selectedProject}
 				onOpenChange={(open) => {
@@ -252,18 +369,36 @@ export const AdminProjects = () => {
 					showCloseButton={!starting}
 					className="top-auto bottom-0 max-h-dvh max-w-lg translate-y-0 gap-4 overflow-y-auto rounded-b-none bg-background p-4 pt-7 sm:top-1/2 sm:bottom-auto sm:max-w-md sm:-translate-y-1/2 sm:rounded-b-3xl"
 				>
-					<span aria-hidden="true" className="absolute top-2 left-1/2 h-1 w-10 -translate-x-1/2 rounded-full bg-border sm:hidden" />
+					<span
+						aria-hidden="true"
+						className="absolute top-2 left-1/2 h-1 w-10 -translate-x-1/2 rounded-full bg-border sm:hidden"
+					/>
 					<DialogTitle className="pr-10 text-xl leading-snug font-extrabold wrap-anywhere">
-						Mulai {selectedProject?.name ?? selectedProject?.custom_id ?? selectedProject?.id}?
+						Mulai{" "}
+						{selectedProject?.name ??
+							selectedProject?.custom_id ??
+							selectedProject?.id}
+						?
 					</DialogTitle>
 					<DialogDescription className="space-y-2 text-foreground">
 						<span className="flex items-start gap-3 rounded-2xl bg-card p-3">
-							<Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-emerald-600" />
-							<span>Status project di ClickUp berubah jadi <strong>In Progress.</strong></span>
+							<Check
+								aria-hidden="true"
+								className="mt-0.5 size-4 shrink-0 text-emerald-600"
+							/>
+							<span>
+								Status project di ClickUp berubah jadi{" "}
+								<strong>In Progress.</strong>
+							</span>
 						</span>
 						<span className="flex items-start gap-3 rounded-2xl bg-card p-3">
-							<Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-emerald-600" />
-							<span>Petugas langsung bisa memilih project ini dan mulai scan.</span>
+							<Check
+								aria-hidden="true"
+								className="mt-0.5 size-4 shrink-0 text-emerald-600"
+							/>
+							<span>
+								Petugas langsung bisa memilih project ini dan mulai scan.
+							</span>
 						</span>
 					</DialogDescription>
 					{startError && (

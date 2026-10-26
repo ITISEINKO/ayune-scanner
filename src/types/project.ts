@@ -1,5 +1,7 @@
 import type { PpicProjectScanHistory } from "@/types/ppic";
 
+export type ProjectListStatus = "in progress" | "to do" | "complete";
+
 export type SelectedProject = {
 	task_id: string;
 	name: string | null;
@@ -41,6 +43,12 @@ export type ProjectDashboardItem = {
 
 export type ProjectDashboard = {
 	syncedAt?: number;
+	completion?: {
+		completedAt: string | null;
+		capturedAt: string;
+		completedBy: { userId: string; name: string } | null;
+		source: "completion" | "first-view";
+	};
 	project: SelectedProject & { startDate: string | null; dueDate: string | null; status?: string | null };
 	items: ProjectDashboardItem[];
 	recentHistory: PpicProjectScanHistory[];

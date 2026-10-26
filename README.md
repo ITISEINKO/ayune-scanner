@@ -6,11 +6,16 @@ TrackerProd tracks production-panel progress in ClickUp through serial-number sc
 
 - **Members:** choose an ongoing (`in progress`) parent project, select an allowed status, then scan using a camera or keyboard scanner. Scans are restricted to the selected project.
 - **Scan statuses:** Barang Diterima, Sedang Dipacking, Terpasang / Digunakan, and Dalam Proses Retur.
-- **Admins:** view ongoing and Todo projects, confirm starting a Todo project, inspect component progress and scan history, and update statuses manually.
+- **Admins:** filter projects by In progress, Todo, or Completed, confirm starting a Todo project, inspect component progress and scan history, and update statuses manually. Each status loads on selection and refreshes with Sync.
+- **Completed review:** open a frozen review with timing, unique-item scan milestones, final serial-item statuses, and scan-event contributions. **Unduh laporan** opens an A4 print layout for Save as PDF; no PDF package is required.
 - **Settings:** manage member roles and allowed statuses. Ably delivers permission updates; returning to Settings refreshes the cached data after subscribing.
 - **Sync:** refresh project lists or the selected admin dashboard from ClickUp. The dashboard uses a saved snapshot with local status updates between syncs.
 
 Scans update ClickUp first, then the local status, scan history, and serial cache. Turso stores permissions, history, and cached project data.
+
+`GET /api/projects` defaults to `status=in progress`; `status=to do` and `status=complete` require fresh `SUPER_ADMIN` authorization. Responses contain `{ tasks: [{ id, custom_id, name }] }`. Unsupported statuses return `400 INVALID_STATUS`; `refresh=1` bypasses the per-token/status cache. Completed listing fetches every page with `include_closed=true`, following [ClickUp Get Tasks](https://developer.clickup.com/reference/gettasks), and keeps only parent projects.
+
+`POST /api/project/complete` returns `{ task, dashboard }`, including the saved review and completing admin. It stages the snapshot before the ClickUp update, then finalizes it; a failed final save can be recovered by retrying. Completed snapshots reuse `ppic_admin_project_snapshot` under `completed:<scope hash>` and retain the existing token/list/project isolation. They survive ordinary snapshot invalidation and are never overlaid with newer item statuses. Reading an archive still checks current ClickUp parent access. A different access token creates its own first-view snapshot; that snapshot is labeled accordingly, and unrecorded completion dates/admins remain unknown.
 
 ## Stack
 

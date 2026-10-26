@@ -45,6 +45,8 @@ const { chromium, expect } = require("@playwright/test");
 			{ name: "ppic_session", value: `${payload}.${createHmac("sha256", secret).update(payload).digest("base64url")}`, url: baseURL },
 		]);
 		let writes = 0;
+		let completedReads = 0;
+		let projectCompleted = false;
 		let responseMode = "conflict";
 		let finish;
 		await context.route("**/*", async route => {
@@ -52,19 +54,35 @@ const { chromium, expect } = require("@playwright/test");
 			if (url.origin !== baseURL) return route.abort();
 			if (url.pathname === "/api/project/changes") return route.fulfill({ json: { changes: [] } });
 			if (url.pathname === "/api/project/sync") return route.fulfill({ json: { dashboard } });
+			if (url.pathname === "/api/projects") {
+				const completed = url.searchParams.get("status") === "complete";
+				if (completed) completedReads++;
+				return route.fulfill({ json: { tasks: !completed || projectCompleted ? [{ id: "complete-project", name: dashboard.project.name }] : [] } });
+			}
 			if (url.pathname === "/api/project/complete") {
 				writes++;
 				assert.deepEqual(route.request().postDataJSON(), { task_id: "complete-project" });
 				if (responseMode === "conflict") return route.fulfill({ status: 409, json: { error: "PROJECT_HAS_UNSCANNED_SERIALS" } });
 				if (responseMode === "failure") return route.fulfill({ status: 502, json: { error: "CLICKUP_ERROR" } });
 				await new Promise(done => { finish = done; });
-				return route.fulfill({ json: { task: { id: "complete-project" } } });
+				projectCompleted = true;
+				return route.fulfill({ json: { task: { id: "complete-project" }, dashboard: {
+					...dashboard, project: { ...dashboard.project, status: "complete" },
+					completion: { completedAt: "2026-10-22T10:00:00Z", capturedAt: "2026-10-22T10:00:00Z", completedBy: { userId: "admin", name: "Admin Contoh" }, source: "completion" },
+				} } });
 			}
 			if (url.pathname.startsWith("/api/")) return route.fulfill({ status: 401, json: {} });
 			return route.continue();
 		});
 		const page = await context.newPage();
-		await page.goto(`${baseURL}/admin/project?task_id=complete-project`);
+		await page.goto(`${baseURL}/admin/projects`);
+		await page.getByRole("combobox", { name: "Status project" }).click();
+		await page.getByRole("option", { name: "Completed", exact: true }).click();
+		await expect(page.getByRole("heading", { name: "Belum ada project selesai", exact: true })).toBeVisible();
+		assert.equal(completedReads, 1);
+		await page.getByRole("combobox", { name: "Status project" }).click();
+		await page.getByRole("option", { name: "In progress", exact: true }).click();
+		await page.getByRole("link", { name: /Rak Buku/ }).click();
 		await expect(page.getByText("Masih ada 3 barang belum discan.")).toBeVisible();
 		await page.getByRole("button", { name: "Tandai selesai", exact: true }).click();
 		const dialog = page.getByRole("dialog", { name: "Tandai Rak Buku · Kantor Contoh selesai?" });
@@ -99,8 +117,15 @@ const { chromium, expect } = require("@playwright/test");
 		await expect.poll(() => typeof finish).toBe("function");
 		finish();
 		await expect(dialog).not.toBeVisible();
-		await expect(page.getByRole("heading", { name: "Project sudah selesai" })).toBeVisible();
+		await expect(page.getByRole("heading", { name: "Ringkasan waktu" })).toBeVisible();
+		await expect(page.getByText("Ditandai selesai oleh Admin Contoh.")).toBeVisible();
+		await expect(page.getByRole("button", { name: "Tandai selesai", exact: true })).toHaveCount(0);
 		assert.equal(writes, 3);
+		await page.locator("main").getByRole("link", { name: "Projects", exact: true }).click();
+		await page.getByRole("combobox", { name: "Status project" }).click();
+		await page.getByRole("option", { name: "Completed", exact: true }).click();
+		await expect(page.getByRole("link", { name: /Rak Buku/ })).toHaveAttribute("href", "/admin/project?task_id=complete-project&review=completed");
+		assert.equal(completedReads, 2, "completion clears the previously loaded Completed list");
 		console.log("Completion UI: mobile/desktop, missing serial blocker, non-serial exclusion, retur warning, cancel, stale conflict, upstream failure, pending state and success passed.");
 	} finally { await browser?.close(); server.kill(); db.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

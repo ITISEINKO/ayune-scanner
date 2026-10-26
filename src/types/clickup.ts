@@ -16,6 +16,7 @@ export type ClickUpTask = {
 	due_date?: string | null;
 	date_created?: string;
 	date_closed?: string | null;
+	date_done?: string | null;
 	subtasks?: ClickUpTask[];
 	custom_fields?: ClickUpCustomField[];
 	list?: { id: string };

@@ -243,6 +243,7 @@ export const requireFreshSuperAdmin = async () => {
 	const userId = await clickUpUserId();
 	if (!userId) redirect("/login");
 	if (!(await isPpicSuperAdmin(userId))) redirect("/unauthorized");
+	return userId;
 };
 
 export const requireSuperAdmin = async () => {

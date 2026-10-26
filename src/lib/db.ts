@@ -58,7 +58,7 @@ export const getAdminProjectSnapshot = async (scopeKey: string) => {
 export const invalidateAdminProjectSnapshots = async (taskId: string) => {
 	await ensureDashboardSnapshotSchema();
 	await db.execute({
-		sql: "DELETE FROM ppic_admin_project_snapshot WHERE json_extract(dashboard_json, '$.project.task_id') = ?",
+		sql: "DELETE FROM ppic_admin_project_snapshot WHERE json_extract(dashboard_json, '$.project.task_id') = ? AND scope_key NOT LIKE 'completed:%'",
 		args: [taskId],
 	});
 };
@@ -89,6 +89,19 @@ export const finishAdminProjectRefresh = async (
 		args: [dashboard ? JSON.stringify(dashboard) : null, scopeKey, refreshId],
 	});
 	return result.rowsAffected > 0;
+};
+
+export const stageAdminProjectSnapshot = async (
+	scopeKey: string,
+	refreshId: string,
+	dashboard: ProjectDashboard,
+) => {
+	await ensureDashboardSnapshotSchema();
+	const result = await db.execute({
+		sql: "UPDATE ppic_admin_project_snapshot SET dashboard_json = ? WHERE scope_key = ? AND refresh_id = ?",
+		args: [JSON.stringify(dashboard), scopeKey, refreshId],
+	});
+	if (!result.rowsAffected) throw new Error("PROJECT_SYNC_SUPERSEDED");
 };
 
 const ensureProjectStatusSchema = () =>

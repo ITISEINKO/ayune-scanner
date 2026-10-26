@@ -8,8 +8,8 @@ const error = (status: number, message: string) =>
 export async function GET(request: Request) {
 	const query = new URL(request.url).searchParams;
 	const status = query.get("status") ?? "in progress";
-	if (status !== "in progress" && status !== "to do") return error(400, "INVALID_STATUS");
-	if (status === "to do") await requireFreshSuperAdmin();
+	if (status !== "in progress" && status !== "to do" && status !== "complete") return error(400, "INVALID_STATUS");
+	if (status !== "in progress") await requireFreshSuperAdmin();
 	const token = await clickUpToken();
 	if (!token) return error(401, "UNAUTHORIZED");
 

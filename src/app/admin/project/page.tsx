@@ -1,5 +1,6 @@
 import { ProjectDetailPage } from "@/features/admin/ProjectDetailPage";
-import { getProjectDashboard } from "@/lib/projectDashboard";
+import { CompletedProjectDetailPage } from "@/features/admin/CompletedProjectDetailPage";
+import { getCompletedProjectDashboard, getProjectDashboard } from "@/lib/projectDashboard";
 import {
 	clickUpToken,
 	requireSelectedAdminProject,
@@ -12,9 +13,10 @@ export const maxDuration = 60;
 export default async function ProjectDetail({
 	searchParams,
 }: {
-	searchParams: Promise<{ task_id?: string }>;
+	searchParams: Promise<{ task_id?: string; review?: string }>;
 }) {
-	const taskId = (await searchParams).task_id?.trim();
+	const params = await searchParams;
+	const taskId = params.task_id?.trim();
 	const [project, token] = await Promise.all([
 		taskId
 			? Promise.resolve<SelectedProject>({ task_id: taskId, name: null, custom_id: null })
@@ -23,7 +25,12 @@ export default async function ProjectDetail({
 	]);
 	if (!token) redirect("/login");
 	try {
-		return <ProjectDetailPage dashboard={await getProjectDashboard(token, project)} />;
+		const dashboard = await (params.review === "completed"
+			? getCompletedProjectDashboard(token, project)
+			: getProjectDashboard(token, project));
+		return dashboard.completion && dashboard.project.status?.toLowerCase() === "complete"
+			? <CompletedProjectDetailPage dashboard={dashboard} />
+			: <ProjectDetailPage dashboard={dashboard} />;
 	} catch {
 		return <ProjectDetailPage error="Dashboard project tidak dapat dimuat. Coba lagi." />;
 	}

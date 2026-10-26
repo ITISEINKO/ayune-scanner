@@ -5,9 +5,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "test": "node --experimental-strip-types --test src/lib/produksiPanel.test.ts src/lib/projectStatus.test.ts src/lib/projectDashboard.test.ts tests/admin-overview.cjs tests/member-scan-summary.cjs tests/profile-scan-summary.cjs tests/profile-account.cjs tests/panel-members-cache.cjs tests/team-daily-scans.cjs",
+    "test": "node --experimental-strip-types --test src/lib/produksiPanel.test.ts src/lib/projectStatus.test.ts src/lib/projectDashboard.test.ts tests/admin-overview.cjs tests/member-scan-summary.cjs tests/profile-scan-summary.cjs tests/profile-account.cjs tests/panel-members-cache.cjs tests/team-daily-scans.cjs tests/completed-project-review.cjs",
     "test:api": "node --experimental-strip-types tests/projects.cjs && node --experimental-strip-types tests/project-complete.cjs && node --experimental-strip-types tests/admin-project-snapshot.cjs",
-    "test:browser": "node --experimental-strip-types tests/admin-home.cjs && node --experimental-strip-types tests/admin-projects.cjs && node --experimental-strip-types tests/admin-project-complete.cjs && node --experimental-strip-types tests/admin-project-groups.cjs && node --experimental-strip-types tests/profile-overview.cjs && node --experimental-strip-types tests/settings-member-overview.cjs",
+    "test:browser": "node --experimental-strip-types tests/admin-home.cjs && node --experimental-strip-types tests/admin-projects.cjs && node --experimental-strip-types tests/admin-project-complete.cjs && node --experimental-strip-types tests/admin-completed-project.cjs && node --experimental-strip-types tests/admin-project-groups.cjs && node --experimental-strip-types tests/profile-overview.cjs && node --experimental-strip-types tests/settings-member-overview.cjs",
     "test:smoke": "playwright test tests/panel-access.spec.ts --project=chromium",
     "test:admin-dashboard": "node --experimental-strip-types tests/admin-project-snapshot.cjs",
     "start": "next start",

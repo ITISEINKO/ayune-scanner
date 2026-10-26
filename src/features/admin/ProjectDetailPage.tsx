@@ -52,6 +52,7 @@ import {
 import { elapsedLabel, scanWindow } from "@/lib/projectTimeline";
 import { statusBarangScanOptions } from "@/lib/produksiPanel";
 import type { ProjectDashboard, ProjectStatusChange } from "@/types/project";
+import { CompletedProjectDetailPage } from "@/features/admin/CompletedProjectDetailPage";
 
 const formatDate = (value: string | null, includeTime = false) => {
 	if (!value) return "Tidak tersedia";
@@ -239,7 +240,11 @@ export const ProjectDetailPage = ({
 	};
 	useEffect(() => setCurrentDashboard(dashboard), [dashboard]);
 	useEffect(() => {
-		if (!currentDashboard) return;
+		if (
+			!currentDashboard ||
+			currentDashboard.project.status?.toLowerCase() === "complete"
+		)
+			return;
 		let since = currentDashboard.statusUpdatedAt;
 		let delay = 10_000;
 		let timer: number | undefined;
@@ -285,7 +290,11 @@ export const ProjectDetailPage = ({
 			if (timer !== undefined) window.clearTimeout(timer);
 			document.removeEventListener("visibilitychange", onVisibilityChange);
 		};
-	}, [currentDashboard?.project.task_id, currentDashboard?.syncedAt]);
+	}, [
+		currentDashboard?.project.task_id,
+		currentDashboard?.project.status,
+		currentDashboard?.syncedAt,
+	]);
 
 	if (!currentDashboard)
 		return (
@@ -333,7 +342,10 @@ export const ProjectDetailPage = ({
 			});
 			if (response.redirected)
 				throw new Error("Sesi berakhir. Silakan login kembali.");
-			const result = (await response.json()) as { error?: string };
+			const result = (await response.json()) as {
+				error?: string;
+				dashboard?: ProjectDashboard;
+			};
 			if (!response.ok)
 				throw new Error(
 					result.error === "PROJECT_HAS_UNSCANNED_SERIALS"
@@ -344,10 +356,19 @@ export const ProjectDetailPage = ({
 			queryClient.setQueryData<ClickUpTask[]>(["projects"], (tasks) =>
 				tasks?.filter((task) => task.id !== project.task_id),
 			);
-			setCurrentDashboard((current) =>
-				current
-					? { ...current, project: { ...current.project, status: "complete" } }
-					: current,
+			queryClient.removeQueries({
+				queryKey: ["projects", "complete"],
+				exact: true,
+			});
+			setCurrentDashboard(
+				(current) =>
+					result.dashboard ??
+					(current
+						? {
+								...current,
+								project: { ...current.project, status: "complete" },
+							}
+						: current),
 			);
 			setCompleteOpen(false);
 			toast.success("Project berhasil ditandai selesai.");
@@ -407,6 +428,9 @@ export const ProjectDetailPage = ({
 				Number(a.supporting) - Number(b.supporting) ||
 				b.remaining - a.remaining,
 		);
+
+	if (currentDashboard.completion && projectComplete)
+		return <CompletedProjectDetailPage dashboard={currentDashboard} />;
 
 	return (
 		<main className="mx-auto min-h-dvh max-w-lg  bg-muted ">
@@ -470,7 +494,7 @@ export const ProjectDetailPage = ({
 					</div>
 					{!projectComplete && (
 						<Button
-							variant="outline"
+							variant="secondary"
 							className="shrink-0 rounded-xl"
 							onClick={() => {
 								setCompleteError("");

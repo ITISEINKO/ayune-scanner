@@ -530,7 +530,7 @@ function AdminDashboardContent({
 								key={member.id}
 								type="button"
 								onClick={() => setSelectedMember(member)}
-								className="flex w-full items-center gap-3 px-4 py-3 text-left even:bg-muted/30 hover:bg-muted/60 focus-visible:bg-muted focus-visible:outline-offset-[-3px] focus-visible:outline-ring"
+								className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-muted/60 focus-visible:bg-muted focus-visible:outline-offset-[-3px] focus-visible:outline-ring"
 							>
 								<span
 									aria-hidden="true"

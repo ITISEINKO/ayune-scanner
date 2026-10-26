@@ -19,13 +19,17 @@ http.createServer((req, res) => {
 	let status = 200;
 	let body;
 	if (mode?.startsWith("project-complete")) {
-		const task = { id: "complete-project", name: "Rak Buku · Kantor Contoh", parent: null, list: { id: listId }, status: { status: projectCompleted ? "complete" : "in progress" } };
+		const task = { id: "complete-project", name: "Rak Buku · Kantor Contoh", parent: null, list: { id: listId }, date_closed: projectCompleted ? String(Date.parse("2026-10-22T10:00:00Z")) : null, status: { status: projectCompleted ? "complete" : "in progress" } };
 		if (url.pathname === "/test/reset") {
 			projectCompleted = false; completeWrites = 0; body = {};
 		} else if (url.pathname === "/test/writes") {
 			body = { writes: completeWrites };
 		} else if (url.pathname === `/api/v2/list/${listId}/task`) {
+			if (url.searchParams.get("statuses[]") === "complete") {
+				body = { tasks: projectCompleted && url.searchParams.get("include_closed") === "true" ? [task] : [], last_page: true };
+			} else {
 			body = { tasks: projectCompleted ? [] : [task], last_page: true };
+			}
 		} else if (url.pathname === "/api/v2/team/90182186539/task") {
 			if (url.searchParams.get("parent") !== task.id || url.searchParams.get("subtasks") !== "true" || url.searchParams.get("include_closed") !== "true") {
 				status = 400; body = { error: "Invalid hierarchy query" };
@@ -41,6 +45,8 @@ http.createServer((req, res) => {
 			}
 		} else if (req.method === "GET" && url.pathname.startsWith("/api/v2/task/")) {
 			const id = url.pathname.split("/").pop();
+			if (mode === "project-complete-forbidden") { status = 403; body = {}; }
+			else
 			body = { ...task, id,
 				...(id === "child" ? { parent: task.id } : {}),
 				...(id === "foreign" ? { list: { id: "other-list" } } : {}),
@@ -60,8 +66,16 @@ http.createServer((req, res) => {
 		} else if (url.pathname === "/test/writes") {
 			body = { writes: projectWrites };
 		} else if (url.pathname === `/api/v2/list/${listId}/task`) {
+			if (url.searchParams.get("statuses[]") === "complete") {
+				const page = url.searchParams.get("page");
+				const done = { ...task, id: "done-project", name: "Completed project", status: { status: "complete" } };
+				if (url.searchParams.get("include_closed") !== "true") { status = 400; body = { error: "Closed tasks must be included" }; }
+				else if (mode === "project-start-rate-limit") { status = 429; body = {}; }
+				else body = { tasks: page === "0" ? [done, { ...done, id: "done-child", parent: done.id }] : [{ ...done, id: "done-project-2" }], last_page: page === "1" };
+			} else {
 			const matches = url.searchParams.get("statuses[]") === task.status.status;
 			body = { tasks: matches ? (url.searchParams.get("page") === "0" ? [task] : [{ ...task, id: "child", parent: task.id }]) : [], last_page: url.searchParams.get("page") === "1" || !matches };
+			}
 		} else if (req.method === "GET" && url.pathname.startsWith("/api/v2/task/")) {
 			const id = url.pathname.split("/").pop();
 			body = { ...task, id,
