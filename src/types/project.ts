@@ -1,4 +1,4 @@
-import type { PpicProjectScanHistory } from "@/types/ppic";
+import type { PpicProjectScanHistory, PpicStatus } from "@/types/ppic";
 
 export type ProjectListStatus = "in progress" | "to do" | "complete";
 
@@ -41,6 +41,35 @@ export type ProjectDashboardItem = {
 	components: ProjectDashboardComponent[];
 };
 
+export type CompletedProjectInsights = {
+	returns: {
+		totalItems: number;
+		returnedItems: number;
+		percentage: number | null;
+		inProgress: number;
+		resolved: number;
+		unknown: number;
+		groups: {
+			id: string;
+			name: string;
+			totalItems: number;
+			returnedItems: number;
+			percentage: number;
+			inProgress: number;
+			resolved: number;
+			unknown: number;
+		}[];
+	};
+	transitions: {
+		from: PpicStatus;
+		to: PpicStatus;
+		averageHours: number | null;
+		sampleItems: number;
+		waitingItems: number;
+	}[];
+	bottleneck: PpicStatus | null;
+};
+
 export type ProjectDashboard = {
 	syncedAt?: number;
 	completion?: {
@@ -48,6 +77,7 @@ export type ProjectDashboard = {
 		capturedAt: string;
 		completedBy: { userId: string; name: string } | null;
 		source: "completion" | "first-view";
+		insights?: CompletedProjectInsights;
 	};
 	project: SelectedProject & { startDate: string | null; dueDate: string | null; status?: string | null };
 	items: ProjectDashboardItem[];

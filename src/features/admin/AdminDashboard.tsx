@@ -3,7 +3,7 @@
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, CircleHelp, Menu, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -58,13 +58,24 @@ export function AdminDashboard({
 	userId: string;
 	initialData?: AdminDashboardData;
 }) {
-	const { data, isError, isFetching, refetch } = useQuery({
-		queryKey: ["admin-dashboard", userId],
-		queryFn: ({ signal }) => loadDashboard(true, signal),
+	const queryClient = useQueryClient();
+	const queryKey = ["admin-dashboard", userId, initialData?.now];
+	const { data, isError, isFetching } = useQuery({
+		queryKey,
+		queryFn: ({ signal }) => loadDashboard(false, signal),
 		initialData,
-		staleTime: Infinity,
-		refetchOnReconnect: false,
+		initialDataUpdatedAt: initialData?.now,
+		staleTime: 5 * 60_000,
+		refetchInterval: 5 * 60_000,
+		refetchIntervalInBackground: false,
+		refetchOnWindowFocus: true,
+		refetchOnReconnect: true,
 	});
+	const refresh = () => void queryClient.fetchQuery({
+		queryKey,
+		queryFn: ({ signal }) => loadDashboard(true, signal),
+		staleTime: 0,
+	}).catch(() => {});
 	if (!data && !isError) return <AdminDashboardSkeleton />;
 	if (!data)
 		return (
@@ -79,7 +90,7 @@ export function AdminDashboard({
 						className="mt-3"
 						variant="outline"
 						disabled={isFetching}
-						onClick={() => void refetch()}
+						onClick={refresh}
 					>
 						Coba lagi
 					</Button>
@@ -90,7 +101,7 @@ export function AdminDashboard({
 		<AdminDashboardContent
 			{...data}
 			refreshing={isFetching}
-			refresh={() => void refetch()}
+			refresh={refresh}
 			refreshError={isError}
 		/>
 	);

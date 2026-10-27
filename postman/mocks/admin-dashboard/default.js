@@ -126,6 +126,11 @@ http.createServer((req, res) => {
 			url.searchParams.get("include_closed") !== "true") {
 			status = 400;
 			body = { error: "Invalid hierarchy query" };
+		} else if (mode?.startsWith("home")) {
+			body = { tasks: [
+				{ id: "group", parent: "project", name: "Panels" },
+				...Array.from({ length: 36 }, (_, index) => component(`p-${index}`, index >= 24 ? null : index < 4 ? "dc6eef4c-6843-4043-9938-b14388511be0" : "22619cd5-078e-4b12-a6d2-96d723eed52b")),
+			], last_page: true };
 		} else if (url.searchParams.get("page") === "0") {
 			body = { tasks: [{ id: "group", parent: "project", name: "Group" }, component("one", "22619cd5-078e-4b12-a6d2-96d723eed52b")], last_page: false };
 		} else if (mode === "rate-limit") {
@@ -142,6 +147,6 @@ http.createServer((req, res) => {
 		res.writeHead(status, { "Content-Type": "application/json" });
 		res.end(JSON.stringify(body));
 	};
-	if (mode === "home-slow" && url.pathname.endsWith("/time_in_status")) setTimeout(respond, 2000);
+	if (mode === "home-slow" && (url.pathname.endsWith("/time_in_status") || url.pathname === `/api/v2/list/${listId}/task`)) setTimeout(respond, 2000);
 	else respond();
 }).listen(process.env.PORT);

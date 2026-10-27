@@ -21,6 +21,9 @@ const formatDate = (value: string | null | undefined, includeYear = false) => {
 		: "Tidak tercatat";
 };
 
+const formatNumber = (value: number) => new Intl.NumberFormat("id-ID", { maximumFractionDigits: 1 }).format(value);
+const formatHours = (value: number | null) => value === null ? "Belum ada data" : value > 0 && value < 0.1 ? "<0,1 jam" : `${formatNumber(value)} jam`;
+
 export const CompletedProjectDetailPage = ({
 	dashboard,
 }: {
@@ -28,6 +31,7 @@ export const CompletedProjectDetailPage = ({
 }) => {
 	const review = completedProjectReview(dashboard);
 	const { project, completion } = dashboard;
+	const insights = completion?.insights;
 	return (
 		<main className="completed-project-review mx-auto min-h-dvh max-w-lg bg-background pb-28 text-foreground">
 			<header className="rounded-b-4xl bg-accent/25 px-5 pt-5 pb-7">
@@ -151,6 +155,67 @@ export const CompletedProjectDetailPage = ({
 						Hanya item berserial. Grup pendukung tidak masuk perhitungan.
 					</p>
 				</section>
+				<section aria-labelledby="review-returns">
+					<h2 id="review-returns" className="review-heading">Retur material</h2>
+					{insights ? (
+						<>
+							<dl className="review-summary mt-3 grid grid-cols-3 gap-2">
+								<div className="review-stat">
+									<dt>Item retur</dt>
+									<dd>{insights.returns.percentage === null ? "—" : `${formatNumber(insights.returns.percentage)}%`}
+										<p>{insights.returns.returnedItems}/{insights.returns.totalItems} item unik</p>
+									</dd>
+								</div>
+								<div className="review-stat">
+									<dt>Masih proses</dt><dd>{insights.returns.inProgress}<p>Belum terpasang</p></dd>
+								</div>
+								<div className="review-stat">
+									<dt>Sudah beres</dt><dd>{insights.returns.resolved}<p>Status Terpasang</p></dd>
+								</div>
+							</dl>
+							{insights.returns.unknown > 0 && <p className="mt-2 text-xs text-muted-foreground">{insights.returns.unknown} item retur belum dapat dipastikan status akhirnya.</p>}
+							{insights.returns.groups.length ? (
+								<>
+									<p className="mt-3 text-xs font-semibold">Kelompok dengan item retur terbanyak</p>
+									<ol className="mt-2 divide-y divide-border rounded-2xl border border-border px-3">
+										{insights.returns.groups.map((group) => (
+											<li key={group.id} className="py-3 text-xs break-inside-avoid">
+												<div className="flex items-start justify-between gap-3">
+													<p className="min-w-0 font-semibold wrap-anywhere">{group.name}</p>
+													<p className="shrink-0 font-bold tabular-nums">{group.returnedItems}/{group.totalItems} · {formatNumber(group.percentage)}%</p>
+												</div>
+												<p className="mt-1 text-muted-foreground">{group.inProgress} proses · {group.resolved} beres{group.unknown ? ` · ${group.unknown} belum diketahui` : ""}</p>
+											</li>
+										))}
+									</ol>
+								</>
+							) : <p className="mt-3 text-sm text-muted-foreground">Belum ada retur yang tercatat.</p>}
+							<p className="mt-2 text-xs leading-relaxed text-muted-foreground">Item dihitung sekali jika pernah discan Retur atau berstatus Retur di snapshot. Beres berarti status snapshot Terpasang; Diterima/Dipacking masih proses. Riwayat yang tidak lengkap bisa membuat retur belum terhitung.</p>
+						</>
+					) : <p className="mt-3 text-sm text-muted-foreground">Insight retur belum tersedia.</p>}
+				</section>
+				<section aria-labelledby="review-durations">
+					<h2 id="review-durations" className="review-heading">Durasi antar tahap</h2>
+					{insights ? (
+						<>
+							<dl className="mt-3 grid grid-cols-2 gap-3">
+								{insights.transitions.map((transition) => (
+									<div key={transition.from} className="review-stat">
+										<dt>{STATUS_COLOR_CONFIG[transition.from].shortLabel} → {STATUS_COLOR_CONFIG[transition.to].shortLabel}</dt>
+										<dd>{formatHours(transition.averageHours)}<p>{transition.sampleItems} item dengan pasangan scan lengkap</p></dd>
+										<p>{transition.waitingItems} item masih {STATUS_COLOR_CONFIG[transition.from].shortLabel} di snapshot</p>
+									</div>
+								))}
+							</dl>
+							<p className="mt-3 text-sm font-semibold">{insights.bottleneck
+								? `Tahap dengan rata-rata terlama: ${STATUS_COLOR_CONFIG[insights.bottleneck].shortLabel}.`
+								: insights.transitions.every((transition) => transition.averageHours !== null)
+									? "Rata-rata kedua tahap sama."
+									: "Pasangan scan belum cukup untuk membandingkan kedua tahap."}</p>
+							<p className="mt-2 text-xs leading-relaxed text-muted-foreground">Rata-rata waktu berlalu (jam), dari pasangan scan berurutan pertama per item sampai batas snapshot/penyelesaian. Scan ulang status yang sama tidak mereset waktu. Jeda yang melewati retur atau alur mundur tidak dihitung. Waktu tunggu yang belum selesai tidak masuk rata-rata; jumlah sampel tiap tahap dapat berbeda.</p>
+						</>
+					) : <p className="mt-3 text-sm text-muted-foreground">Insight durasi belum tersedia.</p>}
+				</section>
 				<section aria-labelledby="review-members">
 					<h2 id="review-members" className="review-heading">
 						Kontribusi member
@@ -230,7 +295,9 @@ export const CompletedProjectDetailPage = ({
 					.completed-project-review .review-content { padding: 5mm 0 0; }
 					.completed-project-review .review-content > * { margin-block: 0 !important; }
 					.completed-project-review .review-content > * + * { margin-top: 3mm !important; }
-					.completed-project-review .review-summary { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+					.completed-project-review [aria-labelledby="review-time"] .review-summary { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+					.completed-project-review [aria-labelledby="review-returns"] li { padding-block: 2mm; }
+					.completed-project-review [aria-labelledby="review-returns"] .review-stat, .completed-project-review [aria-labelledby="review-durations"] .review-stat { padding: 2mm; }
 					.completed-project-review .review-stat { padding: 3mm; border-radius: 2mm; break-inside: avoid; }
 					.completed-project-review section h2 { break-after: avoid; }
 					.completed-project-review ol { margin-top: 3mm; }

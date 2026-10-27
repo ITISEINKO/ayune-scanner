@@ -68,7 +68,15 @@ const { chromium, expect } = require("@playwright/test");
 				projectCompleted = true;
 				return route.fulfill({ json: { task: { id: "complete-project" }, dashboard: {
 					...dashboard, project: { ...dashboard.project, status: "complete" },
-					completion: { completedAt: "2026-10-22T10:00:00Z", capturedAt: "2026-10-22T10:00:00Z", completedBy: { userId: "admin", name: "Admin Contoh" }, source: "completion" },
+					completion: { completedAt: "2026-10-22T10:00:00Z", capturedAt: "2026-10-22T10:00:00Z", completedBy: { userId: "admin", name: "Admin Contoh" }, source: "completion", insights: {
+						returns: { totalItems: 4, returnedItems: 1, percentage: 25, inProgress: 1, resolved: 0, unknown: 0, groups: [
+							{ id: "group", name: "Plywood", totalItems: 4, returnedItems: 1, percentage: 25, inProgress: 1, resolved: 0, unknown: 0 },
+						] },
+						transitions: [
+							{ from: "BARANG_DITERIMA", to: "SEDANG_DIPACKING", averageHours: null, sampleItems: 0, waitingItems: 3 },
+							{ from: "SEDANG_DIPACKING", to: "TERPASANG_DIGUNAKAN", averageHours: null, sampleItems: 0, waitingItems: 0 },
+						], bottleneck: null,
+					} },
 				} } });
 			}
 			if (url.pathname.startsWith("/api/")) return route.fulfill({ status: 401, json: {} });
@@ -119,6 +127,7 @@ const { chromium, expect } = require("@playwright/test");
 		await expect(dialog).not.toBeVisible();
 		await expect(page.getByRole("heading", { name: "Ringkasan waktu" })).toBeVisible();
 		await expect(page.getByText("Ditandai selesai oleh Admin Contoh.")).toBeVisible();
+		await expect(page.locator('[aria-labelledby="review-returns"]').getByRole("definition").filter({ hasText: /^25%/ })).toBeVisible();
 		await expect(page.getByRole("button", { name: "Tandai selesai", exact: true })).toHaveCount(0);
 		assert.equal(writes, 3);
 		await page.locator("main").getByRole("link", { name: "Projects", exact: true }).click();

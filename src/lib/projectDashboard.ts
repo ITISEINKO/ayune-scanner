@@ -14,6 +14,7 @@ import { getPanelProject, invalidateProjectLists, panelListId } from "@/lib/proj
 import { clickUpHeaders } from "@/lib/clickup";
 import { getScanStatus, serialNumberOf } from "@/lib/projectSerialCache";
 import { applyProjectStatusChanges } from "@/lib/projectStatus";
+import { withCompletedProjectInsights } from "@/lib/completedProjectInsights";
 import { CLICKUP_TEAM_ID } from "@/lib/produksiPanel";
 import type { ClickUpTask } from "@/types/clickup";
 import type {
@@ -159,11 +160,11 @@ export const completeProject = async (token: string, taskId: string, userId: str
 				body: JSON.stringify({ status: "complete" }),
 			});
 			if (!response.ok) throw clickUpError(response);
-			dashboard = {
+			dashboard = withCompletedProjectInsights({
 				...dashboard,
 				project: { ...dashboard.project, status: "complete" },
 				completion: { ...dashboard.completion, completedAt: new Date().toISOString() },
-			};
+			});
 			if (!(await finishAdminProjectRefresh(scopeKey, refreshId, dashboard))) throw new Error("PROJECT_SYNC_SUPERSEDED");
 		} catch (cause) {
 			await finishAdminProjectRefresh(scopeKey, refreshId);
@@ -273,17 +274,17 @@ export const getCompletedProjectDashboard = async (token: string, project: Selec
 	if (parent.status?.status?.toLowerCase() !== "complete") throw new Error("PROJECT_STATUS_CHANGED");
 	const scopeKey = completedSnapshotKey(token, project.task_id);
 	const saved = await getAdminProjectSnapshot(scopeKey);
-	if (saved?.project.status === "complete" && saved.completion) return saved;
+	if (saved?.project.status === "complete" && saved.completion) return withCompletedProjectInsights(saved);
 	const refreshId = randomUUID();
 	if (!(await claimAdminProjectRefresh(scopeKey, refreshId))) throw new Error("PROJECT_SYNC_IN_PROGRESS");
 	try {
 		const current = await getAdminProjectSnapshot(scopeKey);
 		if (current?.project.status === "complete" && current.completion) {
 			await finishAdminProjectRefresh(scopeKey, refreshId);
-			return current;
+			return withCompletedProjectInsights(current);
 		}
 		const dashboard = current?.completion ? current : await buildProjectDashboard(token, project, { parent });
-		const archived: ProjectDashboard = {
+		const archived = withCompletedProjectInsights({
 			...dashboard,
 			project: { ...dashboard.project, status: "complete" },
 			completion: {
@@ -293,7 +294,7 @@ export const getCompletedProjectDashboard = async (token: string, project: Selec
 				completedBy: null,
 				source: dashboard.completion?.source ?? "first-view",
 			},
-		};
+		});
 		if (!(await finishAdminProjectRefresh(scopeKey, refreshId, archived))) throw new Error("PROJECT_SYNC_SUPERSEDED");
 		return archived;
 	} catch (cause) {
@@ -310,7 +311,7 @@ export const getProjectDashboard = async (
 	const archived = await getAdminProjectSnapshot(completedSnapshotKey(token, project.task_id));
 	if (archived?.project.status === "complete" && archived.completion) {
 		const current = await getPanelProject(token, project.task_id);
-		if (current.status?.status?.toLowerCase() === "complete") return archived;
+		if (current.status?.status?.toLowerCase() === "complete") return withCompletedProjectInsights(archived);
 		refresh = true;
 	}
 	// Keep snapshots isolated by ClickUp access scope without persisting credentials.

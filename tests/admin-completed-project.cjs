@@ -37,6 +37,23 @@ async function main() {
 		memberNames: { kris: "Krisdianto", other: "Member lain" }, memberContribution: [], recentHistory: [], statusUpdatedAt: 1,
 		currentStatusDurationMinutes: null, currentStatusStartedAt: null,
 	};
+	const historyEvent = (index, scannedAt, status) => ({ ...dashboard.items[0].components[index].history[0], scannedAt, status });
+	dashboard.items[0].components[0].status = "TERPASANG_DIGUNAKAN";
+	dashboard.items[0].components[0].history = [
+		historyEvent(0, "2026-10-18 02:00:00", "TERPASANG_DIGUNAKAN"),
+		historyEvent(0, "2026-10-14 02:00:00", "SEDANG_DIPACKING"),
+		...dashboard.items[0].components[0].history,
+	];
+	dashboard.items[0].components[1].status = "TERPASANG_DIGUNAKAN";
+	dashboard.items[0].components[1].history = [
+		historyEvent(1, "2026-10-20 02:00:00", "TERPASANG_DIGUNAKAN"),
+		historyEvent(1, "2026-10-18 02:00:00", "SEDANG_DIPACKING"),
+		historyEvent(1, "2026-10-16 02:00:00", "BARANG_DITERIMA"),
+		historyEvent(1, "2026-10-15 02:00:00", "DALAM_PROSES_RETUR"),
+		...dashboard.items[0].components[1].history,
+	];
+	dashboard.items[0].components[2].status = "DALAM_PROSES_RETUR";
+	dashboard.items[0].components[2].history.unshift(historyEvent(2, "2026-10-21 02:00:00", "DALAM_PROSES_RETUR"));
 	const key = `completed:${createHash("sha256").update(JSON.stringify(["local-review-token", "1100830000000087", "complete-project"])).digest("hex")}`;
 	await db.execute("CREATE TABLE ppic_admin_project_snapshot (scope_key TEXT PRIMARY KEY, dashboard_json TEXT, refresh_id TEXT, refresh_until INTEGER NOT NULL DEFAULT 0)");
 	const save = () => db.execute({ sql: "INSERT OR REPLACE INTO ppic_admin_project_snapshot (scope_key, dashboard_json) VALUES (?, ?)", args: [key, JSON.stringify(dashboard)] });
@@ -76,8 +93,15 @@ async function main() {
 		await expect(page.getByRole("definition").filter({ hasText: /^540\/540/ })).toBeVisible();
 		await expect(page.getByRole("definition").filter({ hasText: /^10 hari/ })).toBeVisible();
 		await expect(page.getByText("17 Okt · 50% terscan", { exact: true })).toBeVisible();
-		await expect(page.getByRole("row", { name: "Krisdianto 410 scan" })).toBeVisible();
+		await expect(page.getByRole("row", { name: "Krisdianto 417 scan" })).toBeVisible();
 		await expect(page.getByRole("row", { name: "Member lain 130 scan" })).toBeVisible();
+		const returns = page.locator('[aria-labelledby="review-returns"]');
+		await expect(returns.getByRole("definition").filter({ hasText: /^0,4%/ })).toBeVisible();
+		await expect(returns.getByText("1 proses · 1 beres", { exact: true })).toBeVisible();
+		const durations = page.locator('[aria-labelledby="review-durations"]');
+		await expect(durations.getByRole("definition").filter({ hasText: /^48 jam/ })).toBeVisible();
+		await expect(durations.getByRole("definition").filter({ hasText: /^72 jam/ })).toBeVisible();
+		await expect(durations.getByText("Tahap dengan rata-rata terlama: Dipacking.", { exact: true })).toBeVisible();
 		assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
 		mkdirSync("test-results", { recursive: true });
 		await page.screenshot({ path: "test-results/completed-project-review-mobile.png", fullPage: true });
@@ -92,10 +116,10 @@ async function main() {
 		await page.screenshot({ path: "test-results/completed-project-review-print.png", fullPage: true });
 		const pdf = await page.pdf({ path: "test-results/completed-project-review.pdf", preferCSSPageSize: true, printBackground: true, displayHeaderFooter: false });
 		const pages = pdf.toString("latin1").match(/\/Type\s*\/Page\b/g)?.length ?? 0;
-		assert.equal(pages, 1, "the example review fits neatly on one A4 page");
+		assert.ok(pages >= 1 && pages <= 2, "the review with management insights fits within two A4 pages");
 		for (const [index, component] of dashboard.items[0].components.entries()) {
 			const id = `member-${index % 60}`;
-			component.history[0].userId = id;
+			for (const log of component.history) log.userId = id;
 			dashboard.memberNames[id] = `Member ${index % 60} dengan nama lengkap untuk laporan`;
 		}
 		await save();
@@ -114,6 +138,8 @@ async function main() {
 		await expect(page.getByText("Selesai · tanggal tidak tercatat", { exact: true })).toBeVisible();
 		await expect(page.getByRole("definition").filter({ hasText: /^0\/0/ })).toBeVisible();
 		await expect(page.getByText("Belum ada riwayat scan yang tercatat.")).toBeVisible();
-		console.log("Completed review page: saved snapshot, 540 items, milestones, member contributions, mobile layout, no polling, print button, one-page A4 PDF and legacy empty state passed.");
+		await expect(durations.getByRole("definition").filter({ hasText: /^Belum ada data/ })).toHaveCount(2);
+		assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+		console.log("Completed review page: backend return/duration insights from a legacy snapshot, 540 items, milestones, member contributions, mobile layout, no polling, print button, A4 PDF pagination and empty state passed.");
 	} finally { await browser?.close(); server.kill(); db.close(); }
 }

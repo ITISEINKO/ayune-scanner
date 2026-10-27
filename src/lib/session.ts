@@ -32,7 +32,7 @@ export type PanelMembersResult =
 export const clickUpToken = async () =>
 	(await cookies()).get("clickup_access_token")?.value ?? null;
 
-const clickUpUserIdForToken = cache(async (token: string) => {
+export const clickUpUserIdForToken = cache(async (token: string) => {
 	try {
 		const response = await fetch("https://api.clickup.com/api/v2/user", {
 			headers: clickUpHeaders(token),

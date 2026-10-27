@@ -13,9 +13,39 @@ TrackerProd tracks production-panel progress in ClickUp through serial-number sc
 
 Scans update ClickUp first, then the local status, scan history, and serial cache. Turso stores permissions, history, and cached project data.
 
+Admin Home uses one shared summary for all authorized admins, calculated with the
+server's `CLICKUP_TOKEN` (whose owner must have the local `SUPER_ADMIN` role).
+`vercel.json` prewarms it daily at `45 22 * * *` UTC = 05:45 WIB, leaving time
+before the 07:00 target even with Hobby's delayed scheduling. Set `CRON_SECRET`
+and `CLICKUP_TOKEN` in **Vercel Production**, then redeploy to activate the job.
+`GET /api/cron/admin-dashboard` requires `Authorization: Bearer <CRON_SECRET>`;
+run it once after deployment to populate the shared summary before the next
+scheduled run. Login shows the saved result immediately. Visible dashboards check
+every five minutes and on stale focus/reconnect; a shared database lease/cooldown
+allows one automatic rebuild per five minutes across admins, including after failures.
+Existing data stays visible until a complete result is ready. Manual refresh bypasses
+the cooldown while respecting an active rebuild. The scheduled job also rebuilds project structure/status
+from ClickUp; manual summary refresh keeps the existing project Resync behavior.
+Failed or incomplete jobs preserve the last complete
+result, whose timestamp remains visible. Existing per-admin summary rows are
+retained but no longer read; project-detail snapshots keep their existing scope.
+
 `GET /api/projects` defaults to `status=in progress`; `status=to do` and `status=complete` require fresh `SUPER_ADMIN` authorization. Responses contain `{ tasks: [{ id, custom_id, name }] }`. Unsupported statuses return `400 INVALID_STATUS`; `refresh=1` bypasses the per-token/status cache. Completed listing fetches every page with `include_closed=true`, following [ClickUp Get Tasks](https://developer.clickup.com/reference/gettasks), and keeps only parent projects.
 
 `POST /api/project/complete` returns `{ task, dashboard }`, including the saved review and completing admin. It stages the snapshot before the ClickUp update, then finalizes it; a failed final save can be recovered by retrying. Completed snapshots reuse `ppic_admin_project_snapshot` under `completed:<scope hash>` and retain the existing token/list/project isolation. They survive ordinary snapshot invalidation and are never overlaid with newer item statuses. Reading an archive still checks current ClickUp parent access. A different access token creates its own first-view snapshot; that snapshot is labeled accordingly, and unrecorded completion dates/admins remain unknown.
+
+`dashboard.completion.insights` adds backend-calculated return counts/percentages,
+material groups ranked by returned-item count, and return outcomes: snapshot
+Terpasang is resolved; Diterima/Dipacking/Retur remain in progress; other statuses
+are unknown. Only unique, non-deleted serial items outside supporting groups count.
+Durations use the first ordered scan pair per item for Diterima → Dipacking and
+Dipacking → Terpasang, with elapsed-hour averages, sample counts, snapshot waiting
+counts and the slower stage. Repeat scans do not reset the clock; returns and
+backwards steps break a pair. Missing durations are `null`, and empty projects
+have a `null` return percentage. History is limited to the earlier completion or
+capture time. New snapshots persist the metrics; old snapshots derive them from
+saved data on the server without refetching item/history data. The review adds no
+polling. Missing scan history can undercount returns or leave durations unknown.
 
 ## Stack
 
