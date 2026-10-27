@@ -15,6 +15,8 @@ const { chromium, expect } = require("@playwright/test");
 	const token = "local-complete-test";
 	const secret = "local-complete-secret";
 	const baseURL = "http://127.0.0.1:3349";
+	await db.execute("CREATE TABLE ppic_permissions (clickup_user_id TEXT PRIMARY KEY, role TEXT)");
+	await db.execute("INSERT INTO ppic_permissions VALUES ('local-admin', 'SUPER_ADMIN')");
 	const dashboard = {
 		project: { task_id: "complete-project", name: "Rak Buku · Kantor Contoh", custom_id: "DEMO-001", startDate: null, dueDate: null, status: "in progress" },
 		items: [{ id: "group", name: "Plywood", components: [null, null, null, "DALAM_PROSES_RETUR"].map((status, i) => ({ id: `panel-${i}`, name: `Panel ${i}`, serialNumber: `SERIAL-${i}`, status, history: [] })) },
@@ -25,7 +27,7 @@ const { chromium, expect } = require("@playwright/test");
 	await db.execute("CREATE TABLE ppic_admin_project_snapshot (scope_key TEXT PRIMARY KEY, dashboard_json TEXT, refresh_id TEXT, refresh_until INTEGER NOT NULL DEFAULT 0)");
 	await db.execute({ sql: "INSERT INTO ppic_admin_project_snapshot (scope_key, dashboard_json) VALUES (?, ?)", args: [scopeKey, JSON.stringify(dashboard)] });
 	const server = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start", "-p", "3349"], {
-		windowsHide: true, stdio: "pipe", env: { ...process.env, TURSO_DATABASE_URL: databaseUrl, TURSO_AUTH_TOKEN: "local-only", CLICKUP_CLIENT_SECRET: secret, CLICKUP_PPIC_PANEL_LIST_ID: "1100830000000087", ABLY_API_KEY: "" },
+		windowsHide: true, stdio: "pipe", env: { ...process.env, CLICKUP_TOKEN: token, TURSO_DATABASE_URL: databaseUrl, TURSO_AUTH_TOKEN: "local-only", CLICKUP_CLIENT_SECRET: secret, CLICKUP_PPIC_PANEL_LIST_ID: "1100830000000087", ABLY_API_KEY: "" },
 	});
 	let logs = "";
 	server.stdout.on("data", chunk => { logs += chunk; });

@@ -45,6 +45,8 @@ async function main() {
 	const token = "local-drawer-test";
 	const secret = "local-drawer-test-secret";
 	const baseURL = "http://127.0.0.1:3347";
+	await db.execute("CREATE TABLE ppic_permissions (clickup_user_id TEXT PRIMARY KEY, role TEXT)");
+	await db.execute("INSERT INTO ppic_permissions VALUES ('local-admin', 'SUPER_ADMIN'), ('other-admin', 'SUPER_ADMIN')");
 	const groupName = "HPL-SOLID-DOUBLE+Plywood+19";
 	const groupLabel = "HPL Solid Double · Plywood · 19 mm";
 	const dashboard = {
@@ -70,7 +72,7 @@ async function main() {
 	await db.execute({ sql: "INSERT INTO ppic_admin_project_snapshot (scope_key, dashboard_json) VALUES (?, ?)", args: [scopeKey, JSON.stringify(dashboard)] });
 	const server = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start", "-p", "3347"], {
 		cwd: join(__dirname, ".."), windowsHide: true,
-		env: { ...process.env, TURSO_DATABASE_URL: databaseUrl, TURSO_AUTH_TOKEN: "local-only", CLICKUP_CLIENT_SECRET: secret, CLICKUP_PPIC_PANEL_LIST_ID: "1100830000000087", ABLY_API_KEY: "" },
+		env: { ...process.env, CLICKUP_TOKEN: token, TURSO_DATABASE_URL: databaseUrl, TURSO_AUTH_TOKEN: "local-only", CLICKUP_CLIENT_SECRET: secret, CLICKUP_PPIC_PANEL_LIST_ID: "1100830000000087", ABLY_API_KEY: "" },
 		stdio: ["ignore", "pipe", "pipe"],
 	});
 	let logs = "";
@@ -96,7 +98,7 @@ async function main() {
 					permissions: { "color-test": ["BARANG_DITERIMA", "SEDANG_DIPACKING", "TERPASANG_DIGUNAKAN", "DALAM_PROSES_RETUR"] },
 				}) });
 			}
-			if (url.pathname.startsWith("/_next/") || url.pathname === "/admin/project" || url.pathname === "/admin/settings" || url.pathname === "/api/project/changes") return route.continue();
+			if (url.pathname.startsWith("/_next/") || url.pathname === "/admin/project" || url.pathname === "/admin/settings" || url.pathname === "/api/project/changes" || url.pathname === "/api/project/sync") return route.continue();
 			return route.fulfill({ status: 401, contentType: "application/json", body: "{}" });
 		});
 		const payload = Buffer.from(JSON.stringify({ user_id: "local-admin", role: "SUPER_ADMIN", allowed_status: null, refreshed_at: Date.now() })).toString("base64url");
@@ -114,7 +116,7 @@ async function main() {
 		await expect(groupList.getByRole("button").nth(4)).toHaveAccessibleName("Lihat detail material requisition form");
 		await expect(groupList.getByRole("button").nth(5)).toHaveAccessibleName("Lihat detail HARDWARE LIST");
 		await expect(trigger).toContainText("2/35");
-		await expect(trigger).toContainText("sisa 33");
+		await expect(trigger.getByRole("img")).toHaveAccessibleName(/Belum scan: 33/);
 		await expect(trigger).toContainText("HPL Solid Double");
 		const barColors = await trigger.locator('[role="img"] > span').evaluateAll((segments) => segments.map((segment) => getComputedStyle(segment).backgroundColor));
 		for (const status of ["BARANG_DITERIMA", "DALAM_PROSES_RETUR"])
@@ -128,7 +130,7 @@ async function main() {
 		await expect(drawer).toBeVisible();
 		await expect(drawer.getByRole("textbox")).toHaveCount(0);
 		await expect(drawer.getByRole("tab")).toHaveCount(0);
-		await expect(drawer).toContainText("2/35 sudah di-scan · sisa 33");
+		await expect(drawer).toContainText("2/35 sudah di-scan");
 		await expect(drawer.getByText("Panel 0", { exact: true })).toBeVisible();
 		await expect(drawer.getByText("SERIAL-0", { exact: true })).toBeVisible();
 		await expect(drawer.locator('[data-slot="badge"]').filter({ hasText: /^Retur$/ })).toBeVisible();
@@ -175,7 +177,7 @@ async function main() {
 		await page.getByRole("button", { name: "Lihat detail Empty subtask", exact: true }).click();
 		const empty = page.getByRole("dialog", { name: "Empty subtask" });
 		await expect(empty.getByText("Belum ada item pada subtask ini.")).toBeVisible();
-		await expect(empty).toContainText("0/0 sudah di-scan · sisa 0");
+		await expect(empty).toContainText("0/0 sudah di-scan");
 		await empty.getByRole("button", { name: "Tutup", exact: true }).click();
 		await page.getByRole("button", { name: "Lihat detail Custom status subtask", exact: true }).click();
 		await expect(page.getByRole("dialog", { name: "Custom status subtask" }).locator('[data-slot="badge"]').filter({ hasText: /^Lainnya$/ })).toBeVisible();
@@ -210,6 +212,81 @@ async function main() {
 		}
 		await settingsDrawer.getByRole("button", { name: "Batal", exact: true }).click();
 		await page.screenshot({ path: "test-results/status-colors-settings.png", animations: "disabled" });
+		const sharedUrl = `${baseURL}/api/project/sync?task_id=drawer-project`;
+		assert.equal((await fetch(sharedUrl)).status, 401);
+		assert.equal((await context.request.get(`${baseURL}/api/project/sync`)).status(), 400);
+		assert.equal((await context.request.post(`${baseURL}/api/project/sync`, { data: { task_id: 42 } })).status(), 400);
+		const firstRead = await (await context.request.get(sharedUrl)).json();
+		assert.equal(firstRead.dashboard.syncedAt, dashboard.syncedAt);
+		const otherContext = await browser.newContext();
+		const otherPayload = Buffer.from(JSON.stringify({ user_id: "other-admin", role: "SUPER_ADMIN", refreshed_at: Date.now() })).toString("base64url");
+		await otherContext.addCookies([
+			{ name: "clickup_access_token", value: "different-admin-token", url: baseURL },
+			{ name: "ppic_session", value: `${otherPayload}.${createHmac("sha256", secret).update(otherPayload).digest("base64url")}`, url: baseURL },
+		]);
+		assert.deepEqual((await (await otherContext.request.get(sharedUrl)).json()).dashboard, firstRead.dashboard, "different admins and browser tokens read the same snapshot");
+		assert.equal((await db.execute("SELECT COUNT(*) AS count FROM ppic_admin_project_snapshot")).rows[0].count, 1, "reading as another admin does not create a personal snapshot");
+		await page.clock.install();
+		await page.goto(`${baseURL}/admin/project?task_id=drawer-project`);
+		await expect(page.getByRole("heading", { name: "Drawer test", exact: true })).toBeVisible();
+		await page.waitForLoadState("networkidle");
+		const updatedDashboard = { ...dashboard, syncedAt: Date.now() + 1, project: { ...dashboard.project, name: "Shared project update" } };
+		await db.execute({ sql: "UPDATE ppic_admin_project_snapshot SET dashboard_json = ? WHERE scope_key = ?", args: [JSON.stringify(updatedDashboard), scopeKey] });
+		let releaseRead;
+		const readGate = new Promise((done) => { releaseRead = done; });
+		const holdShared = async (route) => { await readGate; await route.continue(); };
+		await page.route("**/api/project/sync?*", holdShared);
+		let sharedReads = 0;
+		let navigations = 0;
+		page.on("request", (request) => {
+			if (new URL(request.url()).pathname === "/api/project/sync") sharedReads++;
+			if (request.isNavigationRequest()) navigations++;
+		});
+		const background = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/project/sync");
+		background.catch(() => {});
+		await page.clock.fastForward(5 * 60_000 + 1);
+		await expect.poll(() => sharedReads).toBe(1);
+		await expect(page.getByRole("heading", { name: "Drawer test", exact: true })).toBeVisible();
+		await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+		assert.equal(sharedReads, 1, "visibility changes do not overlap an in-flight read");
+		releaseRead();
+		await background;
+		await page.unroute("**/api/project/sync?*", holdShared);
+		await expect(page.getByRole("heading", { name: "Shared project update", exact: true })).toBeVisible();
+		assert.equal(navigations, 0, "shared updates require no hard refresh or page navigation");
+		await page.evaluate(() => Object.defineProperty(document, "hidden", { configurable: true, get: () => true }));
+		await page.clock.fastForward(5 * 60_000 + 1);
+		assert.equal(sharedReads, 1, "hidden project tabs pause snapshot reads");
+		const visibleRead = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/project/sync");
+		visibleRead.catch(() => {});
+		await page.evaluate(() => { delete document.hidden; document.dispatchEvent(new Event("visibilitychange")); });
+		await visibleRead;
+		assert.equal(sharedReads, 2, "returning after five minutes checks the shared snapshot");
+		const failShared = (route) => route.fulfill({ status: 502, json: { error: "PROJECT_SYNC_FAILED" } });
+		await page.route("**/api/project/sync?*", failShared);
+		const failedRead = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/project/sync");
+		failedRead.catch(() => {});
+		await page.clock.fastForward(5 * 60_000 + 1);
+		await failedRead;
+		await expect(page.getByRole("heading", { name: "Shared project update", exact: true })).toBeVisible();
+		await db.execute({ sql: "INSERT INTO ppic_component_status (component_task_id, project_task_id, status, updated_at) VALUES ('other', 'drawer-project', 'SEDANG_DIPACKING', ?)", args: [Date.now()] });
+		const statusRead = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/project/changes");
+		statusRead.catch(() => {});
+		await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+		await statusRead;
+		await page.getByRole("button", { name: "Lihat detail Other subtask", exact: true }).click();
+		await expect(page.getByRole("dialog", { name: "Other subtask" }).locator('[data-slot="badge"]').filter({ hasText: /^Dipacking$/ })).toBeVisible();
+		assert.equal(sharedReads, 3, "a failed snapshot read is not retried on every status poll");
+		await page.unroute("**/api/project/sync?*", failShared);
+		await db.execute("UPDATE ppic_permissions SET role = 'MEMBER' WHERE clickup_user_id = 'local-admin'");
+		assert.equal((await context.request.get(sharedUrl)).status(), 403, "revoked admins cannot read a warm shared snapshot");
+		assert.equal((await context.request.post(`${baseURL}/api/project/sync`, { data: { task_id: "drawer-project" } })).status(), 403);
+		assert.equal((await context.request.get(`${baseURL}/api/project/changes?project=drawer-project&since=0`)).status(), 403);
+		assert.equal((await otherContext.request.get(sharedUrl)).status(), 200, "another authorized admin retains access");
+		await page.goto(`${baseURL}/admin/project?task_id=drawer-project`);
+		await expect(page).toHaveURL(`${baseURL}/unauthorized`);
+		await otherContext.close();
+		console.log("Shared project checks passed: different admin identities/tokens, one saved snapshot, background reads without navigation, old-data retention, hidden pause, visibility, in-flight guard, failure cooldown, continued status polling and fresh page/GET/POST/delta authorization.");
 		console.log("Group and shared color checks passed: central palette on project bars/badges and Settings badges/dots, dark mode, sorting, scope, polling, keyboard and empty states.");
 	} finally {
 		await browser?.close();

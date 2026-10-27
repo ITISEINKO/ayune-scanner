@@ -107,6 +107,14 @@ async function main() {
 			assert.doesNotMatch(await response.text(), /Memuat dashboard admin|AdminDashboardSkeleton/, `${path} must not inherit the dashboard loading boundary`);
 		}
 		assert.equal(snapshot.members[0].summary.lifetimeTotal, undefined, "home does not fetch unused lifetime fields");
+		const projectRead = await context.request.get(`${baseURL}/api/project/sync?task_id=project`);
+		assert.equal(projectRead.status(), 200);
+		const beforeProjectSync = (await projectRead.json()).dashboard;
+		const projectSync = await context.request.post(`${baseURL}/api/project/sync`, { data: { task_id: "project" } });
+		assert.equal(projectSync.status(), 200, "authorized project Resync runs against the synthetic ClickUp service");
+		const sharedProject = (await projectSync.json()).dashboard;
+		assert.ok(sharedProject.syncedAt > beforeProjectSync.syncedAt);
+		assert.equal((await (await context.request.get(`${baseURL}/api/project/sync?task_id=project`)).json()).dashboard.syncedAt, sharedProject.syncedAt, "ordinary detail reads reuse the published Resync");
 		assert.equal((await fetch(`${baseURL}/api/admin/dashboard`)).status, 401);
 		await db.execute("UPDATE ppic_permissions SET role = 'MEMBER' WHERE clickup_user_id = 'local-admin'");
 		assert.equal((await fetch(cronUrl, { headers: { authorization: "Bearer local-cron-secret" } })).status, 502, "a revoked service account cannot rebuild the shared snapshot");

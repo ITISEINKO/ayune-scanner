@@ -28,7 +28,13 @@ the cooldown while respecting an active rebuild. The scheduled job also rebuilds
 from ClickUp; manual summary refresh keeps the existing project Resync behavior.
 Failed or incomplete jobs preserve the last complete
 result, whose timestamp remains visible. Existing per-admin summary rows are
-retained but no longer read; project-detail snapshots keep their existing scope.
+retained but no longer read. Ongoing project detail uses the server account's
+shared project snapshot and refresh lease for every currently authorized admin.
+Existing adaptive status polling stays database-only; roughly five-minute background
+reads pick up shared Resync/prewarm results without a hard reload and keep displayed
+data on failure. Full ClickUp Resync remains manual. See
+[the project detail contract](context/PROJECT_DETAIL_API.md). Completed archives
+retain their existing frozen handling and access scope.
 
 `GET /api/projects` defaults to `status=in progress`; `status=to do` and `status=complete` require fresh `SUPER_ADMIN` authorization. Responses contain `{ tasks: [{ id, custom_id, name }] }`. Unsupported statuses return `400 INVALID_STATUS`; `refresh=1` bypasses the per-token/status cache. Completed listing fetches every page with `include_closed=true`, following [ClickUp Get Tasks](https://developer.clickup.com/reference/gettasks), and keeps only parent projects.
 

@@ -102,7 +102,7 @@ http.createServer((req, res) => {
 	} else if (req.method !== "GET") {
 		status = 501;
 		body = { error: "Unexpected mutation" };
-	} else if (mode?.startsWith("home") && url.pathname === "/api/v2/user") {
+	} else if (url.pathname === "/api/v2/user") {
 		body = { user: { id: "local-admin" } };
 	} else if (mode?.startsWith("home") && url.pathname.endsWith("/members")) {
 		body = { data: [

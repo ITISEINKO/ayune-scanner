@@ -6,6 +6,7 @@ import {
 	getPpicProjectScanHistory,
 	getPpicProjectStatuses,
 	invalidateAdminProjectSnapshots,
+	isPpicSuperAdmin,
 	seedPpicProjectStatuses,
 	stageAdminProjectSnapshot,
 } from "@/lib/db";
@@ -16,6 +17,7 @@ import { getScanStatus, serialNumberOf } from "@/lib/projectSerialCache";
 import { applyProjectStatusChanges } from "@/lib/projectStatus";
 import { withCompletedProjectInsights } from "@/lib/completedProjectInsights";
 import { CLICKUP_TEAM_ID } from "@/lib/produksiPanel";
+import { clickUpUserIdForToken } from "@/lib/session";
 import type { ClickUpTask } from "@/types/clickup";
 import type {
 	ProjectDashboard,
@@ -314,9 +316,11 @@ export const getProjectDashboard = async (
 		if (current.status?.status?.toLowerCase() === "complete") return withCompletedProjectInsights(archived);
 		refresh = true;
 	}
-	// Keep snapshots isolated by ClickUp access scope without persisting credentials.
+	const sourceToken = process.env.CLICKUP_TOKEN;
+	if (!sourceToken) throw new Error("DASHBOARD_TOKEN_MISSING");
+	// All authorized admins use the server account's project snapshot and refresh lease.
 	const scopeKey = createHash("sha256")
-		.update(JSON.stringify([token, panelListId(), project.task_id]))
+		.update(JSON.stringify([sourceToken, panelListId(), project.task_id]))
 		.digest("hex");
 	let dashboard = refresh ? null : await getAdminProjectSnapshot(scopeKey);
 	if (!dashboard) {
@@ -326,7 +330,12 @@ export const getProjectDashboard = async (
 		try {
 			// A concurrent first load may have finished between the read and lease acquisition.
 			dashboard = refresh ? null : await getAdminProjectSnapshot(scopeKey);
-			dashboard ??= await buildProjectDashboard(token, project);
+			if (!dashboard) {
+				const serviceUserId = await clickUpUserIdForToken(sourceToken);
+				if (!serviceUserId || !(await isPpicSuperAdmin(serviceUserId)))
+					throw new Error("DASHBOARD_SERVICE_UNAUTHORIZED");
+				dashboard = await buildProjectDashboard(sourceToken, project);
+			}
 			if (!(await finishAdminProjectRefresh(scopeKey, refreshId, dashboard)))
 				throw new Error("PROJECT_SYNC_SUPERSEDED");
 		} catch (cause) {

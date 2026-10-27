@@ -249,16 +249,33 @@ export const ProjectDetailPage = ({
 		let delay = 10_000;
 		let timer: number | undefined;
 		let stopped = false;
+		let fetching = false;
+		// shortcut: sharing the adaptive status timer can delay snapshot checks by 60s; split timers if exact cadence is needed.
+		let lastDashboardCheck = Date.now();
+		const controller = new AbortController();
 		const tick = async () => {
-			if (stopped) return;
+			if (stopped || fetching) return;
 			if (document.hidden) {
 				timer = window.setTimeout(tick, 30_000);
 				return;
 			}
+			fetching = true;
 			try {
+				if (Date.now() - lastDashboardCheck >= 5 * 60_000) {
+					lastDashboardCheck = Date.now();
+					const response = await fetch(
+						`/api/project/sync?task_id=${encodeURIComponent(currentDashboard.project.task_id)}`,
+						{ cache: "no-store", signal: controller.signal },
+					);
+					if (!response.ok) throw new Error("SNAPSHOT_POLL_FAILED");
+					const { dashboard: shared } = (await response.json()) as { dashboard: ProjectDashboard };
+					if (stopped) return;
+					since = shared.statusUpdatedAt;
+					setCurrentDashboard(shared);
+				}
 				const response = await fetch(
 					`/api/project/changes?project=${encodeURIComponent(currentDashboard.project.task_id)}&since=${since}`,
-					{ cache: "no-store" },
+					{ cache: "no-store", signal: controller.signal },
 				);
 				if (!response.ok) throw new Error("STATUS_POLL_FAILED");
 				const { changes = [] } = (await response.json()) as {
@@ -274,8 +291,10 @@ export const ProjectDetailPage = ({
 				} else delay = Math.min(delay * 1.5, 60_000);
 			} catch {
 				delay = Math.min(delay * 1.5, 60_000);
+			} finally {
+				fetching = false;
+				if (!stopped) timer = window.setTimeout(tick, delay);
 			}
-			timer = window.setTimeout(tick, delay);
 		};
 		const onVisibilityChange = () => {
 			if (!document.hidden) {
@@ -287,6 +306,7 @@ export const ProjectDetailPage = ({
 		timer = window.setTimeout(tick, delay);
 		return () => {
 			stopped = true;
+			controller.abort();
 			if (timer !== undefined) window.clearTimeout(timer);
 			document.removeEventListener("visibilitychange", onVisibilityChange);
 		};

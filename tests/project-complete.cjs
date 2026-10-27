@@ -11,6 +11,7 @@ registerHooks({ resolve(specifier, context, next) {
 		export const requireFreshSuperAdmin = async () => { if (!globalThis.testAdmin) throw Error('UNAUTHORIZED'); return 'admin'; };
 		export const requireFreshPpicStatusAccess = async () => 'member';
 		export const ppicSession = async () => ({role: 'MEMBER'});
+		export const clickUpUserIdForToken = async () => 'admin';
 		export const selectedProjectTaskId = async () => 'complete-project';
 	`), shortCircuit: true };
 	return next(specifier.startsWith("@/") ? pathToFileURL(resolve(__dirname, "../src", `${specifier.slice(2)}.ts`)).href : specifier, context);

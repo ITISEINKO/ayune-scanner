@@ -27,6 +27,8 @@ async function main() {
 	const db = createClient({ url: databaseUrl });
 	const secret = "local-completed-review-secret";
 	const baseURL = "http://127.0.0.1:3358";
+	await db.execute("CREATE TABLE ppic_permissions (clickup_user_id TEXT PRIMARY KEY, role TEXT)");
+	await db.execute("INSERT INTO ppic_permissions VALUES ('admin', 'SUPER_ADMIN')");
 	const dashboard = {
 		project: { task_id: "complete-project", name: "AY-19880 APARTEMEN KEMANG - DAPUR", custom_id: "AY-19880", startDate: null, dueDate: null, status: "complete" },
 		completion: { completedAt: "2026-10-22T10:00:00Z", capturedAt: "2026-10-22T10:00:00Z", completedBy: { userId: "admin", name: "Admin Contoh" }, source: "completion" },
