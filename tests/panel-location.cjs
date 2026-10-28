@@ -44,6 +44,12 @@ async function main() {
 	assert(!/token|Signature|offer|materiel|texture|price/i.test(JSON.stringify(snapshot)));
 	const projection = helper.exports.projectPanelLocations(snapshot.panels, -0.65, 0.35);
 	assert(projection.every((p) => p.points.flat().every(Number.isFinite)));
+	assert(projection.every((panel) => panel.explodeOffset.every(Number.isFinite)));
+	assert(projection.some((panel) => Math.hypot(...panel.explodeOffset) > 0), "explode must separate off-centre panels");
+	const turned = helper.exports.projectPanelLocations(snapshot.panels, 1.1, -0.5);
+	projection.forEach((panel, index) => assert(Math.abs(Math.hypot(...panel.explodeOffset) - Math.hypot(...turned[index].explodeOffset)) < 1e-6, "rotating must preserve explode distance"));
+	const centred = helper.exports.projectPanelLocations([clean.panels[0]], 0, 0);
+	assert(centred[0].explodeOffset.every((value) => value === 0), "a centred single panel must stay stable");
 	console.log("Offline checks passed: transform composition, cycle/missing-parent/duplicate rejection, sanitization, URL encoding and projection.");
 
 	const databaseUrl = `file:${join(directory, "access.db").replaceAll("\\", "/")}`;
@@ -105,6 +111,19 @@ async function main() {
 		await expect(svg.locator("polygon").first()).not.toHaveAttribute("points", initialPoints);
 		await page.getByRole("button", { name: "Reset tampilan", exact: true }).click();
 		const initialBox = await svg.getAttribute("viewBox");
+		const initialTransform = await svg.locator("polygon").first().evaluate((node) => getComputedStyle(node).transform);
+		const explodeSlider = page.getByRole("slider", { name: "Jarak explode" });
+		await explodeSlider.focus(); await explodeSlider.press("Home"); await explodeSlider.press("ArrowRight");
+		await expect(svg).toHaveAttribute("data-explode", "1");
+		await page.getByRole("button", { name: "Explode panel", exact: true }).click();
+		await expect(svg).toHaveAttribute("data-explode", "0");
+		await page.getByRole("button", { name: "Explode panel", exact: true }).click();
+		await expect(svg).toHaveAttribute("data-explode", "100");
+		await expect(page.getByRole("button", { name: "Explode panel", exact: true })).toHaveAttribute("aria-pressed", "true");
+		await expect.poll(() => svg.locator("polygon").first().evaluate((node) => getComputedStyle(node).transform)).not.toBe(initialTransform);
+		await expect(svg).toHaveAttribute("viewBox", initialBox, { timeout: 1000 });
+		await page.getByRole("button", { name: "Reset tampilan", exact: true }).click();
+		await expect(svg).toHaveAttribute("data-explode", "0");
 		await page.getByRole("button", { name: "Perbesar", exact: true }).click();
 		await expect(svg).not.toHaveAttribute("viewBox", initialBox);
 		await page.getByRole("button", { name: "Reset tampilan", exact: true }).click();
@@ -118,6 +137,12 @@ async function main() {
 		const kitchen = snapshot.panels.find((p) => p.roomName === "KITCHEN SET");
 		await page.goto(`${baseURL}${helper.exports.panelLocationUrl("z96buhry4p", kitchen.barcode)}`);
 		await expect(svg).toHaveAttribute("data-panel-count", "112");
+		await page.emulateMedia({ reducedMotion: "reduce" });
+		await page.getByRole("button", { name: "Explode panel", exact: true }).click();
+		await expect(svg).toHaveAttribute("data-explode", "100");
+		await expect(svg.locator("polygon").first()).toHaveCSS("transition-duration", "0s");
+		await page.getByRole("button", { name: "Reset tampilan", exact: true }).click();
+		await page.emulateMedia({ reducedMotion: null });
 		const catalog = require("../src/data/panel-locations/catalog.json");
 		const fiordini = require(`../src/data/panel-locations/${catalog.z96buhr3eu.snapshot}`);
 		const fiordiniPanel = fiordini.panels[0];

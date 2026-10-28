@@ -97,6 +97,8 @@ async function main() {
 		assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
 		const canvasBounds = await svg.boundingBox(), cardBounds = await statusCard.boundingBox();
 		assert(canvasBounds.height > 300, "the model must fill the available portrait canvas");
+		const viewerBounds = await page.getByRole("region", { name: "Lokasi panel", exact: true }).boundingBox();
+		assert(Math.abs(canvasBounds.width - viewerBounds.width) <= 1 && Math.abs(canvasBounds.x - viewerBounds.x) <= 1, "canvas must extend under floating controls across the full viewer width");
 		assert(cardBounds.y + cardBounds.height >= navBounds.y + navBounds.height - 1, "the status card background must extend behind navigation without a gap");
 		assert(await statusCard.evaluate((element) => parseFloat(getComputedStyle(element).borderTopLeftRadius) >= 24));
 		assert(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight), "portrait location view must fit the screen");
@@ -108,6 +110,21 @@ async function main() {
 		await page.getByRole("button", { name: "Perbesar", exact: true }).click();
 		await expect(svg).not.toHaveAttribute("viewBox", initialBox);
 		await page.getByRole("button", { name: "Reset tampilan", exact: true }).click();
+		await page.getByRole("button", { name: "Explode panel", exact: true }).click();
+		await expect(svg).toHaveAttribute("data-explode", "100");
+		await page.getByRole("button", { name: "Perkecil", exact: true }).click();
+		await page.getByRole("button", { name: "Perkecil", exact: true }).click();
+		await expect.poll(() => svg.evaluate((element) => element.getAnimations({ subtree: true }).some((animation) => animation.playState === "running"))).toBe(false);
+		await expect.poll(() => svg.evaluate((element) => {
+			const bounds = element.getBoundingClientRect();
+			return [...element.querySelectorAll("polygon")].every((polygon) => {
+				const panel = polygon.getBoundingClientRect();
+				return panel.left >= bounds.left - 1 && panel.right <= bounds.right + 1 && panel.top >= bounds.top - 1 && panel.bottom <= bounds.bottom + 1;
+			});
+		})).toBe(true);
+		await page.screenshot({ path: "test-results/admin-manual-location-exploded-mobile.png", fullPage: true });
+		await page.getByRole("button", { name: "Reset tampilan", exact: true }).click();
+		await expect.poll(() => svg.evaluate((element) => element.getAnimations({ subtree: true }).some((animation) => animation.playState === "running"))).toBe(false);
 		mkdirSync("test-results", { recursive: true });
 		await page.screenshot({ path: "test-results/admin-manual-location-frame-mobile.png", fullPage: true });
 		await editButton.click();
