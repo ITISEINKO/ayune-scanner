@@ -7,6 +7,7 @@ import {
 	History,
 	House,
 	ScanLine,
+	Search,
 	User,
 	Users,
 } from "lucide-react";
@@ -24,6 +25,7 @@ const superAdminItems = [
 ];
 const memberItems = [
 	{ href: "/projects", label: "Projects", icon: FolderKanban },
+	{ href: "/cari-lokasi", label: "Cari", icon: Search },
 	{ href: "/history", label: "History", icon: History },
 	{ href: "/profile", label: "Profile", icon: User },
 ];
@@ -34,11 +36,7 @@ const getNavigationItemsByRole = (role: PpicRole | null) => {
 	return [];
 };
 
-export function BottomNavigation({
-	role,
-}: {
-	role: PpicRole | null;
-}) {
+export function BottomNavigation({ role }: { role: PpicRole | null }) {
 	const pathname = usePathname();
 	if (pathname === "/login") return null;
 	const navigationItems = getNavigationItemsByRole(role);
@@ -50,7 +48,8 @@ export function BottomNavigation({
 			className="fixed inset-x-0 bottom-0 z-50 mx-auto flex max-w-lg items-center rounded-t-2xl border border-border/70 bg-primary px-3 py-3 shadow-lg"
 		>
 			{navigationItems.map(({ href, label, icon: Icon }, index) => {
-				const active = pathname === href ||
+				const active =
+					pathname === href ||
 					(href === "/admin/ubah-manual" && pathname.startsWith(`${href}/`)) ||
 					(href === "/admin/projects" && pathname === "/admin/project");
 				const className = `flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-md px-1 py-2 text-xs text-white ${

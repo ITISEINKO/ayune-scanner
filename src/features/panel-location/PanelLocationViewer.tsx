@@ -38,6 +38,7 @@ export function PanelLocationViewer({
 	const [pitch, setPitch] = useState(INITIAL_PITCH);
 	const [zoom, setZoom] = useState(1);
 	const [explode, setExplode] = useState(0);
+	const [animateExplode, setAnimateExplode] = useState(false);
 	const [aspect, setAspect] = useState(1);
 	const viewport = useRef<SVGSVGElement>(null);
 	const drag = useRef<{ x: number; y: number } | null>(null);
@@ -70,52 +71,51 @@ export function PanelLocationViewer({
 			),
 		[projected],
 	);
-	const xs = points.map((point) => point[0]),
-		ys = points.map((point) => point[1]);
-	const minX = Math.min(...xs),
-		maxX = Math.max(...xs),
-		minY = Math.min(...ys),
-		maxY = Math.max(...ys);
+	const [minX, maxX, minY, maxY] = useMemo(() => {
+		const xs = points.map((point) => point[0]), ys = points.map((point) => point[1]);
+		return [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+	}, [points]);
 	const width = Math.max(maxX - minX, (maxY - minY) * aspect, 1) * 1.3 * zoom;
 	const height = width / aspect;
-	const faces = useMemo(() => projected
-		.flatMap((panel) =>
-			FACES.map((face, index) => ({
-				barcode: panel.barcode,
-				offset: panel.explodeOffset,
-				key: `${panel.barcode}:${index}`,
-				points: face.map((corner) => `${panel.points[corner][0]},${panel.points[corner][1]}`).join(" "),
-				depth:
-					face.reduce((sum, corner) => sum + panel.points[corner][2], 0) / 4,
-			})),
-		)
-		.sort((a, b) => b.depth - a.depth), [projected]);
+	const shapes = useMemo(() => projected.map((panel) => {
+		// shortcut: translucent context boxes share one path; restore per-face sorting if opaque surfaces are needed.
+		const faces = FACES.map((face) => {
+			const points = face.map((corner) => panel.points[corner]);
+			// Matching winding keeps the combined path filled where front and back faces overlap.
+			const area = points.reduce((sum, point, index) => sum + point[0] * points[(index + 1) % points.length][1] - point[1] * points[(index + 1) % points.length][0], 0);
+			if (area < 0) points.reverse();
+			return points.map((point) => `${point[0]},${point[1]}`).join(" ");
+		});
+		return { ...panel, faces, path: faces.map((points) => `M${points}Z`).join(" "), depth: panel.points.reduce((sum, point) => sum + point[2], 0) / panel.points.length };
+	}).sort((a, b) => b.depth - a.depth), [projected]);
 	const rotateUp = (delta: number) =>
 		setPitch((value) => Math.max(-1.2, Math.min(1.2, value + delta)));
 	const reset = () => {
+		setAnimateExplode(false);
 		setYaw(INITIAL_YAW);
 		setPitch(INITIAL_PITCH);
 		setZoom(1);
 		setExplode(0);
 	};
-	const drawFaces = (active: boolean) =>
-		faces
-			.filter((face) => (face.barcode === barcode) === active)
-			.map((face) => (
-				<polygon
-					key={face.key}
+	const drawPanels = (active: boolean) =>
+		shapes
+			.filter((panel) => (panel.barcode === barcode) === active)
+			.map((panel) => (
+				<g
+					key={panel.barcode}
 					style={{
-						transform: `translate(${face.offset[0] * explode}px, ${face.offset[1] * explode}px)`,
+						transform: `translate(${panel.explodeOffset[0] * explode}px, ${panel.explodeOffset[1] * explode}px)`,
 					}}
-					className="motion-safe:transition-transform motion-safe:duration-300 motion-safe:ease-out"
-					points={face.points}
+					className={animateExplode ? "motion-safe:transition-transform motion-safe:duration-300 motion-safe:ease-out" : undefined}
 					fill={active ? "#ef4444" : "#94a3b8"}
-					fillOpacity={active ? 0.78 : 0.12}
+					fillOpacity={active ? 0.78 : 0.22}
 					stroke={active ? "#be123c" : "#64748b"}
 					strokeOpacity={active ? 1 : 0.4}
 					strokeWidth={active ? 1.8 : 0.7}
-					vectorEffect="non-scaling-stroke"
-				/>
+				>
+					{active ? panel.faces.map((points, index) => <polygon key={index} points={points} fill="#ef4444" vectorEffect="non-scaling-stroke" />)
+						: <path d={panel.path} vectorEffect="non-scaling-stroke" />}
+				</g>
 			));
 
 	return (
@@ -187,6 +187,7 @@ export function PanelLocationViewer({
 							data-explode={Math.round(explode * 100)}
 							onPointerDown={(event) => {
 								if (event.button !== 0) return;
+								setAnimateExplode(false);
 								drag.current = { x: event.clientX, y: event.clientY };
 								event.currentTarget.setPointerCapture(event.pointerId);
 							}}
@@ -215,6 +216,7 @@ export function PanelLocationViewer({
 								)
 									return;
 								event.preventDefault();
+								setAnimateExplode(false);
 								if (event.key === "ArrowLeft") setYaw((value) => value - 0.2);
 								if (event.key === "ArrowRight") setYaw((value) => value + 0.2);
 								if (event.key === "ArrowUp") rotateUp(-0.2);
@@ -222,9 +224,9 @@ export function PanelLocationViewer({
 							}}
 						>
 							<title>{`${panelLabel} di ruang ${selected.roomName}`}</title>
-							{drawFaces(false)}
+							{drawPanels(false)}
 							{/* Keep the target visible through surrounding panels, including panels at the back. */}
-							{drawFaces(true)}
+							{drawPanels(true)}
 						</svg>
 						<div
 							className={
@@ -238,7 +240,7 @@ export function PanelLocationViewer({
 								variant="ghost"
 								size="icon"
 								aria-label="Putar kiri"
-								onClick={() => setYaw((v) => v - 0.3)}
+								onClick={() => { setAnimateExplode(false); setYaw((v) => v - 0.3); }}
 							>
 								<ArrowLeft />
 							</Button>
@@ -246,7 +248,7 @@ export function PanelLocationViewer({
 								variant="ghost"
 								size="icon"
 								aria-label="Putar kanan"
-								onClick={() => setYaw((v) => v + 0.3)}
+								onClick={() => { setAnimateExplode(false); setYaw((v) => v + 0.3); }}
 							>
 								<ArrowRight />
 							</Button>
@@ -254,7 +256,7 @@ export function PanelLocationViewer({
 								variant="ghost"
 								size="icon"
 								aria-label="Putar atas"
-								onClick={() => rotateUp(-0.3)}
+								onClick={() => { setAnimateExplode(false); rotateUp(-0.3); }}
 							>
 								<ArrowUp />
 							</Button>
@@ -262,7 +264,7 @@ export function PanelLocationViewer({
 								variant="ghost"
 								size="icon"
 								aria-label="Putar bawah"
-								onClick={() => rotateUp(0.3)}
+								onClick={() => { setAnimateExplode(false); rotateUp(0.3); }}
 							>
 								<ArrowDown />
 							</Button>
@@ -314,7 +316,7 @@ export function PanelLocationViewer({
 									className="min-h-10"
 									aria-label="Explode panel"
 									aria-pressed={explode > 0}
-									onClick={() => setExplode(explode > 0 ? 0 : 1)}
+									onClick={() => { setAnimateExplode(true); setExplode(explode > 0 ? 0 : 1); }}
 								>
 									<Expand aria-hidden="true" />
 									Explode
@@ -330,7 +332,7 @@ export function PanelLocationViewer({
 									step={1}
 									value={Math.round(explode * 100)}
 									onChange={(event) =>
-										setExplode(Number(event.target.value) / 100)
+										{ setAnimateExplode(false); setExplode(Number(event.target.value) / 100); }
 									}
 									className="h-10 min-w-0 flex-1 cursor-pointer accent-primary"
 								/>

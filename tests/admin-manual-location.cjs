@@ -117,7 +117,7 @@ async function main() {
 		await expect.poll(() => svg.evaluate((element) => element.getAnimations({ subtree: true }).some((animation) => animation.playState === "running"))).toBe(false);
 		await expect.poll(() => svg.evaluate((element) => {
 			const bounds = element.getBoundingClientRect();
-			return [...element.querySelectorAll("polygon")].every((polygon) => {
+			return [...element.querySelectorAll("path, polygon")].every((polygon) => {
 				const panel = polygon.getBoundingClientRect();
 				return panel.left >= bounds.left - 1 && panel.right <= bounds.right + 1 && panel.top >= bounds.top - 1 && panel.bottom <= bounds.bottom + 1;
 			});

@@ -111,7 +111,7 @@ async function main() {
 		await expect(svg.locator("polygon").first()).not.toHaveAttribute("points", initialPoints);
 		await page.getByRole("button", { name: "Reset tampilan", exact: true }).click();
 		const initialBox = await svg.getAttribute("viewBox");
-		const initialTransform = await svg.locator("polygon").first().evaluate((node) => getComputedStyle(node).transform);
+		const initialTransform = await svg.locator("polygon").first().evaluate((node) => getComputedStyle(node.parentElement).transform);
 		const explodeSlider = page.getByRole("slider", { name: "Jarak explode" });
 		await explodeSlider.focus(); await explodeSlider.press("Home"); await explodeSlider.press("ArrowRight");
 		await expect(svg).toHaveAttribute("data-explode", "1");
@@ -120,7 +120,7 @@ async function main() {
 		await page.getByRole("button", { name: "Explode panel", exact: true }).click();
 		await expect(svg).toHaveAttribute("data-explode", "100");
 		await expect(page.getByRole("button", { name: "Explode panel", exact: true })).toHaveAttribute("aria-pressed", "true");
-		await expect.poll(() => svg.locator("polygon").first().evaluate((node) => getComputedStyle(node).transform)).not.toBe(initialTransform);
+		await expect.poll(() => svg.locator("polygon").first().evaluate((node) => getComputedStyle(node.parentElement).transform)).not.toBe(initialTransform);
 		await expect(svg).toHaveAttribute("viewBox", initialBox, { timeout: 1000 });
 		await page.getByRole("button", { name: "Reset tampilan", exact: true }).click();
 		await expect(svg).toHaveAttribute("data-explode", "0");
@@ -137,10 +137,26 @@ async function main() {
 		const kitchen = snapshot.panels.find((p) => p.roomName === "KITCHEN SET");
 		await page.goto(`${baseURL}${helper.exports.panelLocationUrl("z96buhry4p", kitchen.barcode)}`);
 		await expect(svg).toHaveAttribute("data-panel-count", "112");
+		assert.equal(await svg.locator("path").count(), 111, "each background panel must render as one path");
+		assert.equal(await svg.locator("polygon").count(), 6, "only the selected panel needs separate faces");
+		assert(await svg.locator("path").evaluateAll((paths) => paths.every((path) =>
+			path.getAttribute("d").split("M").filter(Boolean).every((face) => {
+				const points = face.replace("Z", "").trim().split(/\s+/).map((point) => point.split(",").map(Number));
+				return points.reduce((sum, point, index) => sum + point[0] * points[(index + 1) % points.length][1] - point[1] * points[(index + 1) % points.length][0], 0) >= -1e-6;
+			}))), "combined paths must keep consistent winding so context fills do not cancel");
+		await page.getByRole("button", { name: "Explode panel", exact: true }).click();
+		await expect(svg).toHaveAttribute("data-explode", "100");
+		await page.getByRole("button", { name: "Putar kanan", exact: true }).click();
+		await expect.poll(() => svg.evaluate((element) => element.getAnimations({ subtree: true }).length)).toBe(0);
+		await expect(svg.locator("g").first()).toHaveCSS("transition-duration", "0s");
+		await explodeSlider.focus(); await explodeSlider.press("ArrowLeft");
+		await expect(svg).toHaveAttribute("data-explode", "99");
+		await expect(svg.locator("g").first()).toHaveCSS("transition-duration", "0s");
+		await page.getByRole("button", { name: "Reset tampilan", exact: true }).click();
 		await page.emulateMedia({ reducedMotion: "reduce" });
 		await page.getByRole("button", { name: "Explode panel", exact: true }).click();
 		await expect(svg).toHaveAttribute("data-explode", "100");
-		await expect(svg.locator("polygon").first()).toHaveCSS("transition-duration", "0s");
+		await expect(svg.locator("g").first()).toHaveCSS("transition-duration", "0s");
 		await page.getByRole("button", { name: "Reset tampilan", exact: true }).click();
 		await page.emulateMedia({ reducedMotion: null });
 		const catalog = require("../src/data/panel-locations/catalog.json");
