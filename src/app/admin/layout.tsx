@@ -26,7 +26,7 @@ export default async function AdminLayout({
 				refreshedAt={session?.refreshed_at ?? 0}
 				userId={session?.user_id ?? null}
 			/>
-			<BottomNavigation role="SUPER_ADMIN" />
+			<BottomNavigation role={session?.role ?? "SUPER_ADMIN"} />
 		</>
 	);
 }

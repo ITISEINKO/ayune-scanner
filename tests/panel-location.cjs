@@ -119,23 +119,6 @@ async function main() {
 		const kitchen = snapshot.panels.find((p) => p.roomName === "KITCHEN SET");
 		await page.goto(`${baseURL}${helper.exports.panelLocationUrl("z96buhry4p", kitchen.barcode)}`);
 		await expect(svg).toHaveAttribute("data-panel-count", "112");
-		for (const serial of ["15370046368", "15370046369", "15370046370"]) {
-			await page.goto(`${baseURL}${helper.exports.panelLocationUrl("mimbar-glb-trial", serial)}`);
-			await expect(page.getByRole("heading", { level: 1 })).toContainText("SketchUp trial");
-			await expect(svg).toHaveAttribute("data-selected-barcode", serial);
-			await expect(svg).toHaveAttribute("data-panel-count", "26");
-			assert.equal(await svg.locator('polygon[fill="#ef4444"]').count(), 6);
-			await expect(page.getByRole("region", { name: "Panel terpilih" })).toContainText(serial);
-			await svg.focus(); await page.keyboard.press("ArrowRight");
-			await page.getByRole("button", { name: "Reset tampilan", exact: true }).click();
-			await page.screenshot({ path: `test-results/glb-trial-${serial}.png`, fullPage: true });
-		}
-		await page.getByLabel("Barcode panel", { exact: true }).fill("15370046368");
-		await page.getByRole("button", { name: "Cari posisi", exact: true }).click();
-		await expect(page).toHaveURL(/project=mimbar-glb-trial/);
-		await expect(svg).toHaveAttribute("data-selected-barcode", "15370046368");
-		await page.goto(`${baseURL}/panel-location?project=mimbar-glb-trial&barcode=15370046376`);
-		await expect(page.getByRole("status")).toContainText("Barcode tidak ditemukan");
 		const catalog = require("../src/data/panel-locations/catalog.json");
 		const fiordini = require(`../src/data/panel-locations/${catalog.z96buhr3eu.snapshot}`);
 		const fiordiniPanel = fiordini.panels[0];

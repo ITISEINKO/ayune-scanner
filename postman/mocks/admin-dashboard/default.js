@@ -5,6 +5,8 @@ let projectStarted = false;
 let projectWrites = 0;
 let projectCompleted = false;
 let completeWrites = 0;
+let manualStatus = "22619cd5-078e-4b12-a6d2-96d723eed52b";
+let manualWrites = 0;
 const component = (id, status) => ({
 	id, parent: "group", name: id,
 	custom_fields: [
@@ -18,7 +20,41 @@ http.createServer((req, res) => {
 	const mode = req.headers["x-test-mode"];
 	let status = 200;
 	let body;
-	if (mode?.startsWith("project-complete")) {
+	if (mode?.startsWith("manual-location")) {
+		const statusId = "3d3a2535-9d01-4ca2-8a51-9b2f9182857c";
+		const options = [
+			{ id: "22619cd5-078e-4b12-a6d2-96d723eed52b", name: "BARANG DITERIMA" },
+			{ id: "65d0e134-287b-4612-a410-109c8d28b2c0", name: "SEDANG DIPACKING" },
+			{ id: "4f941328-79fb-4594-b67e-542b87ccd502", name: "TERPASANG / DIGUNAKAN" },
+		];
+		const serial = JSON.parse(url.searchParams.get("custom_fields") || "[]")[0]?.value;
+		const task = { id: "manual-panel", name: "Panel contoh", list: { id: listId }, parent: "manual-group",
+			...(mode === "manual-location-parent" || mode === "manual-location-cycle" ? {} : { top_level_parent: serial === "no-model" ? "unimported-project" : serial === "15370040711" ? "z96buhr3eu" : "z96buhry4p" }),
+			custom_fields: [{ id: statusId, value: manualStatus }],
+		};
+		if (url.pathname === "/test/reset") {
+			manualStatus = options[0].id; manualWrites = 0; body = {};
+		} else if (url.pathname === "/test/writes") {
+			body = { writes: manualWrites, status: manualStatus };
+		} else if (url.pathname === "/api/v2/user") {
+			body = { user: { id: "manual-admin" } };
+		} else if (url.pathname === `/api/v2/list/${listId}/field`) {
+			body = { fields: [{ id: statusId, name: "STATUS BARANG SCAN", type_config: { options } }] };
+		} else if (url.pathname === `/api/v2/list/${listId}/task`) {
+			if (mode === "manual-location-rate-limit") { status = 429; body = {}; }
+			else body = { tasks: serial === "unknown" ? [] : serial === "duplicate" ? [task, { ...task, id: "duplicate" }] : [task] };
+		} else if (req.method === "GET" && url.pathname === "/api/v2/task/manual-panel") {
+			body = task;
+		} else if (req.method === "GET" && url.pathname === "/api/v2/task/manual-group") {
+			body = { id: "manual-group", parent: mode === "manual-location-cycle" ? "manual-panel" : "z96buhry4p", list: { id: listId } };
+		} else if (req.method === "GET" && url.pathname === "/api/v2/task/z96buhry4p") {
+			body = { id: "z96buhry4p", parent: null, list: { id: listId } };
+		} else if (req.method === "POST" && url.pathname === `/api/v2/task/manual-panel/field/${statusId}`) {
+			if (mode === "manual-location-save-fail") { status = 503; body = {}; }
+			else if (!options.some((option) => option.id === req.body?.value)) { status = 400; body = {}; }
+			else { manualStatus = req.body.value; manualWrites++; body = {}; }
+		} else { status = 501; body = { error: "Endpoint not modeled" }; }
+	} else if (mode?.startsWith("project-complete")) {
 		const task = { id: "complete-project", name: "Rak Buku · Kantor Contoh", parent: null, list: { id: listId }, date_closed: projectCompleted ? String(Date.parse("2026-10-22T10:00:00Z")) : null, status: { status: projectCompleted ? "complete" : "in progress" } };
 		if (url.pathname === "/test/reset") {
 			projectCompleted = false; completeWrites = 0; body = {};

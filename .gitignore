@@ -24,6 +24,7 @@
 /postman
 
 # misc
+/.local-backups/
 /AGENTS.md
 .DS_Store
 *.pem

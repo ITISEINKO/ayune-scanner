@@ -11,7 +11,9 @@ import {
 	requireSuperAdmin,
 } from "@/lib/session";
 import { updatePpicComponentStatus } from "@/lib/db";
+import { getPanelLocation } from "@/lib/panelLocationSnapshot";
 import type { ClickUpTask } from "@/types/clickup";
+import type { ManualPanelItem } from "@/types/panelLocation";
 
 const error = (status: number, code: string) =>
 	NextResponse.json({ ok: false, error: code }, { status });
@@ -23,6 +25,7 @@ export async function GET(request: Request) {
 	await requireSuperAdmin();
 	const serialNumber = new URL(request.url).searchParams.get("serial_number")?.trim();
 	if (!serialNumber) return error(400, "MISSING_SERIAL_NUMBER");
+	if (serialNumber.length > 100) return error(400, "INVALID_SERIAL_NUMBER");
 	const token = await clickUpToken();
 	if (!token) return error(401, "UNAUTHORIZED");
 	const headers = clickUpHeaders(token);
@@ -51,6 +54,27 @@ export async function GET(request: Request) {
 	if (!tasks.length) return error(404, "SERIAL_NUMBER_NOT_FOUND");
 	if (tasks.length > 1) return error(409, "DUPLICATE_SERIAL_NUMBER");
 	const task = tasks[0];
+	let location: ManualPanelItem["location"] = null;
+	let locationError: string | undefined;
+	try {
+		let ancestor = task;
+		const visited = new Set([task.id]);
+		while (!ancestor.top_level_parent && ancestor.parent) {
+			const parentId = ancestor.parent;
+			if (visited.has(parentId) || visited.size >= 20) throw new Error("Invalid panel hierarchy");
+			visited.add(parentId);
+			const response = await fetch(`https://api.clickup.com/api/v2/task/${encodeURIComponent(parentId)}`, {
+				headers, cache: "no-store",
+			});
+			if (!response.ok) throw new Error("Panel hierarchy unavailable");
+			ancestor = (await response.json()) as ClickUpTask;
+			if (ancestor.id !== parentId || ancestor.list?.id !== listId()) throw new Error("Invalid panel hierarchy");
+		}
+		location = await getPanelLocation(ancestor.top_level_parent || ancestor.id, serialNumber);
+	} catch {
+		// Location failures must not prevent the existing manual status correction.
+		locationError = "LOCATION_UNAVAILABLE";
+	}
 	return NextResponse.json({
 		ok: true,
 		data: {
@@ -61,7 +85,9 @@ export async function GET(request: Request) {
 				statusField,
 				task.custom_fields?.find((field) => field.id === statusFieldId())?.value,
 			) ?? "BELUM DIATUR",
-		},
+			location,
+			...(locationError ? { location_error: locationError } : {}),
+		} satisfies ManualPanelItem,
 	});
 }
 

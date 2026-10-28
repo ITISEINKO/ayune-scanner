@@ -2,6 +2,8 @@
 
 This is a local CLI import workflow. It freezes a validated, sanitized copy of panel positions; the viewer never follows the vendor link at runtime. It does not modify the vendor order or automatically refresh saved data.
 
+Admin scans on `/admin/ubah-manual` now open the saved panel location on a separate page with bottom navigation and the existing status-change drawer. See [ADMIN_MANUAL_LOCATION.md](./ADMIN_MANUAL_LOCATION.md) for the flow and API response.
+
 ## Import
 
 From this repository, run:
@@ -59,7 +61,7 @@ The supplied link was imported and the new project entry activated locally on 20
 - Full revision: `fa56c09c1bd10c6755b973b0e5366e312c399173d716cb1973db44fe1eb27062`.
 - Example: `http://localhost:3000/panel-location?project=z96buhr3eu&barcode=15370040711`.
 
-The previous RUKO and SketchUp trial snapshots remain available. No existing active project was replaced.
+The previous RUKO snapshot remains available. No existing LBY project was replaced.
 
 ## Verification
 
@@ -67,13 +69,12 @@ The previous RUKO and SketchUp trial snapshots remain available. No existing act
 postman simulation run tests/lby-import.sim.yaml --port 4913 --output ndjson --no-history
 # In a second terminal:
 node tests/lby-import.cjs
-node tests/glb-locations.cjs
 npm.cmd run build
 node tests/panel-location.cjs
 ```
 
 The importer ran over 24 HTTP requests to the local Postman stand-in, covering successful ZIP import, identical-content reuse, changed geometry, explicit activation/rollback, retained active pointers on 429/missing match/wrong-order/corrupt CRC/unexpected host/non-finite coordinates, and refusal to activate tampered files. The single `lby` simulation member served panel/model/archive paths, with no silent members. Its synthetic fixtures follow observed envelopes; no vendor-provided Postman mock was used. Simulation preconditions and results are recorded in `tests/lby-import.context.md`.
 
-A separate live import of the user's share link succeeded. Browser tests verified the imported FIORDINI link plus previous RUKO/GLB links, direct highlighting, no hydration errors, no external requests, and unchanged authorization behavior. Build and deployment-trace checks passed for all active snapshots. The FIORDINI screenshot was visually inspected.
+A separate live import of the user's share link succeeded. Browser tests verified the imported FIORDINI link plus previous RUKO links, direct highlighting, no hydration errors, no external requests, and unchanged authorization behavior. Build and deployment-trace checks passed for all active snapshots. The FIORDINI screenshot was visually inspected.
 
 Not established: production deployment, hardware/installation accuracy, future vendor compatibility, online DB/object-storage import, concurrent CLI activation, or independent off-machine backup. For production multi-project uploading, move immutable snapshots to private object storage and keep the active project/version reference in the DB; this CLI does not create that infrastructure.

@@ -1,3 +1,4 @@
+import { hasPpicAdminAccess } from "@/types/ppic";
 import { createHash, randomUUID } from "node:crypto";
 import { db, getPpicMemberAccess, getPpicTeamScanOverview, isPpicSuperAdmin } from "@/lib/db";
 import { inProgressProjects, panelListId } from "@/lib/projects";
@@ -72,7 +73,7 @@ async function buildAdminDashboard(token: string, resyncProjects: boolean): Prom
 				result.members.map((member) => member.id),
 			);
 			const members = result.members.filter(
-				(member) => roles[member.id] !== "SUPER_ADMIN",
+				(member) => !hasPpicAdminAccess(roles[member.id]),
 			);
 			const scans = await getPpicTeamScanOverview(
 				members.map((member) => member.id),

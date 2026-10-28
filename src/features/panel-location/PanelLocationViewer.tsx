@@ -5,15 +5,13 @@ import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, MapPin, RotateCcw, ZoomIn, Z
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { projectPanelLocations } from "@/lib/panelLocation";
-import type { PanelLocation } from "@/types/panelLocation";
+import type { PanelLocationView } from "@/types/panelLocation";
 
 const FACES = [[0,1,2,3],[4,5,6,7],[0,1,5,4],[1,2,6,5],[2,3,7,6],[3,0,4,7]];
 const INITIAL_YAW = -0.65;
 const INITIAL_PITCH = 0.35;
 
-export function PanelLocationViewer({ projectId, projectName, version, barcode, panels }: {
-	projectId: string; projectName: string; version: string; barcode: string; panels: PanelLocation[];
-}) {
+export function PanelLocationViewer({ projectId, projectName, version, barcode, panels, searchAction = "/panel-location" }: PanelLocationView & { searchAction?: string }) {
 	const [yaw, setYaw] = useState(INITIAL_YAW);
 	const [pitch, setPitch] = useState(INITIAL_PITCH);
 	const [zoom, setZoom] = useState(1);
@@ -39,7 +37,7 @@ export function PanelLocationViewer({ projectId, projectName, version, barcode, 
 	const height = width / aspect;
 	const faces = projected.flatMap((panel) => FACES.map((face, index) => ({
 		barcode: panel.barcode,
-		key: `${panel.id ?? panel.barcode}:${index}`,
+		key: `${panel.barcode}:${index}`,
 		points: face.map((corner) => panel.points[corner]),
 		depth: face.reduce((sum, corner) => sum + panel.points[corner][2], 0) / 4,
 	}))).sort((a, b) => b.depth - a.depth);
@@ -51,7 +49,7 @@ export function PanelLocationViewer({ projectId, projectName, version, barcode, 
 			stroke={active ? "#be123c" : "#64748b"} strokeOpacity={active ? 1 : 0.4}
 			strokeWidth={active ? 1.8 : 0.7} vectorEffect="non-scaling-stroke" />);
 
-	return <main className="mx-auto flex min-h-dvh max-w-6xl flex-col gap-4 p-4 sm:p-6">
+	return <section aria-label="Lokasi panel" className="flex flex-col gap-4">
 		<header className="flex items-start justify-between gap-4">
 			<div>
 				<p className="text-xs font-bold tracking-widest text-muted-foreground uppercase">Posisi panel</p>
@@ -59,7 +57,7 @@ export function PanelLocationViewer({ projectId, projectName, version, barcode, 
 			</div>
 			<MapPin aria-hidden="true" className="mt-1 size-6 shrink-0 text-red-600" />
 		</header>
-		<form action="/panel-location" method="get" className="flex items-end gap-2">
+		<form action={searchAction} method="get" className="flex items-end gap-2">
 			<input type="hidden" name="project" value={projectId} />
 			<div className="min-w-0 flex-1">
 				<label htmlFor="location-barcode" className="mb-1.5 block text-sm font-semibold">Barcode panel</label>
@@ -122,5 +120,5 @@ export function PanelLocationViewer({ projectId, projectName, version, barcode, 
 			{barcode ? "Barcode tidak ditemukan pada model project ini. Periksa barcode dan project." : "Masukkan barcode untuk melihat posisi panel."}
 		</p>}
 		<footer className="mt-auto text-center text-xs text-muted-foreground">Snapshot {version}</footer>
-	</main>;
+	</section>;
 }

@@ -2,9 +2,9 @@
 
 `GET /api/admin/dashboard`
 
-Requires a signed `ppic_session` identity, a ClickUp access-token cookie, and a current local `SUPER_ADMIN` role in `ppic_permissions`. Authorization runs on every request, including cache hits. The browser does not send credentials in a query parameter or request body.
+Requires a signed `ppic_session` identity, a ClickUp access-token cookie, and a current local `SUPER_ADMIN` or `ADMIN` role in `ppic_permissions`. `ADMIN` inherits all existing `SUPER_ADMIN` access. Authorization runs on every request, including cache hits. The browser does not send credentials in a query parameter or request body.
 
-The admin page reads one shared saved presentation payload after checking the current local admin role. If one exists, it renders immediately. A result older than five minutes triggers a background freshness check. Rebuilds use the server's `CLICKUP_TOKEN`, whose owner must currently have the local `SUPER_ADMIN` role. Browser tokens never select the shared data source. The endpoint returns the presentation payload, not full project dashboards.
+The admin page reads one shared saved presentation payload after checking the current local admin role. If one exists, it renders immediately. A result older than five minutes triggers a background freshness check. Rebuilds use the server's `CLICKUP_TOKEN`, whose owner must currently have the local `SUPER_ADMIN` or `ADMIN` role. Browser tokens never select the shared data source. The endpoint returns the presentation payload, not full project dashboards.
 
 The `/admin` page and its route-loading skeleton live in `src/app/admin/(dashboard)/`. The route group keeps the public URL unchanged and prevents other admin pages from inheriting the dashboard skeleton. Those pages retain their own feature loading states; project detail retains its route-specific loading file.
 

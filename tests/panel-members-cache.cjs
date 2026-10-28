@@ -46,7 +46,7 @@ runInNewContext(transpileModule(readFileSync("src/hooks/use-panel-members.ts", "
 			},
 		};
 		if (id === "@/types/ppic") return {
-			isPpicRole: (role) => role === "MEMBER" || role === "SUPER_ADMIN",
+			isPpicRole: (role) => ["MEMBER", "SUPER_ADMIN", "ADMIN"].includes(role),
 			ppicStatuses: (statuses) => statuses,
 		};
 		throw new Error(`Unexpected import: ${id}`);
@@ -68,6 +68,9 @@ const unmount = () => { cleanup(); unobserve(); };
 	listener({ data: { userId: "member", allowedStatus: ["SEDANG_DIPACKING"] } });
 	assert.equal(client.getQueryData(key).permissions.member[0], "SEDANG_DIPACKING");
 	assert.equal(reads, 1, "live events still patch the cache without a fetch");
+	listener({ data: { userId: "member", role: "ADMIN", allowedStatus: null } });
+	assert.equal(client.getQueryData(key).roles.member, "ADMIN", "highest-role updates reach the settings cache");
+	serverData = JSON.parse(JSON.stringify(client.getQueryData(key)));
 	unmount();
 	assert.equal(closed, true);
 	serverData = { ...serverData, permissions: { member: ["TERPASANG_DIGUNAKAN"] } };

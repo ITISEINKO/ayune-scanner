@@ -20,7 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MemberScanOverview } from "./MemberScanOverview";
 import { usePanelMembers } from "@/hooks/use-panel-members";
-import { PPIC_STATUSES } from "@/types/ppic";
+import { hasPpicAdminAccess, PPIC_STATUSES, PPIC_ROLES } from "@/types/ppic";
 import {
 	STATUS_BADGE_CLASS_NAME,
 	STATUS_COLOR_CONFIG,
@@ -33,7 +33,7 @@ const statusOptions = PPIC_STATUSES.map((status) => ({
 	...STATUS_COLOR_CONFIG[status],
 }));
 
-export const SettingPage = () => {
+export const SettingPage = ({ canManageAdmin = false }: { canManageAdmin?: boolean }) => {
 	const {
 		members,
 		roles,
@@ -66,7 +66,7 @@ export const SettingPage = () => {
 		members?.filter((member) => {
 			if (!member.name.toLowerCase().includes(debouncedSearch)) return false;
 			const inactive =
-				roles[member.id] !== "SUPER_ADMIN" && !permissions[member.id]?.length;
+				!hasPpicAdminAccess(roles[member.id]) && !permissions[member.id]?.length;
 			return statusFilter === "inactive"
 				? inactive
 				: !inactive &&
@@ -264,7 +264,7 @@ export const SettingPage = () => {
 									className="absolute inset-0 size-full rounded-2xl"
 									aria-label={`Lihat detail ${member.name}`}
 									aria-haspopup="dialog"
-									disabled={savingMemberId === member.id}
+									disabled={savingMemberId === member.id || (role === "ADMIN" && !canManageAdmin)}
 									onClick={() => openEditor(member)}
 								/>
 								<div className="flex items-center gap-3">
@@ -276,7 +276,7 @@ export const SettingPage = () => {
 											{member.name}
 										</h2>
 										<div className="mt-0.5 flex items-center gap-2 text-sm text-muted-foreground">
-											<span>{role === "SUPER_ADMIN" ? "Admin" : "Member"}</span>
+											<span>{role === "ADMIN" ? "Admin" : role === "SUPER_ADMIN" ? "Super Admin" : "Member"}</span>
 											{role === "MEMBER" && !selectedStatuses.length && (
 												<Badge
 													variant="destructive"
@@ -342,10 +342,8 @@ export const SettingPage = () => {
 											{editingMember.name}
 										</DrawerTitle>
 										<DrawerDescription>
-											{roles[editingMember.id] === "SUPER_ADMIN"
-												? "Admin"
-												: "Member"}
-											{` · ${roles[editingMember.id] === "SUPER_ADMIN" || permissions[editingMember.id]?.length ? "Aktif" : "Nonaktif"}`}
+											{roles[editingMember.id] === "ADMIN" ? "Admin" : roles[editingMember.id] === "SUPER_ADMIN" ? "Super Admin" : "Member"}
+											{` · ${hasPpicAdminAccess(roles[editingMember.id]) || permissions[editingMember.id]?.length ? "Aktif" : "Nonaktif"}`}
 										</DrawerDescription>
 									</div>
 								</div>
@@ -372,33 +370,18 @@ export const SettingPage = () => {
 								>
 									<div className="overflow-y-auto px-6 py-5">
 										<p className="mb-2 text-sm text-muted-foreground">Peran</p>
-										<div className="grid grid-cols-2 rounded-xl bg-muted p-1">
-											<Button
-												type="button"
-												variant={draftRole === "MEMBER" ? "outline" : "ghost"}
-												className={
-													draftRole === "MEMBER"
-														? "min-h-10 bg-card"
-														: "min-h-10 bg-transparent"
-												}
-												onClick={() => setDraftRole("MEMBER")}
-											>
-												Member
-											</Button>
-											<Button
-												type="button"
-												variant={
-													draftRole === "SUPER_ADMIN" ? "outline" : "ghost"
-												}
-												className={
-													draftRole === "SUPER_ADMIN"
-														? "min-h-10 bg-card"
-														: "min-h-10 bg-transparent"
-												}
-												onClick={() => setDraftRole("SUPER_ADMIN")}
-											>
-												Admin
-											</Button>
+										<div className="flex rounded-xl bg-muted p-1">
+											{PPIC_ROLES.filter((role) => role !== "ADMIN" || canManageAdmin).map((role) => (
+												<Button
+													key={role}
+													type="button"
+													variant={draftRole === role ? "outline" : "ghost"}
+													className={draftRole === role ? "min-h-10 flex-1 bg-card" : "min-h-10 flex-1 bg-transparent"}
+													onClick={() => setDraftRole(role)}
+												>
+													{role === "MEMBER" ? "Member" : role === "SUPER_ADMIN" ? "Super Admin" : "Admin"}
+												</Button>
+											))}
 										</div>
 
 										<p className="mt-6 border-b pb-2 text-sm text-muted-foreground">
@@ -417,7 +400,7 @@ export const SettingPage = () => {
 													<span className="flex-1">{option.label}</span>
 													<Checkbox
 														checked={draftStatuses.includes(option.status)}
-														disabled={draftRole === "SUPER_ADMIN"}
+														disabled={hasPpicAdminAccess(draftRole)}
 														className="h-7 w-12 justify-start rounded-full border-input bg-muted p-1 before:size-5 before:rounded-full before:bg-card before:shadow-sm before:transition-transform data-checked:bg-accent data-checked:border-input data-checked:before:translate-x-5 **:data-[slot=checkbox-indicator]:hidden"
 														onCheckedChange={(checked) =>
 															setDraftStatuses((current) =>

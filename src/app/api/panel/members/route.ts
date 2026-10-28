@@ -3,13 +3,14 @@ import { revalidateTag } from "next/cache";
 import {
 	deactivatePpicPermission,
 	getPpicMemberAccess,
+	getPpicAccess,
 	isPpicRole,
 	isPpicSuperAdmin,
 	savePpicMemberNames,
 	savePpicPermission,
 	savePpicRole,
 } from "@/lib/db";
-import { ppicStatuses } from "@/types/ppic";
+import { hasPpicAdminAccess, ppicStatuses } from "@/types/ppic";
 import { getAbly } from "@/lib/ably";
 import {
 	clickUpUserId,
@@ -88,6 +89,12 @@ export async function POST(request: Request) {
 	const updatedBy = await clickUpUserId();
 	if (!updatedBy) return accessError(401);
 	try {
+		const actor = await getPpicAccess(updatedBy);
+		if (!hasPpicAdminAccess(actor?.role)) return accessError(403);
+		if (
+			actor.role !== "ADMIN" &&
+			(role === "ADMIN" || (await getPpicAccess(userId))?.role === "ADMIN")
+		) return accessError(403);
 		if (isRoleUpdate) await savePpicRole(userId, role!, updatedBy);
 		else if (allowedStatus === null)
 			await deactivatePpicPermission(userId, updatedBy);

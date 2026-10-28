@@ -286,13 +286,14 @@ export const getPpicAccess = async (clickupUserId: string): Promise<{
 	return row ? { ...row, allowed_status: ppicStatuses(row.allowed_status) } : null;
 };
 
+// ADMIN inherits every existing SUPER_ADMIN permission.
 export const isPpicSuperAdmin = async (clickupUserId: string) => {
 	const result = await db.execute({
 		sql: `
 			SELECT 1
 			FROM ppic_permissions
 			WHERE clickup_user_id = ?
-			  AND role = 'SUPER_ADMIN'
+			  AND role IN ('SUPER_ADMIN', 'ADMIN')
 			LIMIT 1
 		`,
 		args: [clickupUserId],

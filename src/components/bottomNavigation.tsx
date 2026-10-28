@@ -1,5 +1,7 @@
 "use client";
 
+import { hasPpicAdminAccess } from "@/types/ppic";
+
 import {
 	FolderKanban,
 	History,
@@ -27,7 +29,7 @@ const memberItems = [
 ];
 
 const getNavigationItemsByRole = (role: PpicRole | null) => {
-	if (role === "SUPER_ADMIN") return superAdminItems;
+	if (hasPpicAdminAccess(role)) return superAdminItems;
 	if (role === "MEMBER") return memberItems;
 	return [];
 };
@@ -49,6 +51,7 @@ export function BottomNavigation({
 		>
 			{navigationItems.map(({ href, label, icon: Icon }, index) => {
 				const active = pathname === href ||
+					(href === "/admin/ubah-manual" && pathname.startsWith(`${href}/`)) ||
 					(href === "/admin/projects" && pathname === "/admin/project");
 				const className = `flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-md px-1 py-2 text-xs text-white ${
 					active ? "font-bold bg-white/10" : "font-medium"

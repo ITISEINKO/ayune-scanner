@@ -49,7 +49,7 @@ Observed requests on `https://www.lbyerp.com`:
 
 These are observed internal endpoints, not a documented integration contract. No cookies or authentication headers were supplied by the inspection requests. Do not embed the shared visitor token or the expiring signed archive URL in committed files.
 
-The model is vendor CAD JSON, rather than a ready-to-load GLB. Panel objects contain `lineModels`, `plankThickness`, `position`, `quaternion`, `scale`, `transMatrix`, and `parentId`. The inspected panels contain 926 outline segments, all `LineModel` instances. A renderer/converter still needs to validate outline extrusion, coordinate units, transforms, and parent hierarchy. Raw transforms in the mapping are not verified world-space installation coordinates.
+The model is vendor CAD JSON. Panel objects contain `lineModels`, `plankThickness`, `position`, `quaternion`, `scale`, `transMatrix`, and `parentId`. The inspected panels contain 926 outline segments, all `LineModel` instances. A renderer/converter still needs to validate outline extrusion, coordinate units, transforms, and parent hierarchy. Raw transforms in the mapping are not verified world-space installation coordinates.
 
 ## Saved mapping and runnable check
 
@@ -139,7 +139,7 @@ import { panelLocationUrl } from "@/lib/panelLocation";
 </a>
 ```
 
-Changing `barcode` selects another imported panel. The helper does not import model data into the calling page. Camera/keyboard scanner integration must also handle popup restrictions; it is not wired into the existing scanner in this proof.
+Changing `barcode` selects another imported panel. The helper does not import model data into the calling page. Admin manual scanning now opens `/admin/ubah-manual/location?barcode=<serial>` in the same tab, retaining the bottom navigation and offering the existing status drawer below the location. See [ADMIN_MANUAL_LOCATION.md](./ADMIN_MANUAL_LOCATION.md). Member scanning and Scan-to-Find keep their existing behavior.
 
 ### Link persistence and database recommendation
 
@@ -163,44 +163,12 @@ The initial browser checks exercised the controls but did not fail on recoverabl
 
 The SVG title's interpolated JSX children were replaced with one template-literal string. The unchanged functional checks plus the new zero-hydration-error assertions then passed after `npm.cmd run build`. Direct loads and barcode changes remained functional. This follows React's guidance to supply a single string to `title`: https://react.dev/reference/react-dom/components/title#use-variables-in-the-title.
 
-## SketchUp GLB trial: three instance serials
-
-The supplied `public/mimbar-doang.glb` was inspected directly: **884,592 bytes**, glTF 2, generator `SimLab GLTF`, 70 nodes, 27 meshes, and four images. All three serials survived export in node names:
-
-| Serial | Component node | Exported node name |
-| --- | ---: | --- |
-| 15370046368 | 26 | `Component#22_15370046368` |
-| 15370046369 | 29 | `Component#23_15370046369` |
-| 15370046370 | 31 | `Component#24_15370046370` |
-
-SketchUp Instance values were entered as raw serials; the exporter concatenated definition and instance names. The importer matches an explicitly supplied serial list against an exact node name or `_serial` suffix. Matching geometry children belong to their enclosing tagged instance; this avoids treating each material mesh as a separate physical panel. The remaining untagged meshes are visual context with `barcode: null`, not invented serials.
-
-`scripts/import-glb-locations.cjs` converts rigid static GLB scene bounds into the existing lightweight snapshot schema. It reads POSITION accessor bounds, composes matrix or translation/quaternion/scale through ancestors, converts glTF Y-up metres to viewer Z-up millimetres, and emits simple boxes. It does not fetch external buffers or textures and does not copy embedded images. Axis-aligned bounds within each tagged instance approximate cutouts and sloping surfaces. Source reference: https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html (node transformations and POSITION bounds).
-
-```powershell
-node scripts/import-glb-locations.cjs public/mimbar-doang.glb src/data/panel-locations/mimbar-glb-trial.json MIMBAR 15370046368 15370046369 15370046370
-```
-
-The result is **26 boxes**, three searchable serials, **5,919 bytes**, revision `305d728acdd8`. It is registered under the separate allowlisted project key `mimbar-glb-trial`; the existing LBY snapshot remains available under its original project key.
-
-Local trial links (existing login required):
-
-- http://localhost:3000/panel-location?project=mimbar-glb-trial&barcode=15370046368
-- http://localhost:3000/panel-location?project=mimbar-glb-trial&barcode=15370046369
-- http://localhost:3000/panel-location?project=mimbar-glb-trial&barcode=15370046370
-
-The shared panel type now permits a nullable barcode and optional geometry ID so untagged context cannot be searched as a panel and SVG keys stay unique. No production serial is assigned to those context boxes.
-
-Verification: `node tests/glb-locations.cjs`, `npm.cmd run build`, `node tests/panel-location.cjs`, and `git diff --check` passed. Import tests cover matrix/TRS composition, units/axes, grouped material children, preserved leading zeroes, missing/duplicate serials, malformed GLB, missing bounds, cycles, finite geometry and equality with the generated real-file snapshot. Browser checks cover all three direct links, search retaining the trial project, explicit failure for an untagged serial, no hydration errors and zero external requests. All three trial screenshots were visually inspected (`test-results/glb-trial-<serial>.png`).
-
-Only the three supplied labels are mapped. Physical label/location matching, online upload/import UI, and production deployment remain unverified. The original user-supplied GLB remains in its original `public` path; the runtime viewer uses only the sanitized server snapshot.
-
 ## Versioned share-link import
 
 The recurring share-link workflow is now implemented in `scripts/import-lby-project.cjs`, with operational commands and storage details in [LBY_IMPORT.md](./LBY_IMPORT.md).
 
 Import stages immutable sanitized `locations.json`, `mapping.json` and `manifest.json` under `src/data/panel-locations/imports/<project>/<revision>/`. It does not alter the active catalog. A separate checksum-checked activation command updates `catalog.json`; using an older saved revision performs rollback. The viewer resolves the allowlisted catalog entry after authorization, with no vendor request. Source tokens and expiring file URLs are not persisted.
 
-The supplied FIORDINI share link yielded 377 exact panel/model matches across seven rooms. Its 93,172-byte viewer snapshot was activated as the new local project `z96buhr3eu`, version `76852806d469`. The original RUKO and GLB trial entries remain available. Example: http://localhost:3000/panel-location?project=z96buhr3eu&barcode=15370040711.
+The supplied FIORDINI share link yielded 377 exact panel/model matches across seven rooms. Its 93,172-byte viewer snapshot was activated as the new local project `z96buhr3eu`, version `76852806d469`. The original RUKO entry remains available. Example: http://localhost:3000/panel-location?project=z96buhr3eu&barcode=15370040711.
 
-Validation passed: 24 importer HTTP calls through the local Postman simulation (including safe failure retention and rollback), GLB regression checks, production build/TypeScript, viewer browser checks and snapshot deployment tracing. The imported FIORDINI screenshot was inspected. No production deploy, Git commit, DB migration, or online uploader was performed.
+Validation passed: 24 importer HTTP calls through the local Postman simulation (including safe failure retention and rollback), production build/TypeScript, viewer browser checks and snapshot deployment tracing. The imported FIORDINI screenshot was inspected. No production deploy, Git commit, DB migration, or online uploader was performed.

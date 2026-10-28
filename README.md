@@ -14,7 +14,7 @@ TrackerProd tracks production-panel progress in ClickUp through serial-number sc
 Scans update ClickUp first, then the local status, scan history, and serial cache. Turso stores permissions, history, and cached project data.
 
 Admin Home uses one shared summary for all authorized admins, calculated with the
-server's `CLICKUP_TOKEN` (whose owner must have the local `SUPER_ADMIN` role).
+server's `CLICKUP_TOKEN` (whose owner must have the local `SUPER_ADMIN` or `ADMIN` role).
 `vercel.json` prewarms it daily at `45 22 * * *` UTC = 05:45 WIB, leaving time
 before the 07:00 target even with Hobby's delayed scheduling. Set `CRON_SECRET`
 and `CLICKUP_TOKEN` in **Vercel Production**, then redeploy to activate the job.
@@ -36,7 +36,13 @@ data on failure. Full ClickUp Resync remains manual. See
 [the project detail contract](context/PROJECT_DETAIL_API.md). Completed archives
 retain their existing frozen handling and access scope.
 
-`GET /api/projects` defaults to `status=in progress`; `status=to do` and `status=complete` require fresh `SUPER_ADMIN` authorization. Responses contain `{ tasks: [{ id, custom_id, name }] }`. Unsupported statuses return `400 INVALID_STATUS`; `refresh=1` bypasses the per-token/status cache. Completed listing fetches every page with `include_closed=true`, following [ClickUp Get Tasks](https://developer.clickup.com/reference/gettasks), and keeps only parent projects.
+`GET /api/projects` defaults to `status=in progress`; `status=to do` and `status=complete` require fresh `SUPER_ADMIN` or `ADMIN` authorization. Responses contain `{ tasks: [{ id, custom_id, name }] }`. Unsupported statuses return `400 INVALID_STATUS`; `refresh=1` bypasses the per-token/status cache. Completed listing fetches every page with `include_closed=true`, following [ClickUp Get Tasks](https://developer.clickup.com/reference/gettasks), and keeps only parent projects.
+
+### Roles and database compatibility
+
+`ADMIN` is the highest role and inherits all `SUPER_ADMIN` access. Existing `SUPER_ADMIN` and `MEMBER` accounts retain their behavior. Only a current `ADMIN` can grant `ADMIN` or change an existing `ADMIN` account in settings.
+
+Run `node scripts/add-admin-role.cjs` to expand the database role constraint using `.env`. It saves a private, ignored backup under `.local-backups/`, preserves every existing row, verifies the copy inside a transaction, and safely skips an already expanded constraint. It does not promote or rename any account. Deploy the updated app before assigning `ADMIN`; older app versions do not recognize that role. After a direct database role edit, log out/in or visit `/api/auth/refresh` to replace the signed session.
 
 `POST /api/project/complete` returns `{ task, dashboard }`, including the saved review and completing admin. It stages the snapshot before the ClickUp update, then finalizes it; a failed final save can be recovered by retrying. Completed snapshots reuse `ppic_admin_project_snapshot` under `completed:<scope hash>` and retain the existing token/list/project isolation. They survive ordinary snapshot invalidation and are never overlaid with newer item statuses. Reading an archive still checks current ClickUp parent access. A different access token creates its own first-view snapshot; that snapshot is labeled accordingly, and unrecorded completion dates/admins remain unknown.
 
