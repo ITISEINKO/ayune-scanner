@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "import:lby": "node scripts/import-lby-project.cjs import",
+    "activate:panel-location": "node scripts/import-lby-project.cjs activate",
     "dev": "next dev",
     "build": "next build",
     "test": "node --experimental-strip-types --test src/lib/produksiPanel.test.ts src/lib/projectStatus.test.ts src/lib/projectDashboard.test.ts tests/admin-overview.cjs tests/member-scan-summary.cjs tests/profile-scan-summary.cjs tests/profile-account.cjs tests/panel-members-cache.cjs tests/team-daily-scans.cjs tests/completed-project-review.cjs",

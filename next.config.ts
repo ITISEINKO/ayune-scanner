@@ -1,7 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  outputFileTracingIncludes: {
+    "/panel-location": ["./src/data/panel-locations/**/*.json"],
+  },
 };
 
 export default nextConfig;

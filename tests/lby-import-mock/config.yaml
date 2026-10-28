@@ -1,0 +1,4 @@
+version: 1
+name: lby-project-import
+interceptRequests: true
+mockSrc: default.js
