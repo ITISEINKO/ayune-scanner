@@ -34,8 +34,8 @@ function parseShareLink(input, now = Date.now()) {
 	return { orderId: data.orderId, name: data.endCustomerAddress.trim() };
 }
 
-async function readRemote(url, label) {
-	const response = await fetch(url, { redirect: "error", signal: AbortSignal.timeout(30000) });
+async function readRemote(url, label, signal) {
+	const response = await fetch(url, { redirect: "error", signal });
 	assert(response.ok, `${label}: HTTP ${response.status}`);
 	const chunks = []; let size = 0;
 	for await (const chunk of response.body) {
@@ -46,8 +46,8 @@ async function readRemote(url, label) {
 	return Buffer.concat(chunks);
 }
 
-async function apiData(apiPath, label) {
-	const bytes = await readRemote(`${ORIGIN}/api/${apiPath}`, label);
+async function apiData(apiPath, label, signal) {
+	const bytes = await readRemote(`${ORIGIN}/api/${apiPath}`, label, signal);
 	let envelope;
 	try { envelope = JSON.parse(bytes); } catch { throw new Error(`${label}: invalid JSON response`); }
 	assert(envelope.code === 0 && envelope.data, `${label}: vendor rejected request (code ${envelope.code})`);
@@ -84,11 +84,13 @@ function unzipModel(bytes, orderId) {
 	return raw;
 }
 
-async function importProject(link, key, root = ROOT) {
+async function fetchProject(link, key, signal = AbortSignal.timeout(240000)) {
 	projectKey(key);
 	const source = parseShareLink(link);
-	const panels = await apiData(`erp/anyTenant/app/getPlankByOrderId/${source.orderId}`, "Panel lookup");
-	const models = await apiData(`cd/anyTenant/app/getByOrderId/${source.orderId}`, "Model lookup");
+	const [panels, models] = await Promise.all([
+		apiData(`erp/anyTenant/app/getPlankByOrderId/${source.orderId}`, "Panel lookup", signal),
+		apiData(`cd/anyTenant/app/getByOrderId/${source.orderId}`, "Model lookup", signal),
+	]);
 	assert(Array.isArray(panels) && panels.length && Object.keys(models).length === 1, "Expected panels and one model file");
 	const value = Object.values(models)[0];
 	assert(typeof value === "string", "Unsupported model response");
@@ -98,7 +100,7 @@ async function importProject(link, key, root = ROOT) {
 		const download = new URL(value);
 		assert(download.protocol === "https:" && !download.username && !download.password &&
 			["www.lbyerp.com", "ali-oss-lby.oss-cn-hangzhou.aliyuncs.com"].includes(download.hostname), "Unexpected model download host");
-		raw = unzipModel(await readRemote(download.toString(), "Model download"), source.orderId);
+		raw = unzipModel(await readRemote(download.toString(), "Model download", signal), source.orderId);
 	}
 	const model = JSON.parse(raw);
 	assert(String(model.value?.orderId) === source.orderId, "Model belongs to another order");
@@ -109,12 +111,19 @@ async function importProject(link, key, root = ROOT) {
 	const revision = sha(locations);
 	const manifest = { projectKey: key, name: source.name, orderId: source.orderId, revision, version: snapshot.version,
 		importedAt: new Date().toISOString(), panelCount: snapshot.panels.length, sourceModelSha256: sha(raw), mappingSha256: sha(mappingJson) };
+	signal.throwIfAborted();
+	return { manifest, locations, mappingJson };
+}
+
+async function importProject(link, key, root = ROOT) {
+	const { manifest, locations, mappingJson } = await fetchProject(link, key);
+	const { revision } = manifest;
 	const parent = path.join(root, "imports", key), destination = path.join(parent, revision);
 	fs.mkdirSync(parent, { recursive: true });
 	if (fs.existsSync(destination)) {
 		assert(sha(fs.readFileSync(path.join(destination, "locations.json"))) === revision, "Existing snapshot checksum mismatch");
 		const previous = JSON.parse(fs.readFileSync(path.join(destination, "manifest.json")));
-		assert(previous.orderId === source.orderId, "Existing version belongs to another order");
+		assert(previous.orderId === manifest.orderId, "Existing version belongs to another order");
 		return previous;
 	}
 	const pending = fs.mkdtempSync(path.join(parent, ".pending-"));
@@ -149,7 +158,7 @@ function activateProject(key, revision, root = ROOT) {
 	return manifest;
 }
 
-module.exports = { parseShareLink, unzipModel, importProject, activateProject };
+module.exports = { parseShareLink, unzipModel, fetchProject, importProject, activateProject };
 if (require.main === module) (async () => {
 	const [command, key, revision] = process.argv.slice(2);
 	assert(["import", "activate"].includes(command), "Usage: node scripts/import-lby-project.cjs import <project-key> | activate <project-key> <revision>");

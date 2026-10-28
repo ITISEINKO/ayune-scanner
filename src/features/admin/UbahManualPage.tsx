@@ -26,6 +26,8 @@ const messageFor = (error?: string) =>
 		CLICKUP_FIELD_MISSING: "Field Status Barang Scan tidak tersedia.",
 		RATE_LIMITED: "Terlalu banyak permintaan. Coba lagi sebentar.",
 		UNAUTHORIZED: "Sesi login sudah berakhir. Silakan login kembali.",
+		LOCATION_AMBIGUOUS: "Serial ditemukan di beberapa model aktif. Periksa model LBY di profil admin.",
+		LOCATION_UNAVAILABLE: "Lokasi panel belum dapat dimuat. Coba lagi sebentar.",
 	})[error ?? ""] ?? "Data barang tidak dapat diproses.";
 
 export const UbahManualPage = ({ serialNumber }: { serialNumber?: string }) => {
@@ -81,7 +83,7 @@ export const UbahManualPage = ({ serialNumber }: { serialNumber?: string }) => {
 		return () => controller.abort();
 	}, [serialNumber]);
 	const save = async () => {
-		if (!item || !selectedStatus || savingRef.current) return;
+		if (!item?.task_id || !selectedStatus || savingRef.current) return;
 		savingRef.current = true;
 		setSaving(true);
 		try {
@@ -115,7 +117,7 @@ export const UbahManualPage = ({ serialNumber }: { serialNumber?: string }) => {
 		<main
 			className={
 				serialNumber
-					? "relative mx-auto flex h-[calc(100dvh-5.5rem)] max-w-lg flex-col overflow-hidden bg-neutral-50 dark:bg-background"
+					? "relative mx-auto flex h-dvh max-w-lg flex-col overflow-hidden bg-neutral-50 dark:bg-background"
 					: "mx-auto min-h-dvh max-w-lg p-4 pb-28"
 			}
 		>
@@ -194,28 +196,31 @@ export const UbahManualPage = ({ serialNumber }: { serialNumber?: string }) => {
 							role="status"
 							className="flex flex-1 items-center justify-center px-5 pb-8 pt-20 text-sm text-muted-foreground"
 						>
-							{item.location_error
-								? "Lokasi panel belum dapat dimuat. Status barang tetap dapat diubah."
-								: "Lokasi panel belum tersedia untuk project ini. Status barang tetap dapat diubah."}
+							{item.location_error === "LOCATION_AMBIGUOUS"
+								? "Serial ditemukan di beberapa model aktif. Periksa model LBY di profil admin. Status barang tetap dapat diubah."
+								: item.location_error
+									? "Lokasi panel belum dapat dimuat. Status barang tetap dapat diubah."
+									: "Lokasi panel belum tersedia untuk project ini. Status barang tetap dapat diubah."}
 						</p>
 					)}
 					<section
 						aria-label="Status barang"
-						className="relative z-10 shrink-0 rounded-t-[1.75rem] border border-b-0 border-border/60 bg-card px-5 pb-5 pt-5 shadow-[0_-6px_24px_-14px_rgb(31_26_20/0.12)]"
+						className="relative z-10 shrink-0 rounded-t-[1.75rem] border border-b-0 border-border/60 bg-card px-5 pb-28
+						 pt-5 shadow-[0_-6px_24px_-14px_rgb(31_26_20/0.12)]"
 					>
 						<div className="flex items-start justify-between gap-3">
 							<h2 className="min-w-0 flex-1 text-lg font-extrabold leading-snug">
 								{item.nama}
 							</h2>
 							<Badge
-								title={`Status saat ini: ${item.status}`}
+								title={item.status ? `Status saat ini: ${item.status}` : "Task ClickUp belum ditemukan"}
 								className="max-w-[55%] gap-1.5 rounded-full bg-accent/20 px-2.5 py-1.5 text-[10px] font-bold text-foreground"
 							>
 								<span
 									aria-hidden="true"
 									className="size-1.5 shrink-0 rounded-full bg-primary"
 								/>
-								<span className="truncate">{item.status}</span>
+								<span className="truncate">{item.status ?? "STATUS TIDAK TERSEDIA"}</span>
 							</Badge>
 						</div>
 						<p className="mt-1 text-xs text-muted-foreground">
@@ -226,15 +231,17 @@ export const UbahManualPage = ({ serialNumber }: { serialNumber?: string }) => {
 						</p>
 						<Button
 							className="mt-4 w-full rounded-xl"
+							disabled={!item.task_id}
 							onClick={() => setEditing(true)}
 						>
 							Ubah status barang
 						</Button>
+						{!item.task_id && <p className="mt-2 text-xs text-muted-foreground">Lokasi tersedia di LBY. Task ClickUp untuk serial ini belum ditemukan, jadi status belum dapat diubah.</p>}
 					</section>
 				</>
 			)}
 
-			{item && (
+			{item?.task_id && (
 				<Drawer
 					open={editing}
 					onOpenChange={(open) => {
@@ -259,7 +266,7 @@ export const UbahManualPage = ({ serialNumber }: { serialNumber?: string }) => {
 								<p className="mt-1 text-2xl font-black">{item.status}</p>
 							</div>
 							<StatusPicker
-								currentStatus={item.status}
+								currentStatus={item.status ?? ""}
 								selectedStatus={selectedStatus}
 								onStatusChange={setSelectedStatus}
 							/>

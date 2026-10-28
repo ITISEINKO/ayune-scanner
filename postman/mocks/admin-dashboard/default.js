@@ -20,7 +20,11 @@ http.createServer((req, res) => {
 	const mode = req.headers["x-test-mode"];
 	let status = 200;
 	let body;
-	if (mode?.startsWith("manual-location")) {
+	if (mode === "lby-online") {
+		if (req.method === "GET" && /^\/api\/v2\/task\/(online-project|online-other|z96buhry4p)$/.test(url.pathname)) {
+			body = { id: url.pathname.split("/").pop(), name: "Online import project", custom_id: "AY-ONLINE", parent: null, list: { id: listId }, status: { status: "in progress" } };
+		} else { status = 501; body = { error: "Endpoint not modeled" }; }
+	} else if (mode?.startsWith("manual-location")) {
 		const statusId = "3d3a2535-9d01-4ca2-8a51-9b2f9182857c";
 		const options = [
 			{ id: "22619cd5-078e-4b12-a6d2-96d723eed52b", name: "BARANG DITERIMA" },
@@ -42,7 +46,7 @@ http.createServer((req, res) => {
 			body = { fields: [{ id: statusId, name: "STATUS BARANG SCAN", type_config: { options } }] };
 		} else if (url.pathname === `/api/v2/list/${listId}/task`) {
 			if (mode === "manual-location-rate-limit") { status = 429; body = {}; }
-			else body = { tasks: serial === "unknown" ? [] : serial === "duplicate" ? [task, { ...task, id: "duplicate" }] : [task] };
+			else body = { tasks: mode === "manual-location-lby-only" || serial === "unknown" ? [] : serial === "duplicate" ? [task, { ...task, id: "duplicate" }] : [task] };
 		} else if (req.method === "GET" && url.pathname === "/api/v2/task/manual-panel") {
 			body = task;
 		} else if (req.method === "GET" && url.pathname === "/api/v2/task/manual-group") {

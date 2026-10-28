@@ -16,6 +16,8 @@ import {
 	ScanLine,
 	Timer,
 	Users,
+	ScanBox,
+	Import,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -268,7 +270,9 @@ export const ProjectDetailPage = ({
 						{ cache: "no-store", signal: controller.signal },
 					);
 					if (!response.ok) throw new Error("SNAPSHOT_POLL_FAILED");
-					const { dashboard: shared } = (await response.json()) as { dashboard: ProjectDashboard };
+					const { dashboard: shared } = (await response.json()) as {
+						dashboard: ProjectDashboard;
+					};
 					if (stopped) return;
 					since = shared.statusUpdatedAt;
 					setCurrentDashboard(shared);
@@ -464,11 +468,7 @@ export const ProjectDetailPage = ({
 						<ChevronLeft aria-hidden="true" className="size-6" />
 					</Link>
 					<div className="flex items-center gap-2">
-						{project.custom_id && (
-							<Badge className="rounded-full border border-primary-foreground/25 bg-primary-foreground/15 px-3 py-1 text-xs font-bold text-primary-foreground">
-								{project.custom_id}
-							</Badge>
-						)}
+						<Badge className="rounded-full border border-primary-foreground/25 bg-primary-foreground/15 px-3 py-1 text-xs font-bold text-primary-foreground">{project.custom_id || project.task_id}</Badge>
 						<Button
 							aria-label="Sinkronkan dashboard"
 							disabled={isSyncing || completing}

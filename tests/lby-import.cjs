@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const os = require("node:os");
-const { parseShareLink, importProject, activateProject } = require("../scripts/import-lby-project.cjs");
+const { parseShareLink, fetchProject, importProject, activateProject } = require("../scripts/import-lby-project.cjs");
 
 function fixtureLink(expireTime = Date.now() + 3600000) {
 	const key = "lby-temp-token-key-2024";
@@ -62,6 +62,9 @@ function fixtureLink(expireTime = Date.now() + 3600000) {
 		fs.appendFileSync(path.join(folder, "locations.json"), " ");
 		assert.throws(() => activateProject("fixture", first.revision, root), /checksum/);
 		assert.equal(fs.readFileSync(catalogPath, "utf8"), active);
+		mode = "slow";
+		await assert.rejects(fetchProject(fixtureLink(), "fixture", AbortSignal.timeout(50)), /timeout|abort/i);
+		assert.equal(fs.readFileSync(catalogPath, "utf8"), active, "a total download deadline must preserve the active pointer");
 		console.log(`LBY HTTP simulation passed: ${requests} requests; ZIP/CRC, mapping, immutable import, explicit activation/rollback, failure retention and tamper rejection.`);
 	} finally { global.fetch = nativeFetch; }
 })().catch((error) => { console.error(error); process.exitCode = 1; });

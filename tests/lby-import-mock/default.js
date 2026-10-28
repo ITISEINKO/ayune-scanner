@@ -31,7 +31,10 @@ http.createServer((req, res) => {
 		}] }] } };
 		const archive = zip(Buffer.from(JSON.stringify(model)));
 		if (mode === "bad-crc") archive.writeUInt32LE(0, archive.length - 22 - (46 + Buffer.byteLength(`${orderId}.json`)) + 16);
-		res.writeHead(200, { "content-type": "application/zip" }); res.end(archive); return;
+		const send = () => { res.writeHead(200, { "content-type": "application/zip" }); res.end(archive); };
+		if (mode === "slow") setTimeout(send, 21000);
+		else send();
+		return;
 	} else { res.writeHead(501); res.end("Endpoint not modeled"); return; }
 	res.writeHead(200, { "content-type": "application/json" }); res.end(JSON.stringify({ code: 0, msg: "ok", data }));
 }).listen(process.env.PORT);

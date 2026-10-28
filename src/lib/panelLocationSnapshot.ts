@@ -1,19 +1,38 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import catalog from "@/data/panel-locations/catalog.json";
+import { getStoredPanelLocation, getStoredPanelLocationByBarcode } from "@/lib/panelLocationStore";
 import type { PanelLocationSnapshot, PanelLocationView } from "@/types/panelLocation";
 
 export const getPanelLocation = async (
 	project: string,
 	barcode: string,
+	revision?: string,
 ): Promise<PanelLocationView | null> => {
-	if (!Object.hasOwn(catalog, project)) return null;
+	const stored = await (revision ? getStoredPanelLocation(project, revision) : getStoredPanelLocationByBarcode(barcode)).catch((cause: unknown) => {
+		if (revision && cause instanceof Error && cause.message === "REVISION_NOT_FOUND") return null;
+		throw cause;
+	});
+	if (stored) project = stored.metadata.projectKey;
+	let bundledSnapshot: PanelLocationSnapshot | undefined;
+	// Bundled models are fixed deployment assets; online models use the indexed serial lookup above.
+	if (!revision) {
+		const matches: { project: string; snapshot: PanelLocationSnapshot }[] = [];
+		for (const [key, entry] of Object.entries(catalog)) {
+			if (await getStoredPanelLocation(key)) continue;
+			const snapshot = JSON.parse(await readFile(path.join(process.cwd(), "src/data/panel-locations", entry.snapshot), "utf8")) as PanelLocationSnapshot;
+			if (snapshot.panels.some((panel) => panel.barcode === barcode)) matches.push({ project: key, snapshot });
+		}
+		if (matches.length + Number(Boolean(stored)) > 1) throw new Error("LOCATION_AMBIGUOUS");
+		if (matches[0]) { project = matches[0].project; bundledSnapshot = matches[0].snapshot; }
+	}
+	if (!stored && (revision || !Object.hasOwn(catalog, project))) return null;
 	const entry = catalog[project as keyof typeof catalog];
-	const snapshot = JSON.parse(await readFile(path.join(process.cwd(), "src/data/panel-locations", entry.snapshot), "utf8")) as PanelLocationSnapshot;
+	const snapshot = stored?.snapshot ?? bundledSnapshot ?? JSON.parse(await readFile(path.join(process.cwd(), "src/data/panel-locations", entry.snapshot), "utf8")) as PanelLocationSnapshot;
 	const selected = snapshot.panels.find((panel) => panel.barcode === barcode);
 	return {
 		projectId: project,
-		projectName: entry.name,
+		projectName: stored?.metadata.name ?? entry.name,
 		version: snapshot.version,
 		barcode,
 		panels: selected ? snapshot.panels.filter((panel) => panel.roomName === selected.roomName) : [],

@@ -134,7 +134,7 @@ async function main() {
 		await page.goto(`${baseURL}/panel-location?project=z96buhry4p&barcode=unknown`);
 		await expect(page.getByRole("status")).toContainText("Barcode tidak ditemukan");
 		assert.equal(await svg.count(), 0);
-		assert.equal((await context.request.get(`${baseURL}/panel-location?project=unknown&barcode=15370046376`)).status(), 404);
+		assert.equal((await context.request.get(`${baseURL}/panel-location?project=unknown&barcode=15370046376`)).status(), 200, "serial lookup does not depend on the ClickUp project");
 		assert.equal((await context.request.get(`${baseURL}/panel-location?project=z96buhry4p&barcode=a&barcode=b`)).status(), 404);
 		await db.execute("UPDATE ppic_permissions SET active=0 WHERE clickup_user_id='viewer-test'");
 		await page.goto(url); await expect(page).toHaveURL(/\/unauthorized/);

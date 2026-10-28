@@ -158,7 +158,9 @@ export function MemberScanOverview({ memberId }: { memberId?: string }) {
 						</div>
 						{data.total === 0 && (
 							<p className="text-sm text-muted-foreground">
-								{memberId ? "Belum ada scan pada periode ini." : "Belum ada scan dalam 7 hari terakhir."}
+								{memberId
+									? "Belum ada scan pada periode ini."
+									: "Belum ada scan dalam 7 hari terakhir."}
 							</p>
 						)}
 						<section className="rounded-2xl border border-border/30 bg-card p-4">
@@ -218,7 +220,11 @@ export function MemberScanOverview({ memberId }: { memberId?: string }) {
 								<h3 className="font-bold">
 									{memberId ? "Scan per status" : "Total scan per status"}
 								</h3>
-								{!memberId && <p className="mt-1 text-xs text-muted-foreground">Sepanjang waktu</p>}
+								{!memberId && (
+									<p className="mt-1 text-xs text-muted-foreground">
+										Sepanjang waktu
+									</p>
+								)}
 							</div>
 							<div className="flex items-center gap-4">
 								<div className="relative size-32 shrink-0">

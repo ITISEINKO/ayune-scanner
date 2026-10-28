@@ -12,6 +12,7 @@ if (process.env.MANUAL_LOCATION_SERVER === "1") {
 	global.fetch = (input, init) => {
 		const url = new URL(input instanceof Request ? input.url : String(input));
 		assert.equal(url.origin, "https://api.clickup.com", "server must not contact LBY or another service");
+		assert(!["/api/v2/task/manual-group", "/api/v2/task/z96buhry4p"].includes(url.pathname), "location must not fetch the project hierarchy");
 		assert.equal(new Headers(init?.headers).get("Authorization"), "manual-local-only");
 		return nativeFetch(`http://127.0.0.1:4900/clickup${url.pathname}${url.search}`, {
 			...init, headers: { ...init?.headers, "x-test-mode": readFileSync(process.env.MANUAL_LOCATION_MODE_FILE, "utf8") },
@@ -96,7 +97,7 @@ async function main() {
 		assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
 		const canvasBounds = await svg.boundingBox(), cardBounds = await statusCard.boundingBox();
 		assert(canvasBounds.height > 300, "the model must fill the available portrait canvas");
-		assert(cardBounds.y + cardBounds.height <= navBounds.y, "the rounded status panel must clear navigation");
+		assert(cardBounds.y + cardBounds.height >= navBounds.y + navBounds.height - 1, "the status card background must extend behind navigation without a gap");
 		assert(await statusCard.evaluate((element) => parseFloat(getComputedStyle(element).borderTopLeftRadius) >= 24));
 		assert(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight), "portrait location view must fit the screen");
 		const initialPoints = await svg.locator("polygon").first().getAttribute("points");
@@ -144,9 +145,26 @@ async function main() {
 		await page.setViewportSize({ width: 1280, height: 900 });
 		await page.screenshot({ path: "test-results/admin-manual-location-desktop.png", fullPage: true });
 		const lookup = (serial) => context.request.get(`${base}/api/panel/manual?${new URLSearchParams({ serial_number: serial })}`);
+		setMode("manual-location-lby-only");
+		let response = await lookup("15370046376");
+		assert.equal(response.status(), 200, "LBY location must remain available when ClickUp has no task");
+		let lbyOnly = (await response.json()).data;
+		assert.equal(lbyOnly.task_id, null);
+		assert.equal(lbyOnly.status, null, "missing ClickUp task must not invent a status");
+		assert.equal(lbyOnly.location.barcode, "15370046376");
+		await page.setViewportSize({ width: 390, height: 844 });
+		await page.goto(`${base}/admin/ubah-manual/location?barcode=15370046376`);
+		await expect(svg).toHaveAttribute("data-selected-barcode", "15370046376");
+		await expect(editButton).toBeDisabled();
+		await expect(statusCard).toContainText("Task ClickUp untuk serial ini belum ditemukan");
+		await expect(statusCard).toContainText("STATUS TIDAK TERSEDIA");
+		assert.equal((await control("writes")).writes, 1, "LBY-only lookup must not write to ClickUp");
+		assert.equal((await context.request.post(`${base}/api/panel/manual`, { data: { task_id: null, status: "BARANG_DITERIMA" } })).status(), 400, "an LBY-only panel cannot be used as a status-write target");
+		assert.equal((await lookup("unknown")).status(), 404, "absent from both sources remains not found");
+		await page.screenshot({ path: "test-results/admin-manual-location-lby-only.png", fullPage: true });
 		setMode("manual-location-parent");
 		let result = await (await lookup("15370046376")).json();
-		assert.equal(result.data.location.projectId, "z96buhry4p", "nested parents must resolve to the imported project");
+		assert.equal(result.data.location.projectId, "z96buhry4p", "serial lookup must work without resolving nested parents");
 		assert.equal(result.data.location.panels.length, 15);
 		setMode("manual-location");
 		await page.goto(`${base}/admin/ubah-manual/location?barcode=no-model`);
@@ -154,15 +172,15 @@ async function main() {
 		await expect(editButton).toBeEnabled();
 		assert.equal(await svg.count(), 0);
 		result = await (await lookup("missing-panel")).json();
-		assert.deepEqual(result.data.location.panels, [], "unknown model serial must not return unrelated room geometry");
+		assert.equal(result.data.location, null, "unknown model serial must not return unrelated room geometry");
 		assert.equal((await lookup("unknown")).status(), 404);
 		assert.equal((await lookup("duplicate")).status(), 409);
 		assert.equal((await lookup("a".repeat(101))).status(), 400);
 		setMode("manual-location-cycle");
 		result = await (await lookup("15370046376")).json();
-		assert.equal(result.data.location, null);
-		assert.equal(result.data.location_error, "LOCATION_UNAVAILABLE");
-		assert.equal(result.data.task_id, "manual-panel", "location failure must retain status editing");
+		assert.equal(result.data.location.projectId, "z96buhry4p", "a cyclic ClickUp hierarchy cannot prevent serial lookup");
+		assert.equal(result.data.location_error, undefined);
+		assert.equal(result.data.task_id, "manual-panel", "serial lookup must retain status editing");
 		setMode("manual-location-rate-limit");
 		assert.equal((await lookup("15370046376")).status(), 429);
 		setMode("manual-location");
@@ -175,7 +193,7 @@ async function main() {
 		await expect(page).toHaveURL(/\/unauthorized/);
 		assert.deepEqual(errors, []);
 		assert.deepEqual(external, []);
-		console.log("PASS: scan-to-location page, LBY room filtering, active bottom nav, drawer confirmation, failed/successful status writes, parent resolution, missing models, refresh/search, mobile layout, errors and fresh revocation (local Postman HTTP, no live services).");
+		console.log("PASS: scan-to-location page, LBY room filtering, active bottom nav, drawer confirmation, failed/successful status writes, serial lookup without hierarchy, missing models, refresh/search, mobile layout, errors and fresh revocation (local Postman HTTP, no live services).");
 	} catch (error) { console.error(logs); throw error; }
 	finally { await browser?.close(); server.kill(); db.close(); }
 }

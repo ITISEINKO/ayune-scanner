@@ -2,6 +2,9 @@
   "name": "trackerprod",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
     "import:lby": "node scripts/import-lby-project.cjs import",
     "activate:panel-location": "node scripts/import-lby-project.cjs activate",

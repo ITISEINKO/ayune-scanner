@@ -46,45 +46,32 @@ export async function GET(request: Request) {
 	if (!searchResponse.ok)
 		return error(searchResponse.status === 429 ? 429 : 502, "CLICKUP_ERROR");
 	const statusField = fields?.["STATUS BARANG SCAN"];
-	if (!statusField || statusField.id !== statusFieldId())
-		return error(500, "CLICKUP_FIELD_MISSING");
 	const { tasks = [] } = (await searchResponse.json()) as {
 		tasks?: ClickUpTask[];
 	};
-	if (!tasks.length) return error(404, "SERIAL_NUMBER_NOT_FOUND");
 	if (tasks.length > 1) return error(409, "DUPLICATE_SERIAL_NUMBER");
 	const task = tasks[0];
 	let location: ManualPanelItem["location"] = null;
 	let locationError: string | undefined;
 	try {
-		let ancestor = task;
-		const visited = new Set([task.id]);
-		while (!ancestor.top_level_parent && ancestor.parent) {
-			const parentId = ancestor.parent;
-			if (visited.has(parentId) || visited.size >= 20) throw new Error("Invalid panel hierarchy");
-			visited.add(parentId);
-			const response = await fetch(`https://api.clickup.com/api/v2/task/${encodeURIComponent(parentId)}`, {
-				headers, cache: "no-store",
-			});
-			if (!response.ok) throw new Error("Panel hierarchy unavailable");
-			ancestor = (await response.json()) as ClickUpTask;
-			if (ancestor.id !== parentId || ancestor.list?.id !== listId()) throw new Error("Invalid panel hierarchy");
-		}
-		location = await getPanelLocation(ancestor.top_level_parent || ancestor.id, serialNumber);
-	} catch {
+		location = await getPanelLocation("", serialNumber);
+	} catch (cause) {
 		// Location failures must not prevent the existing manual status correction.
-		locationError = "LOCATION_UNAVAILABLE";
+		locationError = cause instanceof Error && cause.message === "LOCATION_AMBIGUOUS" ? "LOCATION_AMBIGUOUS" : "LOCATION_UNAVAILABLE";
 	}
+	if (!task && !location) return error(locationError === "LOCATION_AMBIGUOUS" ? 409 : locationError ? 502 : 404, locationError ?? "SERIAL_NUMBER_NOT_FOUND");
+	if (task && (!statusField || statusField.id !== statusFieldId())) return error(500, "CLICKUP_FIELD_MISSING");
+	const panel = location?.panels.find((panel) => panel.barcode === serialNumber);
 	return NextResponse.json({
 		ok: true,
 		data: {
-			task_id: task.id,
-			nama: task.name ?? serialNumber,
+			task_id: task?.id ?? null,
+			nama: task?.name ?? (panel?.panelNumber ? `Panel ${panel.panelNumber}` : serialNumber),
 			serial_number: serialNumber,
-			status: optionName(
+			status: task && statusField ? optionName(
 				statusField,
 				task.custom_fields?.find((field) => field.id === statusFieldId())?.value,
-			) ?? "BELUM DIATUR",
+			) ?? "BELUM DIATUR" : null,
 			location,
 			...(locationError ? { location_error: locationError } : {}),
 		} satisfies ManualPanelItem,

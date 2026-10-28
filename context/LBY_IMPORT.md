@@ -2,6 +2,8 @@
 
 This is a local CLI import workflow. It freezes a validated, sanitized copy of panel positions; the viewer never follows the vendor link at runtime. It does not modify the vendor order or automatically refresh saved data.
 
+For the ADMIN project-badge dialog, persistent Turso candidates, preview/activation/rollback and Vercel Hobby configuration, see [LBY_WEB_IMPORT.md](./LBY_WEB_IMPORT.md). The CLI below remains available; an active DB revision takes precedence over its bundled catalog entry.
+
 Admin scans on `/admin/ubah-manual` now open the saved panel location on a separate page with bottom navigation and the existing status-change drawer. See [ADMIN_MANUAL_LOCATION.md](./ADMIN_MANUAL_LOCATION.md) for the flow and API response.
 
 ## Import
@@ -77,4 +79,4 @@ The importer ran over 24 HTTP requests to the local Postman stand-in, covering s
 
 A separate live import of the user's share link succeeded. Browser tests verified the imported FIORDINI link plus previous RUKO links, direct highlighting, no hydration errors, no external requests, and unchanged authorization behavior. Build and deployment-trace checks passed for all active snapshots. The FIORDINI screenshot was visually inspected.
 
-Not established: production deployment, hardware/installation accuracy, future vendor compatibility, online DB/object-storage import, concurrent CLI activation, or independent off-machine backup. For production multi-project uploading, move immutable snapshots to private object storage and keep the active project/version reference in the DB; this CLI does not create that infrastructure.
+Not established: production deployment, hardware/installation accuracy, future vendor compatibility, concurrent CLI activation, or independent off-machine backup. The online workflow now stores bounded compressed snapshots and active references in Turso; private object storage is not required for these lightweight imports. The CLI itself retains its single-operator file/catalog workflow.
