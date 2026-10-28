@@ -2,6 +2,8 @@
 
 Scanning on `/admin/ubah-manual` navigates in the same tab to `/admin/ubah-manual/location?barcode=<serial>`. The nested route inherits the admin layout and bottom navigation, with Scan active. Its result shows the saved LBY room first, followed by the current status and an **Ubah status barang** button opening the existing confirmation drawer. Closing the drawer retains the location; **Scan panel lain** returns to the scanner.
 
+The admin result uses a compact full-height canvas above the bottom navigation, a neutral paper-white background in light mode, floating back/project pills, a vertical rotate/zoom toolbar and a status panel with rounded top corners. Olive theme buttons and the existing drawer confirmation remain. The removed barcode form stays removed; another panel is opened through the scanner or its barcode URL. The standalone viewer retains its regular layout and shared geometry controls.
+
 ## Read contract
 
 `GET /api/panel/manual?serial_number=<serial>` retains its admin authorization, unique ClickUp serial lookup and existing error codes. Serials longer than 100 characters return `400 INVALID_SERIAL_NUMBER`.

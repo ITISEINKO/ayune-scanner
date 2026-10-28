@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { Scanner } from "@/components/scanner";
 import StatusPicker from "@/components/statusPicker";
@@ -46,21 +47,32 @@ export const UbahManualPage = ({ serialNumber }: { serialNumber?: string }) => {
 		}
 		finding.current = true;
 		setLoading(true);
-		router.push(`/admin/ubah-manual/location?${new URLSearchParams({ barcode: code })}`);
+		router.push(
+			`/admin/ubah-manual/location?${new URLSearchParams({ barcode: code })}`,
+		);
 	};
 	useEffect(() => {
 		if (!serialNumber) return;
 		const controller = new AbortController();
 		const load = async () => {
 			try {
-				const response = await fetch(`/api/panel/manual?${new URLSearchParams({ serial_number: serialNumber })}`, {
-					signal: controller.signal,
-				});
-				const data = (await response.json()) as { data?: ManualPanelItem; error?: string };
+				const response = await fetch(
+					`/api/panel/manual?${new URLSearchParams({ serial_number: serialNumber })}`,
+					{
+						signal: controller.signal,
+					},
+				);
+				const data = (await response.json()) as {
+					data?: ManualPanelItem;
+					error?: string;
+				};
 				if (!response.ok || !data.data) throw new Error(messageFor(data.error));
 				setItem(data.data);
 			} catch (error) {
-				if (!controller.signal.aborted) setErrorMessage(error instanceof Error ? error.message : messageFor());
+				if (!controller.signal.aborted)
+					setErrorMessage(
+						error instanceof Error ? error.message : messageFor(),
+					);
 			} finally {
 				if (!controller.signal.aborted) setLoading(false);
 			}
@@ -95,57 +107,143 @@ export const UbahManualPage = ({ serialNumber }: { serialNumber?: string }) => {
 			setSaving(false);
 		}
 	};
+	const locatedPanel = item?.location?.panels.find(
+		(panel) => panel.barcode === item.serial_number,
+	);
 
 	return (
-		<main className={`mx-auto min-h-dvh p-4 pb-28 ${serialNumber ? "max-w-6xl" : "max-w-lg"}`}>
-			{serialNumber ? <header className="mb-5">
-				<Link href="/admin/ubah-manual" className="text-sm font-semibold underline underline-offset-4">← Scan panel lain</Link>
-			</header> : <>
-			<header className="mb-7">
-				<div className="flex items-center gap-4">
-					<div className="size-19 shrink-0 overflow-hidden">
-						<img src="/icon.svg" alt="" className="size-full" />
-					</div>
-					<div>
-						<p className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
-							Produksi Panel admin
+		<main
+			className={
+				serialNumber
+					? "relative mx-auto flex h-[calc(100dvh-5.5rem)] max-w-lg flex-col overflow-hidden bg-neutral-50 dark:bg-background"
+					: "mx-auto min-h-dvh max-w-lg p-4 pb-28"
+			}
+		>
+			{serialNumber ? (
+				<header className="absolute inset-x-3 top-3 z-20 flex min-w-0 items-center gap-2">
+					<Button
+						variant="outline"
+						size="sm"
+						className="h-10 rounded-full border-border/50 bg-card/95 px-3 shadow-sm"
+						nativeButton={false}
+						render={<Link href="/admin/ubah-manual" />}
+					>
+						<ArrowLeft aria-hidden="true" data-icon="inline-start" />
+						Scan panel lain
+					</Button>
+					<h1
+						title={
+							item?.location
+								? `${item.location.projectName}${locatedPanel ? ` · ${locatedPanel.roomName}` : ""}`
+								: "Lokasi panel"
+						}
+						className="min-w-0 flex-1 truncate rounded-full border border-border/50 bg-card/95 px-3 py-3 text-center text-[11px] font-bold shadow-sm"
+					>
+						{item?.location
+							? `${item.location.projectName}${locatedPanel ? ` · ${locatedPanel.roomName}` : ""}`
+							: "Lokasi panel"}
+					</h1>
+				</header>
+			) : (
+				<>
+					<header className="mb-7">
+						<div className="flex items-center gap-4">
+							<div className="size-19 shrink-0 overflow-hidden">
+								<img src="/icon.svg" alt="" className="size-full" />
+							</div>
+							<div>
+								<p className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
+									Produksi Panel admin
+								</p>
+								<h1 className="text-xl font-black capitalize tracking-tight">
+									Ubah status barang
+								</h1>
+							</div>
+						</div>
+						<p className="mt-2 text-sm text-muted-foreground">
+							Scan Serial Number untuk menampilkan lokasi item dan mengubah
+							statusnya secara manual.
 						</p>
-						<h1 className="text-xl font-black capitalize tracking-tight">
-							Ubah status barang
-						</h1>
-					</div>
-				</div>
-				<p className="mt-2 text-sm text-muted-foreground">
-					Scan Serial Number untuk menampilkan lokasi item dan mengubah
-					statusnya secara manual.
-				</p>
-			</header>
+					</header>
 
-			<Scanner onDetected={findItem} disabled={loading} />
-			</>}
-			{loading && serialNumber && <p role="status">Memuat lokasi dan status panel…</p>}
-			{errorMessage && <p role="alert" className="rounded-xl border bg-muted p-5 text-sm">{errorMessage}</p>}
-			{item && <>
-				{item.location ? <PanelLocationViewer {...item.location} searchAction="/admin/ubah-manual/location" /> :
-					<p role="status" className="rounded-xl border bg-muted p-5 text-sm">
-						{item.location_error ? "Lokasi panel belum dapat dimuat. Status barang tetap dapat diubah." : "Lokasi panel belum tersedia untuk project ini. Status barang tetap dapat diubah."}
-					</p>}
-				<section aria-label="Status barang" className="mx-auto mt-6 max-w-lg rounded-2xl border bg-card p-5">
-					<Badge className="mb-3 bg-accent">Serial: {item.serial_number}</Badge>
-					<h2 className="text-xl font-bold">{item.nama}</h2>
-					<p className="mt-3 text-sm text-muted-foreground">Status saat ini</p>
-					<p className="mt-1 text-2xl font-black">{item.status}</p>
-					<Button className="mt-5 w-full" onClick={() => setEditing(true)}>Ubah status barang</Button>
-				</section>
-			</>}
+					<Scanner onDetected={findItem} disabled={loading} />
+				</>
+			)}
+			{loading && serialNumber && (
+				<p
+					role="status"
+					className="flex flex-1 items-center justify-center p-5 text-sm text-muted-foreground"
+				>
+					Memuat lokasi dan status panel…
+				</p>
+			)}
+			{errorMessage && (
+				<p
+					role="alert"
+					className="mx-4 mt-20 rounded-xl border bg-card p-5 text-sm"
+				>
+					{errorMessage}
+				</p>
+			)}
+			{item && (
+				<>
+					{item.location ? (
+						<PanelLocationViewer {...item.location} immersive />
+					) : (
+						<p
+							role="status"
+							className="flex flex-1 items-center justify-center px-5 pb-8 pt-20 text-sm text-muted-foreground"
+						>
+							{item.location_error
+								? "Lokasi panel belum dapat dimuat. Status barang tetap dapat diubah."
+								: "Lokasi panel belum tersedia untuk project ini. Status barang tetap dapat diubah."}
+						</p>
+					)}
+					<section
+						aria-label="Status barang"
+						className="relative z-10 shrink-0 rounded-t-[1.75rem] border border-b-0 border-border/60 bg-card px-5 pb-5 pt-5 shadow-[0_-6px_24px_-14px_rgb(31_26_20/0.12)]"
+					>
+						<div className="flex items-start justify-between gap-3">
+							<h2 className="min-w-0 flex-1 text-lg font-extrabold leading-snug">
+								{item.nama}
+							</h2>
+							<Badge
+								title={`Status saat ini: ${item.status}`}
+								className="max-w-[55%] gap-1.5 rounded-full bg-accent/20 px-2.5 py-1.5 text-[10px] font-bold text-foreground"
+							>
+								<span
+									aria-hidden="true"
+									className="size-1.5 shrink-0 rounded-full bg-primary"
+								/>
+								<span className="truncate">{item.status}</span>
+							</Badge>
+						</div>
+						<p className="mt-1 text-xs text-muted-foreground">
+							{locatedPanel?.panelNumber
+								? `Panel ${locatedPanel.panelNumber} · `
+								: ""}
+							Serial: {item.serial_number}
+						</p>
+						<Button
+							className="mt-4 w-full rounded-xl"
+							onClick={() => setEditing(true)}
+						>
+							Ubah status barang
+						</Button>
+					</section>
+				</>
+			)}
 
 			{item && (
 				<Drawer
 					open={editing}
-					onOpenChange={(open) => { setEditing(open); if (!open) setSelectedStatus(""); }}
+					onOpenChange={(open) => {
+						setEditing(open);
+						if (!open) setSelectedStatus("");
+					}}
 					showSwipeHandle
 				>
-					<DrawerContent className="[--drawer-inset:0px]! mx-auto max-w-lg rounded-t-3xl border-t border-border bg-background shadow-2xl">
+					<DrawerContent className="[--drawer-inset:0px]! mx-auto max-w-lg rounded-t-[1.75rem] border-t border-border bg-card shadow-2xl">
 						<div className="min-h-0 flex-1 overflow-y-auto p-5 pb-8">
 							<Badge className="mb-3 bg-accent">
 								Serial: {item.serial_number}

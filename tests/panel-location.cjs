@@ -113,8 +113,7 @@ async function main() {
 		await page.setViewportSize({ width: 390, height: 844 });
 		assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
 		await page.screenshot({ path: "test-results/panel-location-mobile.png", fullPage: true });
-		await page.getByLabel("Barcode panel", { exact: true }).fill("15370046368");
-		await page.getByRole("button", { name: "Cari posisi", exact: true }).click();
+		await page.goto(`${baseURL}${helper.exports.panelLocationUrl("z96buhry4p", "15370046368")}`);
 		await expect(svg).toHaveAttribute("data-selected-barcode", "15370046368");
 		const kitchen = snapshot.panels.find((p) => p.roomName === "KITCHEN SET");
 		await page.goto(`${baseURL}${helper.exports.panelLocationUrl("z96buhry4p", kitchen.barcode)}`);
