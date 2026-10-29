@@ -35,17 +35,23 @@ const request = (body) => new Request("http://localhost/api/projects", { method:
 	global.testAdmin = false;
 	await assert.rejects(POST(request({ task_id: "todo-project" })), /UNAUTHORIZED/);
 	await assert.rejects(GET(new Request("http://localhost/api/projects?status=to%20do")), /UNAUTHORIZED/);
+	await assert.rejects(GET(new Request("http://localhost/api/projects?status=complete")), /UNAUTHORIZED/);
 	assert.equal((await GET(new Request("http://localhost/api/projects"))).status, 200);
 	global.testAdmin = true;
 	assert.equal((await POST(request(null))).status, 400);
 	assert.equal((await POST(request({ task_id: " " }))).status, 400);
-	assert.equal((await GET(new Request("http://localhost/api/projects?status=complete"))).status, 400);
+	assert.equal((await GET(new Request("http://localhost/api/projects?status=done"))).status, 400);
+	const completed = await GET(new Request("http://localhost/api/projects?status=complete"));
+	assert.equal(completed.status, 200);
+	assert.deepEqual((await completed.json()).tasks.map(({ id }) => id), ["done-project", "done-project-2"], "closed parents from every page, without subtasks");
 	assert.deepEqual(await inProgressProjects("test-token"), []);
 	assert.deepEqual((await projectsByStatus("test-token", "to do")).map(({ id }) => id), ["todo-project"]);
 	for (const task_id of ["child", "foreign", "done"]) {
 		assert.equal((await POST(request({ task_id }))).status, task_id === "done" ? 409 : 404);
 	}
 	mode = "project-start-rate-limit";
+	assert.equal((await GET(new Request("http://localhost/api/projects?status=complete"))).status, 200, "completed cache is separate from ongoing and Todo");
+	assert.equal((await GET(new Request("http://localhost/api/projects?status=complete&refresh=1"))).status, 429, "manual Sync bypasses the completed cache");
 	assert.equal((await POST(request({ task_id: "todo-project" }))).status, 429);
 	assert.equal((await inProgressProjects("test-token")).length, 0);
 	mode = "project-start";

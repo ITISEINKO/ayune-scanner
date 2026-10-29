@@ -83,7 +83,11 @@ export const ScanToFindPage = ({ role }: { role: PpicRole }) => {
 					</div>
 					<div>
 						<p className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
-							{role === "SUPER_ADMIN" ? "Admin" : "Member"}
+							{role === "ADMIN"
+								? "Admin"
+								: role === "SUPER_ADMIN"
+									? "Super Admin"
+									: "Member"}
 						</p>
 						<h1 className="text-xl font-black tracking-tight">
 							Buka Task Produksi Panel

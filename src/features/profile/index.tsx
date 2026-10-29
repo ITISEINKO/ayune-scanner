@@ -1,5 +1,7 @@
 "use client";
 
+import { hasPpicAdminAccess } from "@/types/ppic";
+
 import type { CSSProperties, ReactNode } from "react";
 import {
 	ArrowUpRight,
@@ -21,9 +23,11 @@ import type { PpicRole } from "@/types/ppic";
 
 export function ProfileLayout({
 	role,
+	roleLabel,
 	children,
 }: {
 	role: PpicRole;
+	roleLabel?: string;
 	children?: ReactNode;
 }) {
 	const { data: profile, isPending, isError, refetch } = useProfile();
@@ -31,7 +35,7 @@ export function ProfileLayout({
 
 	return (
 		<main className="mx-auto min-h-dvh max-w-lg bg-background pb-28">
-			<header className="relative isolate overflow-hidden rounded-b-[2rem] bg-primary px-5 pt-7 pb-6 text-primary-foreground">
+			<header className="relative isolate overflow-hidden rounded-b-4xl bg-primary px-5 pt-7 pb-6 text-primary-foreground">
 				<img
 					src="/ayune-14.svg"
 					alt=""
@@ -54,7 +58,7 @@ export function ProfileLayout({
 							/>
 						) : (
 							<p
-								className="text-2xl leading-tight font-bold break-words capitalize tracking-tight"
+								className="text-2xl leading-tight font-bold wrap-break-word capitalize tracking-tight"
 								title={profile?.displayName ?? undefined}
 							>
 								{profile?.displayName ?? "Akun"}
@@ -62,7 +66,7 @@ export function ProfileLayout({
 						)}
 						<Badge className="mt-3 h-auto rounded-full border-primary-foreground/20 bg-primary-foreground/10 px-2.5 py-1 text-[10px] font-bold tracking-wider text-primary-foreground">
 							<ShieldCheck aria-hidden="true" />
-							{role.replaceAll("_", " ")}
+							{roleLabel ?? role.replaceAll("_", " ")}
 						</Badge>
 					</div>
 				</div>
@@ -108,20 +112,24 @@ export function ProfileLayout({
 							</div>
 							<div className="min-w-0 flex-1">
 								<p className="text-xs text-muted-foreground">Email</p>
-								<p className="mt-1 text-sm font-semibold break-words">
+								<p className="mt-1 text-sm font-semibold wrap-break-word">
 									{profile?.email ?? "Email unavailable"}
 								</p>
 							</div>
 						</div>
-						{role === "SUPER_ADMIN" && (
+						{hasPpicAdminAccess(role) && (
 							<div className="flex items-start gap-3 p-4">
 								<div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-accent/20">
-									<ShieldCheck aria-hidden="true" className="size-4 text-primary" />
+									<ShieldCheck
+										aria-hidden="true"
+										className="size-4 text-primary"
+									/>
 								</div>
 								<div className="min-w-0">
 									<h3 className="text-sm font-semibold">Akses administrator</h3>
 									<p className="mt-1 text-sm leading-6 text-muted-foreground">
-										Pantau dashboard, kelola project, ubah status barang, dan atur akses tim.
+										Pantau dashboard, kelola project, ubah status barang, dan
+										atur akses tim.
 									</p>
 								</div>
 							</div>
@@ -129,12 +137,13 @@ export function ProfileLayout({
 						{role === "MEMBER" && (
 							<div className="flex items-start gap-3 p-4">
 								<div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted/70">
-									<BadgeCheck aria-hidden="true" className="size-4 text-primary" />
+									<BadgeCheck
+										aria-hidden="true"
+										className="size-4 text-primary"
+									/>
 								</div>
 								<div className="min-w-0">
-									<p className="text-xs text-muted-foreground">
-										Akses scan
-									</p>
+									<p className="text-xs text-muted-foreground">Akses scan</p>
 									{allowedStatuses.length ? (
 										<div className="mt-1.5 flex flex-wrap gap-1.5">
 											{allowedStatuses.map((status) => (
@@ -142,10 +151,14 @@ export function ProfileLayout({
 													key={status}
 													variant="secondary"
 													className={`${STATUS_BADGE_CLASS_NAME} h-auto px-2 py-1 text-xs`}
-													style={{
-														"--status-color": STATUS_COLOR_CONFIG[status].color,
-														"--status-text-color": STATUS_COLOR_CONFIG[status].textColor,
-													} as CSSProperties}
+													style={
+														{
+															"--status-color":
+																STATUS_COLOR_CONFIG[status].color,
+															"--status-text-color":
+																STATUS_COLOR_CONFIG[status].textColor,
+														} as CSSProperties
+													}
 												>
 													{STATUS_COLOR_CONFIG[status].shortLabel}
 												</Badge>
@@ -168,9 +181,14 @@ export function ProfileLayout({
 					</span>
 					<span className="flex-1">
 						<span className="block text-sm font-bold">Logout</span>
-						<span className="mt-0.5 block text-xs text-muted-foreground">Keluar dari akun ini</span>
+						<span className="mt-0.5 block text-xs text-muted-foreground">
+							Keluar dari akun ini
+						</span>
 					</span>
-					<ArrowUpRight aria-hidden="true" className="size-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 motion-reduce:transform-none" />
+					<ArrowUpRight
+						aria-hidden="true"
+						className="size-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 motion-reduce:transform-none"
+					/>
 				</a>
 			</section>
 		</main>

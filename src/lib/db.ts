@@ -35,6 +35,28 @@ let permissionNamesSchema: Promise<void> | undefined;
 let projectStatusSchema: Promise<void> | undefined;
 let dashboardSnapshotSchema: Promise<void> | undefined;
 
+export const getLbyImportPermissions = async (userIds: string[]) => {
+	const permissions = Object.fromEntries(userIds.map((id) => [id, false]));
+	if (!userIds.length) return permissions;
+	const result = await db.execute({ sql: `SELECT clickup_user_id, can_import_lby FROM ppic_permissions
+		WHERE clickup_user_id IN (${userIds.map(() => "?").join(",")})`, args: userIds });
+	for (const row of result.rows) permissions[String(row.clickup_user_id)] = Number(row.can_import_lby) === 1;
+	return permissions;
+};
+
+export const saveLbyImportPermission = async (userId: string, enabled: boolean, updatedBy: string) => {
+	if (!userId.trim() || !updatedBy.trim() || typeof enabled !== "boolean") throw new Error("Invalid LBY permission");
+	return db.execute({ sql: `INSERT INTO ppic_permissions (clickup_user_id, allowed_status, active, updated_by, can_import_lby)
+		VALUES (?, ?, 0, ?, ?) ON CONFLICT(clickup_user_id) DO UPDATE SET can_import_lby = excluded.can_import_lby,
+		updated_by = excluded.updated_by, updated_at = CURRENT_TIMESTAMP`, args: [userId, PPIC_STATUSES[0], updatedBy, Number(enabled)] });
+};
+
+export const canImportLby = async (userId: string) => {
+	const access = await getPpicAccess(userId);
+	if (access?.role === "ADMIN") return true;
+	return (await getLbyImportPermissions([userId]))[userId];
+};
+
 const ensureDashboardSnapshotSchema = () =>
 	(dashboardSnapshotSchema ??= db.execute(`
 		CREATE TABLE IF NOT EXISTS ppic_admin_project_snapshot (
@@ -58,7 +80,7 @@ export const getAdminProjectSnapshot = async (scopeKey: string) => {
 export const invalidateAdminProjectSnapshots = async (taskId: string) => {
 	await ensureDashboardSnapshotSchema();
 	await db.execute({
-		sql: "DELETE FROM ppic_admin_project_snapshot WHERE json_extract(dashboard_json, '$.project.task_id') = ?",
+		sql: "DELETE FROM ppic_admin_project_snapshot WHERE json_extract(dashboard_json, '$.project.task_id') = ? AND scope_key NOT LIKE 'completed:%'",
 		args: [taskId],
 	});
 };
@@ -89,6 +111,19 @@ export const finishAdminProjectRefresh = async (
 		args: [dashboard ? JSON.stringify(dashboard) : null, scopeKey, refreshId],
 	});
 	return result.rowsAffected > 0;
+};
+
+export const stageAdminProjectSnapshot = async (
+	scopeKey: string,
+	refreshId: string,
+	dashboard: ProjectDashboard,
+) => {
+	await ensureDashboardSnapshotSchema();
+	const result = await db.execute({
+		sql: "UPDATE ppic_admin_project_snapshot SET dashboard_json = ? WHERE scope_key = ? AND refresh_id = ?",
+		args: [JSON.stringify(dashboard), scopeKey, refreshId],
+	});
+	if (!result.rowsAffected) throw new Error("PROJECT_SYNC_SUPERSEDED");
 };
 
 const ensureProjectStatusSchema = () =>
@@ -273,13 +308,14 @@ export const getPpicAccess = async (clickupUserId: string): Promise<{
 	return row ? { ...row, allowed_status: ppicStatuses(row.allowed_status) } : null;
 };
 
+// ADMIN inherits every existing SUPER_ADMIN permission.
 export const isPpicSuperAdmin = async (clickupUserId: string) => {
 	const result = await db.execute({
 		sql: `
 			SELECT 1
 			FROM ppic_permissions
 			WHERE clickup_user_id = ?
-			  AND role = 'SUPER_ADMIN'
+			  AND role IN ('SUPER_ADMIN', 'ADMIN')
 			LIMIT 1
 		`,
 		args: [clickupUserId],

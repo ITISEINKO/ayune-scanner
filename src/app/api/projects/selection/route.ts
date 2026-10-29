@@ -1,3 +1,4 @@
+import { hasPpicAdminAccess } from "@/types/ppic";
 import { after, NextResponse } from "next/server";
 import {
 	clearProjectSerialCache,
@@ -13,7 +14,7 @@ import {
 	ppicSession,
 	selectedProject,
 } from "@/lib/session";
-import { isPpicSuperAdmin } from "@/lib/db";
+import { getPpicAccess } from "@/lib/db";
 import type { SelectedProject } from "@/types/project";
 
 const error = (status: number, code: string) =>
@@ -21,10 +22,11 @@ const error = (status: number, code: string) =>
 
 const projectSession = async () => {
 	const session = await ppicSession();
-	if (session && (session.role === "SUPER_ADMIN" || session.allowed_status)) return session;
+	if (session && (hasPpicAdminAccess(session.role) || session.allowed_status)) return session;
 	const userId = await clickUpUserId();
-	return userId && (await isPpicSuperAdmin(userId))
-		? { user_id: userId, role: "SUPER_ADMIN" as const, allowed_status: null }
+	const access = userId ? await getPpicAccess(userId) : null;
+	return userId && hasPpicAdminAccess(access?.role)
+		? { user_id: userId, role: access.role, allowed_status: null }
 		: null;
 };
 
@@ -76,7 +78,7 @@ export async function POST(request: Request) {
 		const cookie = encodeSelectedProject(session.user_id, selection);
 		if (!cookie) return error(500, "SESSION_ERROR");
 		const path =
-			session.role === "SUPER_ADMIN"
+			hasPpicAdminAccess(session.role)
 				? "/admin/project"
 				: ppicStatusPath(session.allowed_status![0]);
 		const response = formSubmission

@@ -226,6 +226,8 @@ test.describe("Admin manual status scan", () => {
 		await page
 			.getByRole("textbox", { name: "Input scan keyboard" })
 			.fill(serialNumber);
+		await expect(page).toHaveURL(/\/admin\/ubah-manual\/location\?barcode=/);
+		await page.getByRole("button", { name: "Ubah status barang", exact: true }).click();
 		const dialog = page.getByRole("dialog");
 		await expect(dialog).toContainText(`Serial: ${serialNumber}`);
 		await expect(dialog).toContainText("BARANG DITERIMA");

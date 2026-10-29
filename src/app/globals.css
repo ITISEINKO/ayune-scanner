@@ -3,6 +3,7 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+	--bottom-navigation-height: calc(4.875rem + env(safe-area-inset-bottom, 0px));
 	--background: oklch(0.976 0.006 80);
 	--foreground: oklch(0.2911 0.0286 122.2751);
 	--card: oklch(1 0 0);

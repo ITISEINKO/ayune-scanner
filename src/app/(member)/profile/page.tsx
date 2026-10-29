@@ -1,9 +1,10 @@
+import { hasPpicAdminAccess } from "@/types/ppic";
 import { MemberProfilePage } from "@/features/profile/MemberProfilePage";
 import { redirect } from "next/navigation";
 import { ppicSession } from "@/lib/session";
 
 const Profile = async () => {
-	if ((await ppicSession())?.role === "SUPER_ADMIN") redirect("/admin/profile");
+	if (hasPpicAdminAccess((await ppicSession())?.role)) redirect("/admin/profile");
 	return <MemberProfilePage />;
 };
 

@@ -11,7 +11,9 @@ import {
 	requireSuperAdmin,
 } from "@/lib/session";
 import { updatePpicComponentStatus } from "@/lib/db";
+import { getPanelLocation } from "@/lib/panelLocationSnapshot";
 import type { ClickUpTask } from "@/types/clickup";
+import type { ManualPanelItem } from "@/types/panelLocation";
 
 const error = (status: number, code: string) =>
 	NextResponse.json({ ok: false, error: code }, { status });
@@ -23,6 +25,7 @@ export async function GET(request: Request) {
 	await requireSuperAdmin();
 	const serialNumber = new URL(request.url).searchParams.get("serial_number")?.trim();
 	if (!serialNumber) return error(400, "MISSING_SERIAL_NUMBER");
+	if (serialNumber.length > 100) return error(400, "INVALID_SERIAL_NUMBER");
 	const token = await clickUpToken();
 	if (!token) return error(401, "UNAUTHORIZED");
 	const headers = clickUpHeaders(token);
@@ -43,25 +46,35 @@ export async function GET(request: Request) {
 	if (!searchResponse.ok)
 		return error(searchResponse.status === 429 ? 429 : 502, "CLICKUP_ERROR");
 	const statusField = fields?.["STATUS BARANG SCAN"];
-	if (!statusField || statusField.id !== statusFieldId())
-		return error(500, "CLICKUP_FIELD_MISSING");
 	const { tasks = [] } = (await searchResponse.json()) as {
 		tasks?: ClickUpTask[];
 	};
-	if (!tasks.length) return error(404, "SERIAL_NUMBER_NOT_FOUND");
 	if (tasks.length > 1) return error(409, "DUPLICATE_SERIAL_NUMBER");
 	const task = tasks[0];
+	let location: ManualPanelItem["location"] = null;
+	let locationError: string | undefined;
+	try {
+		location = await getPanelLocation("", serialNumber);
+	} catch (cause) {
+		// Location failures must not prevent the existing manual status correction.
+		locationError = cause instanceof Error && cause.message === "LOCATION_AMBIGUOUS" ? "LOCATION_AMBIGUOUS" : "LOCATION_UNAVAILABLE";
+	}
+	if (!task && !location) return error(locationError === "LOCATION_AMBIGUOUS" ? 409 : locationError ? 502 : 404, locationError ?? "SERIAL_NUMBER_NOT_FOUND");
+	if (task && (!statusField || statusField.id !== statusFieldId())) return error(500, "CLICKUP_FIELD_MISSING");
+	const panel = location?.panels.find((panel) => panel.barcode === serialNumber);
 	return NextResponse.json({
 		ok: true,
 		data: {
-			task_id: task.id,
-			nama: task.name ?? serialNumber,
+			task_id: task?.id ?? null,
+			nama: task?.name ?? (panel?.panelNumber ? `Panel ${panel.panelNumber}` : serialNumber),
 			serial_number: serialNumber,
-			status: optionName(
+			status: task && statusField ? optionName(
 				statusField,
 				task.custom_fields?.find((field) => field.id === statusFieldId())?.value,
-			) ?? "BELUM DIATUR",
-		},
+			) ?? "BELUM DIATUR" : null,
+			location,
+			...(locationError ? { location_error: locationError } : {}),
+		} satisfies ManualPanelItem,
 	});
 }
 

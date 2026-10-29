@@ -4,13 +4,13 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import { clickUpHeaders } from "@/lib/clickup";
-import { getPpicAccess, isPpicStatus, isPpicSuperAdmin } from "@/lib/db";
+import { canImportLby, getPpicAccess, isPpicStatus, isPpicSuperAdmin } from "@/lib/db";
 import {
 	CLICKUP_TEAM_ID,
 	CLICKUP_PPIC_CHANNEL_ID,
 	ppicStatusPath,
 } from "@/lib/produksiPanel";
-import { ppicStatuses } from "@/types/ppic";
+import { hasPpicAdminAccess, ppicStatuses } from "@/types/ppic";
 import type { PpicRole, PpicStatuses } from "@/types/ppic";
 import type { PanelMember } from "@/types/clickup";
 import type { SelectedProject } from "@/types/project";
@@ -32,7 +32,7 @@ export type PanelMembersResult =
 export const clickUpToken = async () =>
 	(await cookies()).get("clickup_access_token")?.value ?? null;
 
-const clickUpUserIdForToken = cache(async (token: string) => {
+export const clickUpUserIdForToken = cache(async (token: string) => {
 	try {
 		const response = await fetch("https://api.clickup.com/api/v2/user", {
 			headers: clickUpHeaders(token),
@@ -94,12 +94,14 @@ export const encodePpicSession = (
 	userId: string,
 	role: PpicRole,
 	allowedStatus: PpicStatuses | null,
+	canImportLby = false,
 ) => {
 	const payload = Buffer.from(
 		JSON.stringify({
 			user_id: userId,
 			role,
 			allowed_status: allowedStatus,
+			...(canImportLby ? { can_import_lby: true } : {}),
 			refreshed_at: Date.now(),
 		}),
 	).toString("base64url");
@@ -175,6 +177,7 @@ export const ppicSession = async () => {
 			user_id?: unknown;
 			role?: unknown;
 			allowed_status?: unknown;
+			can_import_lby?: unknown;
 			refreshed_at?: unknown;
 		};
 		if (
@@ -184,22 +187,24 @@ export const ppicSession = async () => {
 			!Number.isFinite(session.refreshed_at)
 		)
 			return null;
-		if (session.role === "SUPER_ADMIN")
+		if (hasPpicAdminAccess(session.role))
 			return {
 				user_id: session.user_id,
-				role: "SUPER_ADMIN" as const,
+				role: session.role,
 				allowed_status: null,
+				can_import_lby: false,
 				refreshed_at: session.refreshed_at,
 			};
 		const allowedStatus =
 			session.allowed_status === null
 				? null
 				: ppicStatuses(session.allowed_status);
-		if (session.role === "MEMBER" && allowedStatus)
+		if (session.role === "MEMBER" && (allowedStatus || session.can_import_lby === true))
 			return {
 				user_id: session.user_id,
 				role: "MEMBER" as const,
 				allowed_status: allowedStatus,
+				can_import_lby: session.can_import_lby === true,
 				refreshed_at: session.refreshed_at,
 			};
 	} catch {
@@ -210,11 +215,12 @@ export const ppicSession = async () => {
 
 export const ppicLoginState = async (userId: string) => {
 	const access = await getPpicAccess(userId);
-	if (access?.role === "SUPER_ADMIN")
+	if (hasPpicAdminAccess(access?.role))
 		return {
-			role: "SUPER_ADMIN" as const,
+			role: access.role,
 			allowed_status: null,
 			path: "/admin",
+			can_import_lby: false,
 		};
 	const allowedStatus =
 		access?.role === "MEMBER" &&
@@ -222,10 +228,12 @@ export const ppicLoginState = async (userId: string) => {
 		Array.isArray(access.allowed_status)
 			? access.allowed_status
 			: null;
+	const importer = await canImportLby(userId);
 	return {
 		role: "MEMBER" as const,
 		allowed_status: allowedStatus,
-		path: "/projects",
+		can_import_lby: importer,
+		path: importer ? "/drafter" : "/projects",
 	};
 };
 
@@ -234,7 +242,7 @@ export const postLoginPathForUser = async (userId: string) =>
 
 export const postLoginPath = async () => {
 	const session = await ppicSession();
-	if (session) return session.role === "SUPER_ADMIN" ? "/admin" : "/projects";
+	if (session) return hasPpicAdminAccess(session.role) ? "/admin" : session.can_import_lby ? "/drafter" : "/projects";
 	const userId = await clickUpUserId();
 	return userId ? postLoginPathForUser(userId) : "/login";
 };
@@ -243,12 +251,13 @@ export const requireFreshSuperAdmin = async () => {
 	const userId = await clickUpUserId();
 	if (!userId) redirect("/login");
 	if (!(await isPpicSuperAdmin(userId))) redirect("/unauthorized");
+	return userId;
 };
 
 export const requireSuperAdmin = async () => {
 	const session = await ppicSession();
 	if (session) {
-		if (session.role !== "SUPER_ADMIN") redirect("/unauthorized");
+		if (!hasPpicAdminAccess(session.role)) redirect("/unauthorized");
 		return;
 	}
 	await requireFreshSuperAdmin();
@@ -259,7 +268,7 @@ export const requireFreshPpicStatusAccess = async (status: string) => {
 	const userId = (await ppicSession())?.user_id ?? (await clickUpUserId());
 	if (!userId) redirect("/login");
 	const access = await getPpicAccess(userId);
-	if (access?.role === "SUPER_ADMIN") return userId;
+	if (hasPpicAdminAccess(access?.role)) return userId;
 	if (
 		access?.role !== "MEMBER" ||
 		Number(access.active) !== 1 ||
@@ -275,7 +284,7 @@ export const requirePpicStatusAccess = async (status: string) => {
 	const session = await ppicSession();
 	if (session) {
 		if (
-			session.role === "SUPER_ADMIN" ||
+			hasPpicAdminAccess(session.role) ||
 			session.allowed_status?.includes(status)
 		)
 			return;
@@ -295,9 +304,9 @@ export const requireSelectedMemberProject = async () => {
 export const requireSelectedAdminProject = async () => {
 	const session = await ppicSession();
 	const userId =
-		session?.role === "SUPER_ADMIN" ? session.user_id : await clickUpUserId();
+		hasPpicAdminAccess(session?.role) ? session.user_id : await clickUpUserId();
 	if (!userId) redirect("/login");
-	if (session?.role !== "SUPER_ADMIN" && !(await isPpicSuperAdmin(userId)))
+	if (!hasPpicAdminAccess(session?.role) && !(await isPpicSuperAdmin(userId)))
 		redirect("/unauthorized");
 	const project = await selectedProject(userId);
 	if (!project) redirect("/admin/projects");

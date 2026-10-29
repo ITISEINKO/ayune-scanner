@@ -1,0 +1,5 @@
+simulation: lby-project-import
+routing: path
+mocks:
+  - routeKey: lby
+    path: ./lby-import-mock/config.yaml

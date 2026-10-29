@@ -13,7 +13,7 @@ export default async function AdminHome() {
 	const userId = (await ppicSession())?.user_id;
 	if (!userId) redirect("/login");
 	if (!(await isPpicSuperAdmin(userId))) redirect("/unauthorized");
-	const initialData = await getLastAdminDashboard(userId);
+	const initialData = await getLastAdminDashboard();
 	return (
 		<AdminDashboard key={userId} userId={userId} initialData={initialData ?? undefined} />
 	);

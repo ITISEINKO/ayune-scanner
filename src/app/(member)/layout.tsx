@@ -21,7 +21,7 @@ export default async function MemberLayout({
 				refreshedAt={session?.refreshed_at ?? 0}
 				userId={session?.user_id ?? null}
 			/>
-			<BottomNavigation role={session?.role ?? null} />
+			<BottomNavigation role={session?.role ?? null} workspace={session?.can_import_lby ? "drafter" : undefined} />
 		</>
 	);
 }

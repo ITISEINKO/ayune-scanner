@@ -6,7 +6,7 @@ const { chromium, expect } = require("@playwright/test");
 
 (async () => {
 	const baseURL = "http://127.0.0.1:3348";
-	const secret = "local-project-tabs-test";
+	const secret = "local-project-filter-test";
 	const server = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start", "-p", "3348"], {
 		env: { ...process.env, CLICKUP_CLIENT_SECRET: secret, TURSO_DATABASE_URL: "file::memory:", TURSO_AUTH_TOKEN: "local-test-only" },
 		stdio: "pipe", windowsHide: true,
@@ -25,6 +25,9 @@ const { chromium, expect } = require("@playwright/test");
 		const page = await context.newPage();
 		let writes = 0;
 		let fail = true;
+		const reads = [];
+		let emptyStatus = null;
+		let completedTasks = [{ id: "completed-project", custom_id: "DONE-001", name: "Completed wardrobe" }];
 		const projectName = "Todo project · Meja Kerja Studio Contoh dengan lemari penyimpanan tambahan";
 		await page.route("**/api/**", async (route) => {
 			const request = route.request();
@@ -35,12 +38,70 @@ const { chromium, expect } = require("@playwright/test");
 				assert.deepEqual(request.postDataJSON(), { task_id: "todo-project" });
 				return route.fulfill(fail ? { status: 502, json: { error: "CLICKUP_ERROR" } } : { json: { task: { id: "todo-project", custom_id: "DEMO-003", name: projectName } } });
 			}
-			return route.fulfill({ json: { tasks: url.searchParams.get("status") === "to do" ? [{ id: "todo-project", custom_id: "DEMO-003", name: projectName }] : [{ id: "ongoing-project", name: "Ongoing project" }] } });
+			const status = url.searchParams.get("status");
+			reads.push({ status, refresh: url.searchParams.get("refresh") });
+			return route.fulfill({ json: { tasks: status === emptyStatus ? [] : status === "complete" ? completedTasks : status === "to do" ? [{ id: "todo-project", custom_id: "DEMO-003", name: projectName }] : [{ id: "ongoing-project", name: "Ongoing project" }] } });
 		});
+		const selectStatus = async (label) => {
+			await page.getByRole("combobox", { name: "Status project" }).click();
+			const insets = await page.getByRole("option").first().evaluate(option => {
+				const item = option.getBoundingClientRect();
+				const popup = option.closest('[data-slot="select-content"]').getBoundingClientRect();
+				return { left: item.left - popup.left, right: popup.right - item.right };
+			});
+			assert.ok(insets.left > 0 && Math.abs(insets.left - insets.right) < 1, "dropdown options have equal left and right insets");
+			await page.getByRole("option", { name: label, exact: true }).click();
+		};
 		await page.goto(`${baseURL}/admin/projects`);
 		await expect(page.getByRole("link", { name: /Ongoing project/ })).toHaveAttribute("href", "/admin/project?task_id=ongoing-project");
 		await expect(page.getByRole("dialog")).toHaveCount(0);
-		await page.getByRole("tab", { name: "Todo", exact: true }).click();
+		assert.equal(reads.some(({ status }) => status === "complete"), false, "completed projects load only when selected");
+		await expect(page.getByRole("tab")).toHaveCount(0);
+		await selectStatus("Completed");
+		await expect(page.getByRole("link", { name: /Completed wardrobe/ })).toHaveAttribute("href", "/admin/project?task_id=completed-project&review=completed");
+		await expect(page.getByText("Project yang sudah selesai. Pilih project untuk melihat detail dan riwayatnya.")).toBeVisible();
+		await expect(page.getByRole("button", { name: /Mulai project/ })).toHaveCount(0);
+		await page.getByRole("searchbox", { name: "Cari project" }).fill("missing");
+		await expect(page.getByRole("heading", { name: "Project tidak ditemukan", exact: true })).toBeVisible();
+		await expect(page.getByText(/yang cocok dengan “missing”/)).toBeVisible();
+		await page.screenshot({ path: "test-results/admin-projects-search-empty.png" });
+		await page.getByRole("button", { name: "Hapus pencarian", exact: true }).focus();
+		await page.keyboard.press("Enter");
+		await expect(page.getByRole("searchbox", { name: "Cari project" })).toHaveValue("");
+		await expect(page.getByRole("link", { name: /Completed wardrobe/ })).toBeVisible();
+		await page.getByRole("searchbox", { name: "Cari project" }).fill(" done-001 ");
+		await expect(page.getByRole("link", { name: /Completed wardrobe/ })).toBeVisible();
+		await page.getByRole("searchbox", { name: "Cari project" }).fill("");
+		await page.screenshot({ path: "test-results/admin-projects-completed.png" });
+		await selectStatus("In progress");
+		await expect(page.getByRole("link", { name: /Ongoing project/ })).toBeVisible();
+		await expect(page.getByRole("link", { name: /Completed wardrobe/ })).toHaveCount(0);
+		await selectStatus("Completed");
+		assert.equal(reads.filter(({ status }) => status === "complete").length, 1, "returning to a status reuses its cache");
+		completedTasks = [];
+		await page.getByRole("button", { name: "Sync", exact: true }).click();
+		await expect(page.getByRole("heading", { name: "Belum ada project selesai", exact: true })).toBeVisible();
+		await expect(page.getByText("Project yang ditandai selesai akan muncul di sini, lengkap dengan ringkasan dan riwayatnya.")).toBeVisible();
+		await expect.poll(() => page.locator('img[src="/empty-projects.svg"]').evaluate(image => image.complete && image.naturalWidth > 0)).toBe(true);
+		await page.setViewportSize({ width: 350, height: 750 });
+		assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "illustrated empty state fits narrow mobile screens");
+		await page.screenshot({ path: "test-results/admin-projects-completed-empty.png" });
+		assert.deepEqual(reads.at(-1), { status: "complete", refresh: "1" }, "Sync refreshes the selected status");
+		assert.equal(writes, 0, "viewing completed projects never writes");
+		await page.getByRole("button", { name: "Lihat project berjalan", exact: true }).click();
+		await expect(page.getByRole("link", { name: /Ongoing project/ })).toBeVisible();
+		emptyStatus = "to do";
+		await selectStatus("Todo");
+		await expect(page.getByRole("heading", { name: "Belum ada project Todo", exact: true })).toBeVisible();
+		await page.getByRole("button", { name: "Lihat project berjalan", exact: true }).click();
+		emptyStatus = "in progress";
+		await page.getByRole("button", { name: "Sync", exact: true }).click();
+		await expect(page.getByRole("heading", { name: "Belum ada project berjalan", exact: true })).toBeVisible();
+		emptyStatus = null;
+		await page.getByRole("button", { name: "Sync", exact: true }).click();
+		await expect(page.getByRole("link", { name: /Ongoing project/ })).toBeVisible();
+		await selectStatus("Todo");
+		await page.getByRole("button", { name: "Sync", exact: true }).click();
 		await page.setViewportSize({ width: 350, height: 750 });
 		await expect(page.getByText("Belum dimulai", { exact: true })).toBeVisible();
 		const projectTitle = page.getByRole("heading", { name: projectName, exact: true });
@@ -77,12 +138,12 @@ const { chromium, expect } = require("@playwright/test");
 		fail = false;
 		await dialog.getByRole("button", { name: "Ya, mulai", exact: true }).click();
 		await expect(dialog).not.toBeVisible();
-		await expect(page.getByRole("tab", { name: "In progress", exact: true })).toHaveAttribute("aria-selected", "true");
+		await expect(page.getByRole("combobox", { name: "Status project" })).toContainText("In progress");
 		await expect(page.getByRole("link", { name: /Todo project/ })).toHaveAttribute("href", "/admin/project?task_id=todo-project");
 		await expect(page.getByRole("link", { name: /Ongoing project/ })).toBeVisible();
-		await page.getByRole("tab", { name: "Todo", exact: true }).click();
+		await selectStatus("Todo");
 		await expect(page.getByRole("button", { name: /Todo project/ })).toHaveCount(0);
-		console.log("Admin tabs, original detail links, cancel, failure, confirmation and list movement passed.");
+		console.log("Admin status filter, illustrated empty states for all statuses/search, keyboard clear, recovery links, completed fetch/cache/Sync, detail links and Todo confirmation passed.");
 	} finally {
 		await browser?.close();
 		server.kill();

@@ -13,7 +13,7 @@ export async function GET(request: Request) {
 			return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
 		if (!(await isPpicSuperAdmin(userId)))
 			return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
-		const data = await getAdminDashboard(token, userId, new URL(request.url).searchParams.get("refresh") === "1");
+		const data = await getAdminDashboard(new URL(request.url).searchParams.get("refresh") === "1" ? "summary" : false);
 		return NextResponse.json(data, { headers: { "Cache-Control": "private, no-store" } });
 	} catch {
 		return NextResponse.json({ error: "DASHBOARD_UNAVAILABLE" }, { status: 502 });
