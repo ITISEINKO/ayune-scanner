@@ -5,11 +5,15 @@ import { useQuery } from "@tanstack/react-query";
 import { MapPin, RotateCcw, Eye, EyeOff, DoorOpen, Expand } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { isDoorPanel, panelLocationUrl, projectPanelLocations } from "@/lib/panelLocation";
+import {
+	isDoorPanel,
+	panelLocationUrl,
+	projectPanelLocations,
+} from "@/lib/panelLocation";
 import type { PanelLocationView } from "@/types/panelLocation";
 
 const INITIAL_YAW = -0.65;
-const INITIAL_PITCH = 0.25;
+const INITIAL_PITCH = -0.25;
 
 export function PanelLocationViewer({
 	projectId,
@@ -21,14 +25,28 @@ export function PanelLocationViewer({
 	immersive = false,
 	preview = false,
 	desktopLayout = false,
-}: PanelLocationView & { immersive?: boolean; preview?: boolean; desktopLayout?: boolean }) {
+}: PanelLocationView & {
+	immersive?: boolean;
+	preview?: boolean;
+	desktopLayout?: boolean;
+}) {
 	const activeVersion = useQuery({
 		queryKey: ["panel-location-version", projectId],
 		queryFn: async ({ signal }) => {
-			const response = await fetch(`/api/panel/location-version?${new URLSearchParams({ project: projectId })}`, { cache: "no-store", signal });
+			const response = await fetch(
+				`/api/panel/location-version?${new URLSearchParams({ project: projectId })}`,
+				{ cache: "no-store", signal },
+			);
 			if (!response.ok) throw new Error("LOCATION_UNAVAILABLE");
-			const result = await response.json() as { active?: Pick<PanelLocationView, "version" | "versionNumber"> | null };
-			if (result.active !== null && (typeof result.active?.version !== "string" || !Number.isInteger(result.active.versionNumber))) throw new Error("INVALID_RESPONSE");
+			const result = (await response.json()) as {
+				active?: Pick<PanelLocationView, "version" | "versionNumber"> | null;
+			};
+			if (
+				result.active !== null &&
+				(typeof result.active?.version !== "string" ||
+					!Number.isInteger(result.active.versionNumber))
+			)
+				throw new Error("INVALID_RESPONSE");
 			return result.active;
 		},
 		enabled: Boolean(projectId && panels.length),
@@ -39,7 +57,11 @@ export function PanelLocationViewer({
 		refetchOnReconnect: "always",
 		retry: 1,
 	});
-	const outdated = activeVersion.isFetchedAfterMount && activeVersion.data !== undefined && (activeVersion.data?.version !== version || activeVersion.data?.versionNumber !== versionNumber);
+	const outdated =
+		activeVersion.isFetchedAfterMount &&
+		activeVersion.data !== undefined &&
+		(activeVersion.data?.version !== version ||
+			activeVersion.data?.versionNumber !== versionNumber);
 	const [yaw, setYaw] = useState(INITIAL_YAW);
 	const [pitch, setPitch] = useState(INITIAL_PITCH);
 	const [zoom, setZoom] = useState(1);
@@ -152,7 +174,12 @@ export function PanelLocationViewer({
 						...panel,
 						faces,
 						path: faces.map((points) => `M${points}Z`).join(" "),
-						edges: panel.edgeIndices.map((edge) => `M${edge.map((index) => `${panel.points[index][0]},${panel.points[index][1]}`).join("L")}`).join(" "),
+						edges: panel.edgeIndices
+							.map(
+								(edge) =>
+									`M${edge.map((index) => `${panel.points[index][0]},${panel.points[index][1]}`).join("L")}`,
+							)
+							.join(" "),
 						depth:
 							panel.points.reduce((sum, point) => sum + point[2], 0) /
 							panel.points.length,
@@ -216,11 +243,20 @@ export function PanelLocationViewer({
 					{panel.geometry ? (
 						<>
 							<path d={panel.path} stroke="none" />
-							<path d={panel.edges} fill="none" vectorEffect="non-scaling-stroke" />
+							<path
+								d={panel.edges}
+								fill="none"
+								vectorEffect="non-scaling-stroke"
+							/>
 						</>
 					) : active ? (
 						panel.faces.map((points, index) => (
-							<polygon key={index} points={points} fill="#ef4444" vectorEffect="non-scaling-stroke" />
+							<polygon
+								key={index}
+								points={points}
+								fill="#ef4444"
+								vectorEffect="non-scaling-stroke"
+							/>
 						))
 					) : (
 						<path d={panel.path} vectorEffect="non-scaling-stroke" />
@@ -253,23 +289,61 @@ export function PanelLocationViewer({
 					/>
 				</header>
 			)}
-			<div className={immersive ? `absolute inset-x-3 top-16 z-10 space-y-2 ${desktopLayout ? "md:left-6 md:top-20 md:max-w-lg" : ""}` : "space-y-2"}>
-				{(immersive || preview) && <p role={preview ? "status" : undefined} className={`w-fit rounded-full px-3 py-1 text-[11px] ${preview ? "border border-amber-500/40 bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-200" : "bg-card/95 text-muted-foreground"}`}>
-					{preview ? "Preview versi" : "Versi tampilan"} V{versionNumber}
-				</p>}
-				{outdated && <Alert className="border border-amber-500/40 bg-card text-amber-900 dark:text-amber-200">
-					<AlertDescription className="text-inherit">
-						{activeVersion.data === null ? "Model ini belum memiliki versi aktif." : `Tampilan ini memakai V${versionNumber}. Versi aktif sekarang V${activeVersion.data?.versionNumber}.`}
-					</AlertDescription>
-					{activeVersion.data !== null && <Button size="sm" variant="outline" className="mt-2 w-fit" onClick={() => {
-						if (preview) window.location.assign(panelLocationUrl(projectId, barcode));
-						else window.location.reload();
-					}}>Muat versi aktif</Button>}
-				</Alert>}
-				{(activeVersion.isError || activeVersion.fetchStatus === "paused") && <Alert className="border border-amber-500/40 bg-card text-amber-900 dark:text-amber-200">
-					<AlertDescription className="text-inherit">Versi aktif belum dapat diperiksa.</AlertDescription>
-					<Button size="sm" variant="outline" className="mt-2 w-fit" onClick={() => void activeVersion.refetch()}>Periksa lagi</Button>
-				</Alert>}
+			<div
+				className={
+					immersive
+						? `absolute inset-x-3 top-16 z-10 space-y-2 ${desktopLayout ? "md:left-6 md:top-20 md:max-w-lg" : ""}`
+						: "space-y-2"
+				}
+			>
+				{(immersive || preview) && (
+					<p
+						role={preview ? "status" : undefined}
+						className={`w-fit rounded-full px-3 py-1 text-[11px] ${preview ? "border border-amber-500/40 bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-200" : "bg-card/95 text-muted-foreground"}`}
+					>
+						{preview ? "Preview versi" : "Versi tampilan"} V{versionNumber}
+					</p>
+				)}
+				{outdated && (
+					<Alert className="border border-amber-500/40 bg-card text-amber-900 dark:text-amber-200">
+						<AlertDescription className="text-inherit">
+							{activeVersion.data === null
+								? "Model ini belum memiliki versi aktif."
+								: `Tampilan ini memakai V${versionNumber}. Versi aktif sekarang V${activeVersion.data?.versionNumber}.`}
+						</AlertDescription>
+						{activeVersion.data !== null && (
+							<Button
+								size="sm"
+								variant="outline"
+								className="mt-2 w-fit"
+								onClick={() => {
+									if (preview)
+										window.location.assign(
+											panelLocationUrl(projectId, barcode),
+										);
+									else window.location.reload();
+								}}
+							>
+								Muat versi aktif
+							</Button>
+						)}
+					</Alert>
+				)}
+				{(activeVersion.isError || activeVersion.fetchStatus === "paused") && (
+					<Alert className="border border-amber-500/40 bg-card text-amber-900 dark:text-amber-200">
+						<AlertDescription className="text-inherit">
+							Versi aktif belum dapat diperiksa.
+						</AlertDescription>
+						<Button
+							size="sm"
+							variant="outline"
+							className="mt-2 w-fit"
+							onClick={() => void activeVersion.refetch()}
+						>
+							Periksa lagi
+						</Button>
+					</Alert>
+				)}
 			</div>
 
 			{selected ? (
@@ -394,7 +468,10 @@ export function PanelLocationViewer({
 									opacity={0.6}
 									aria-hidden="true"
 								>
-									<path d={target.geometry ? target.edges : target.path} vectorEffect="non-scaling-stroke" />
+									<path
+										d={target.geometry ? target.edges : target.path}
+										vectorEffect="non-scaling-stroke"
+									/>
 									<line
 										x1={targetCenter[0]}
 										y1={targetCenter[1]}
@@ -487,7 +564,7 @@ export function PanelLocationViewer({
 								<Button
 									variant="ghost"
 									size="sm"
-									className="min-h-10"
+									className="min-h-10 w-24 shrink-0"
 									aria-label="Explode panel"
 									aria-pressed={explode > 0}
 									onClick={() => {
@@ -496,7 +573,7 @@ export function PanelLocationViewer({
 									}}
 								>
 									<Expand aria-hidden="true" />
-									{explode > 0 ? "Pasang kembali" : "Tarik panel"}
+									{explode > 0 ? "Pasang" : "Tarik"}
 								</Button>
 								<label className="sr-only" htmlFor={`explode-${barcode}`}>
 									Jarak explode
@@ -542,9 +619,11 @@ export function PanelLocationViewer({
 						: "Masukkan barcode untuk melihat posisi panel."}
 				</p>
 			)}
-			{!immersive && !preview && <footer className="mt-auto text-center text-xs text-muted-foreground">
-				Versi tampilan V{versionNumber}
-			</footer>}
+			{!immersive && !preview && (
+				<footer className="mt-auto text-center text-xs text-muted-foreground">
+					Versi tampilan V{versionNumber}
+				</footer>
+			)}
 		</section>
 	);
 }

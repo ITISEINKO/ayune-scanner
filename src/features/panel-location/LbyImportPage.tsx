@@ -9,7 +9,6 @@ import {
 	Eye,
 	ExternalLink,
 	LoaderCircle,
-	LockKeyhole,
 	Search,
 	Upload,
 } from "lucide-react";
@@ -286,9 +285,16 @@ export function LbyImportPage({
 					<p className="text-md text-muted-foreground/80">{workspace}</p>
 					<h1 className="text-2xl font-extrabold tracking-tight">Model LBY</h1>
 					<p className="mt-2 text-sm text-muted-foreground">
-						Import link LBY, periksa preview, lalu gunakan model untuk pencarian
-						lokasi panel.
+						Kelola model untuk pencarian lokasi panel.
 					</p>
+					<ol
+						aria-label="Cara menggunakan model"
+						className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-xs font-semibold"
+					>
+						<li>1. Import link</li>
+						<li>2. Periksa preview</li>
+						<li>3. Gunakan model</li>
+					</ol>
 				</div>
 			</header>
 			<div className="space-y-6 px-4 pt-5">
@@ -364,6 +370,9 @@ export function LbyImportPage({
 						}}
 						className="space-y-4 rounded-[1.35rem] border border-border/40 bg-card p-4 shadow-sm"
 					>
+						<h2 className="font-bold">
+							{importTarget ? "Perbarui model" : "Import model baru"}
+						</h2>
 						<div className="space-y-2">
 							{importTarget && (
 								<div className="flex items-start justify-between gap-2 text-sm">
@@ -390,21 +399,16 @@ export function LbyImportPage({
 							)}
 							<label
 								htmlFor="lby-share-url"
-								className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-muted-foreground"
+								className="text-sm font-medium"
 							>
-								<span
-									aria-hidden="true"
-									className="flex size-5 items-center justify-center rounded-full bg-primary text-primary-foreground"
-								>
-									1
-								</span>
-								Tempel link share LBY
+								Link share LBY
 							</label>
 							<div className="relative">
 								<Input
 									ref={urlInput}
 									id="lby-share-url"
 									aria-label="Link share LBY"
+									aria-describedby="lby-import-help"
 									type="url"
 									autoComplete="off"
 									maxLength={20000}
@@ -429,12 +433,10 @@ export function LbyImportPage({
 								</Button>
 							</div>
 						</div>
-						<div className="space-y-2 text-xs text-muted-foreground">
-							<p className="flex items-center gap-2">
-								<LockKeyhole aria-hidden="true" className="size-4 shrink-0" />
-								Link LBY disimpan untuk pengguna dengan akses model
-							</p>
-						</div>
+						<p id="lby-import-help" className="text-xs text-muted-foreground">
+							Tempel link dari LBY, lalu import. Model digunakan setelah Anda
+							memeriksa preview dan mengonfirmasi.
+						</p>
 						<Button
 							type="submit"
 							disabled={Boolean(busy) || !url.trim()}
@@ -504,7 +506,7 @@ export function LbyImportPage({
 						<p className="rounded-2xl border border-dashed p-6 text-center text-sm text-muted-foreground">
 							{savedModels.length
 								? "Tidak ada model yang cocok dengan pencarian."
-								: "Belum ada model yang diimpor."}
+									: "Belum ada model. Tempel link LBY di atas untuk mulai import."}
 						</p>
 					)}
 					{filteredModels.map((state) => {
@@ -526,7 +528,7 @@ export function LbyImportPage({
 									className={`inline-block rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wide ${active || state.bundledVersion ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400" : "bg-muted text-muted-foreground"}`}
 								>
 									{active
-										? "Sedang digunakan"
+										? `Sedang digunakan · V${active.versionNumber}`
 										: state.bundledVersion
 											? "Model bawaan digunakan"
 											: "Belum digunakan"}
@@ -540,22 +542,49 @@ export function LbyImportPage({
 										timeZone: "Asia/Jakarta",
 									})}
 								</p>
-								<dl className="grid grid-cols-2 gap-2">
-									<div className="rounded-xl bg-background p-3">
-										<dt className="text-[10px] text-muted-foreground">
-											Panel{!active && state.bundledVersion ? " pembaruan" : ""}
-										</dt>
-										<dd className="text-sm font-bold">
-											{displayed.panelCount}
-										</dd>
-									</div>
-									<div className="rounded-xl bg-background p-3">
-										<dt className="text-[10px] text-muted-foreground">
-											Ruang{!active && state.bundledVersion ? " pembaruan" : ""}
-										</dt>
-										<dd className="text-sm font-bold">{displayed.roomCount}</dd>
-									</div>
-								</dl>
+								<p className="text-xs text-muted-foreground">
+									{!active && state.bundledVersion ? "Pembaruan: " : ""}
+									{displayed.panelCount} panel · {displayed.roomCount} ruang
+								</p>
+								{candidate && (
+									<section
+										aria-label="Pembaruan model"
+										className="space-y-2 rounded-xl border border-primary/20 bg-primary/5 p-3"
+									>
+										<h4 className="text-sm font-semibold">
+											{active || state.bundledVersion
+												? `Pembaruan V${candidate.versionNumber} siap diperiksa`
+												: `Model V${candidate.versionNumber} siap diperiksa`}
+										</h4>
+										<p className="text-xs text-muted-foreground">
+											{candidate.panelCount} panel · {candidate.roomCount} ruang
+											·{" "}
+											{new Date(candidate.importedAt).toLocaleString("id-ID", {
+												timeZone: "Asia/Jakarta",
+											})}
+										</p>
+										<p className="text-xs text-muted-foreground">
+											Periksa preview, lalu pilih Gunakan model ini.
+											{(active || state.bundledVersion) &&
+												" Model saat ini tetap digunakan sampai Anda konfirmasi."}
+										</p>
+										<a
+											href={`/panel-location?${new URLSearchParams({ project: state.projectKey, barcode: candidate.sampleBarcode, revision: candidate.revision })}`}
+											target="_blank"
+											rel="noopener noreferrer"
+											onClick={() =>
+												setReview({ state, revision: candidate.revision })
+											}
+											className={buttonVariants({
+												size: "sm",
+												className: "w-full",
+											})}
+										>
+											<Eye aria-hidden="true" />
+											Preview pembaruan
+										</a>
+									</section>
+								)}
 								<div className="grid grid-cols-2 gap-2">
 									<Button
 										type="button"
@@ -585,79 +614,39 @@ export function LbyImportPage({
 											})}
 										>
 											<Eye aria-hidden="true" />
-											Preview
+											Lihat model aktif
 										</a>
 									)}
 								</div>
-								{candidate && (
-									<section
-										aria-label="Pembaruan model"
-										className="space-y-2 rounded-xl border border-accent/40 bg-accent/10 p-3"
-									>
-										<h4 className="text-sm font-semibold">
-											{active || state.bundledVersion
-												? "Pembaruan siap diperiksa"
-												: "Model siap diperiksa"}
-										</h4>
-										<p className="text-xs text-muted-foreground">
-											{candidate.panelCount} panel · {candidate.roomCount} ruang
-											·{" "}
-											{new Date(candidate.importedAt).toLocaleString("id-ID", {
-												timeZone: "Asia/Jakarta",
-											})}
-										</p>
-										<p className="text-xs text-muted-foreground">
-											Buka preview, lalu konfirmasi untuk menggunakan model ini.
-											{(active || state.bundledVersion) &&
-												" Model saat ini tetap digunakan sampai Anda konfirmasi."}
-										</p>
-										<a
-											href={`/panel-location?${new URLSearchParams({ project: state.projectKey, barcode: candidate.sampleBarcode, revision: candidate.revision })}`}
-											target="_blank"
-											rel="noopener noreferrer"
-											onClick={() =>
-												setReview({ state, revision: candidate.revision })
-											}
-											className={buttonVariants({
-												variant: "outline",
-												size: "sm",
-												className: "w-full",
-											})}
-										>
-											<Eye aria-hidden="true" />
-											Preview pembaruan
-										</a>
-									</section>
-								)}
-								{state.sourceUrl ? (
-									<a
-										href={state.sourceUrl}
-										target="_blank"
-										rel="noopener noreferrer"
-										className={buttonVariants({
-											variant: "ghost",
-											size: "sm",
-											className: "w-full text-xs",
-										})}
-									>
-										<ExternalLink aria-hidden="true" />
-										Buka di LBYERP
-									</a>
-								) : (
-									<Button
-										variant="ghost"
-										size="sm"
-										disabled
-										className="w-full text-xs"
-									>
-										Link belum tersimpan
-									</Button>
-								)}
 								<details className="border-t border-border/50 pt-3">
 									<summary className="cursor-pointer text-xs font-semibold focus-visible:outline-2 focus-visible:outline-ring">
-										Versi sebelumnya
+										Detail & riwayat versi
 									</summary>
 									<div className="mt-3 space-y-3">
+										{state.sourceUrl ? (
+											<a
+												href={state.sourceUrl}
+												target="_blank"
+												rel="noopener noreferrer"
+												className={buttonVariants({
+													variant: "ghost",
+													size: "sm",
+													className: "w-full text-xs",
+												})}
+											>
+												<ExternalLink aria-hidden="true" />
+												Buka di LBYERP
+											</a>
+										) : (
+											<Button
+												variant="ghost"
+												size="sm"
+												disabled
+												className="w-full text-xs"
+											>
+												Link belum tersimpan
+											</Button>
+										)}
 										{state.versions.map((version) => (
 											<div
 												key={version.revision}
@@ -741,7 +730,7 @@ export function LbyImportPage({
 							disabled={Boolean(busy)}
 							onClick={() => setReview(null)}
 						>
-							Batal
+							Periksa nanti
 						</Button>
 						<Button
 							disabled={Boolean(busy)}

@@ -47,6 +47,14 @@ const helper = {exports:{}};
 runInNewContext(transpileModule(readFileSync("src/lib/panelLocation.ts","utf8"),{compilerOptions:{module:ModuleKind.CommonJS}}).outputText,
 	{exports:helper.exports,module:helper,URLSearchParams});
 const closed = helper.exports.projectPanelLocations(mapped.panels,0,0,"001")[0];
+const viewer = readFileSync("src/features/panel-location/PanelLocationViewer.tsx", "utf8");
+const yaw = Number(viewer.match(/const INITIAL_YAW = (-?[\d.]+);/)[1]);
+const pitch = Number(viewer.match(/const INITIAL_PITCH = (-?[\d.]+);/)[1]);
+const orientationBox = { barcode: "orientation", corners: [[0,0,0],[100,0,0],[100,100,0],[0,100,0],[0,0,100],[100,0,100],[100,100,100],[0,100,100]] };
+const view = helper.exports.projectPanelLocations([orientationBox], yaw, pitch, "orientation")[0].points;
+assert(view[1][0] > view[0][0] && view[1][1] < view[0][1], "default long run rises to the right, matching the supplied LBY front view");
+assert(view[4][2] < view[0][2], "default camera looks down: upper corners must be closer than lower corners");
+assert(view[3][0] < view[0][0] && view[3][1] < view[0][1], "default depth recedes up-left instead of showing the underside");
 assert.equal(closed.points.length,geometry.vertices.length,"projection must render mesh vertices instead of eight box corners");
 assert.equal(closed.faceIndices.length,geometry.faces.length);
 const moving = {...mapped.panels[0],doorOpenType:"left"};

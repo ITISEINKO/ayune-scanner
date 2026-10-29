@@ -4,7 +4,7 @@ const { readFileSync } = require("node:fs");
 const { runInNewContext } = require("node:vm");
 const ts = require("typescript");
 
-const version = (name) => ({ name, revision: "v1", importedAt: "2026-10-29", panelCount: 1, roomCount: 1 });
+const version = (name) => ({ name, revision: "v1", versionNumber: 1, sampleBarcode: "panel-1", importedAt: "2026-10-29", panelCount: 1, roomCount: 1 });
 const values = ["", [
 	{ projectKey: "alpha", versions: [version("Kitchen")], activeRevision: "v1" },
 	{ projectKey: "beta", versions: [version("Bedroom"), version("Old study")], activeRevision: "v1" },
@@ -72,3 +72,24 @@ assert.deepEqual(keys(), ["alpha", "beta"], "clearing search restores saved mode
 type("pending"); cleanup();
 assert.equal(scheduled, null, "cleanup cancels pending updates");
 console.log("LBY search passed: debounce, cleanup, names, project keys, empty results and reset.");
+
+const candidate = { ...version("Kitchen updated"), revision: "v2", versionNumber: 2 };
+values[1][0].versions.unshift(candidate);
+values[1][0].sourceUrl = "https://www.lbyerp.com/";
+render();
+const card = nodes(tree).find((node) => node.type === "article" && node.key === "alpha");
+const cardNodes = nodes(card);
+const preview = cardNodes.find((node) => node.type === "a" && node.props.href.includes("revision=v2"));
+const update = cardNodes.find((node) => node.type === "Button" && node.props.children === "Update model");
+const details = cardNodes.find((node) => node.type === "details");
+assert.ok(cardNodes.indexOf(preview) < cardNodes.indexOf(update), "candidate review precedes secondary actions");
+assert.equal(details.props.open, undefined, "supporting details stay collapsed by default");
+assert.ok(nodes(details).some((node) => node.props?.href === values[1][0].sourceUrl), "vendor link remains available in details");
+preview.props.onClick();
+render();
+assert.ok(nodes(tree).find((node) => node.type === "Dialog").props.open, "preview still opens the confirmation dialog");
+assert.equal(values[1][0].activeRevision, "v1", "preview does not activate the candidate");
+update.props.onClick();
+render();
+assert.equal(nodes(tree).find((node) => node.props?.id === "lby-share-url").props.value, values[1][0].sourceUrl, "update still prefills the existing link");
+console.log("LBY navigation passed: review priority, collapsed details, preview confirmation and update prefill.");
