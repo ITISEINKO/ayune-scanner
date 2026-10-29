@@ -16,6 +16,11 @@ export async function GET(request: Request) {
 		const data = await getAdminDashboard(new URL(request.url).searchParams.get("refresh") === "1" ? "summary" : false);
 		return NextResponse.json(data, { headers: { "Cache-Control": "private, no-store" } });
 	} catch (error) {
+		if (error instanceof Error && error.message === "DASHBOARD_REFRESH_IN_PROGRESS")
+			return NextResponse.json({ status: "refreshing" }, {
+				status: 202,
+				headers: { "Cache-Control": "private, no-store", "Retry-After": "5" },
+			});
 		console.error("[GET /api/admin/dashboard] Failed to load dashboard", error);
 		return NextResponse.json({ error: "DASHBOARD_UNAVAILABLE" }, { status: 502 });
 	}

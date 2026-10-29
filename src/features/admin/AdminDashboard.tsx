@@ -42,11 +42,12 @@ const MemberScanOverview = dynamic(() =>
 async function loadDashboard(
 	refresh = false,
 	signal?: AbortSignal,
-): Promise<AdminDashboardData> {
+): Promise<AdminDashboardData | null> {
 	const response = await fetch(
 		`/api/admin/dashboard${refresh ? "?refresh=1" : ""}`,
 		{ cache: "no-store", signal },
 	);
+	if (response.status === 202) return null;
 	if (!response.ok) throw new Error("DASHBOARD_UNAVAILABLE");
 	return response.json();
 }
@@ -66,7 +67,7 @@ export function AdminDashboard({
 		initialData,
 		initialDataUpdatedAt: initialData?.now,
 		staleTime: 5 * 60_000,
-		refetchInterval: 5 * 60_000,
+		refetchInterval: (query) => query.state.data === null ? 5_000 : 5 * 60_000,
 		refetchIntervalInBackground: false,
 		refetchOnWindowFocus: true,
 		refetchOnReconnect: true,
