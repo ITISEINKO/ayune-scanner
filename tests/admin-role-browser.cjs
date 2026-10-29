@@ -14,6 +14,7 @@ const { chromium, expect } = require("@playwright/test");
 	const db = createClient({ url: databaseUrl });
 	await db.execute("CREATE TABLE ppic_permissions (clickup_user_id TEXT PRIMARY KEY, role TEXT, allowed_status TEXT, active INTEGER)");
 	await db.execute("INSERT INTO ppic_permissions VALUES ('test-user', 'ADMIN', 'BARANG_DITERIMA', 0)");
+	await db.execute("ALTER TABLE ppic_permissions ADD COLUMN can_import_lby INTEGER NOT NULL DEFAULT 0 CHECK(can_import_lby IN (0,1))");
 	const secret = "local-role-browser-secret", base = "http://127.0.0.1:3358";
 	const server = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start", "-p", "3358"], {
 		windowsHide: true, stdio: ["ignore", "pipe", "pipe"],
@@ -31,13 +32,26 @@ const { chromium, expect } = require("@playwright/test");
 		browser = await chromium.launch();
 		for (const role of ["ADMIN", "SUPER_ADMIN", "MEMBER"]) {
 			await db.execute({ sql: "UPDATE ppic_permissions SET role=? WHERE clickup_user_id='test-user'", args: [role] });
+			await db.execute("UPDATE ppic_permissions SET can_import_lby=0 WHERE clickup_user_id='test-user'");
 			const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+			const writes = [];
+			let importer = false;
+			let superImporter = false;
 			await context.route("**/*", (route) => {
 				const url = new URL(route.request().url());
 				if (url.origin !== base) return route.abort();
+				if (url.pathname === "/api/panel/members" && route.request().method() === "POST") {
+					const body = route.request().postDataJSON(); writes.push(body);
+					if (typeof body.can_import_lby === "boolean") {
+						if (body.user_id === "super") superImporter = body.can_import_lby;
+						else importer = body.can_import_lby;
+					}
+					return route.fulfill({ json: { ok: true } });
+				}
 				if (url.pathname === "/api/panel/members") return route.fulfill({ json: {
-					members: [{ id: "member", name: "Member Example" }, { id: "owner", name: "Highest Role" }],
-					roles: { member: "MEMBER", owner: "ADMIN" }, permissions: { member: ["BARANG_DITERIMA"], owner: null },
+					members: [{ id: "member", name: "Member Example" }, { id: "owner", name: "Highest Role" }, { id: "super", name: "Super Admin Example" }],
+					roles: { member: "MEMBER", owner: "ADMIN", super: "SUPER_ADMIN" }, permissions: { member: ["BARANG_DITERIMA"], owner: null, super: null },
+					lbyImporters: { member: importer, super: superImporter },
 				} });
 				if (url.pathname.startsWith("/api/")) return route.fulfill({ status: 401, json: {} });
 				return route.continue();
@@ -64,6 +78,25 @@ const { chromium, expect } = require("@playwright/test");
 				await page.getByRole("tab", { name: "Akses halaman", exact: true }).click();
 				await expect(page.getByRole("button", { name: "Admin", exact: true })).toHaveCount(role === "ADMIN" ? 1 : 0);
 				await expect(page.getByRole("button", { name: "Super Admin", exact: true })).toBeVisible();
+				await page.getByRole("checkbox", { name: "Drafter: model LBY", exact: true }).click();
+				await page.getByRole("button", { name: "Simpan", exact: true }).click();
+				await expect(page.getByRole("dialog")).toHaveCount(0);
+				assert.deepEqual(writes, [{ user_id: "member", can_import_lby: true }], "changing LBY access must not resave unrelated status permissions");
+				await page.reload();
+				await expect(page.getByText("Drafter", { exact: true })).toBeVisible();
+				await page.getByRole("button", { name: "Lihat detail Super Admin Example", exact: true }).click();
+				await page.getByRole("tab", { name: "Akses halaman", exact: true }).click();
+				await expect(page.getByRole("checkbox", { name: "Drafter: model LBY", exact: true })).toBeEnabled();
+				await page.getByRole("checkbox", { name: "Drafter: model LBY", exact: true }).click();
+				await page.getByRole("button", { name: "Simpan", exact: true }).click();
+				await expect(page.getByRole("dialog")).toHaveCount(0);
+				assert.deepEqual(writes.at(-1), { user_id: "super", can_import_lby: true }, "granting LBY to SUPER_ADMIN does not rewrite its role or scan access");
+				await db.execute("UPDATE ppic_permissions SET can_import_lby=1 WHERE clickup_user_id='test-user'");
+				await page.goto(`${base}/admin/profile`);
+				await expect(page.getByRole("link", { name: "Kelola model LBY", exact: true })).toBeVisible();
+				await page.getByRole("link", { name: "Kelola model LBY", exact: true }).click();
+				await expect(page).toHaveURL(`${base}/drafter`);
+				await expect(page.getByRole("heading", { name: "Model LBY", exact: true })).toBeVisible();
 			}
 			assert.deepEqual(errors, []);
 			await context.close();

@@ -35,6 +35,7 @@ async function main() {
 	const db = createClient({ url: databaseUrl });
 	await db.execute("CREATE TABLE ppic_permissions (clickup_user_id TEXT PRIMARY KEY, role TEXT, active INTEGER, allowed_status TEXT)");
 	await db.execute("INSERT INTO ppic_permissions VALUES ('manual-admin', 'ADMIN', 1, NULL)");
+	await db.execute("ALTER TABLE ppic_permissions ADD COLUMN can_import_lby INTEGER NOT NULL DEFAULT 0 CHECK(can_import_lby IN (0,1))");
 	await db.execute("CREATE TABLE ppic_component_status (component_task_id TEXT PRIMARY KEY, project_task_id TEXT, status TEXT, updated_at INTEGER)");
 	await db.execute("INSERT INTO ppic_component_status VALUES ('manual-panel', 'z96buhry4p', 'BARANG_DITERIMA', 1)");
 	const localStatus = async () => (await db.execute("SELECT status FROM ppic_component_status WHERE component_task_id='manual-panel'")).rows[0].status;
@@ -99,21 +100,21 @@ async function main() {
 		assert(canvasBounds.height > 300, "the model must fill the available portrait canvas");
 		const viewerBounds = await page.getByRole("region", { name: "Lokasi panel", exact: true }).boundingBox();
 		assert(Math.abs(canvasBounds.width - viewerBounds.width) <= 1 && Math.abs(canvasBounds.x - viewerBounds.x) <= 1, "canvas must extend under floating controls across the full viewer width");
-		assert(cardBounds.y + cardBounds.height >= navBounds.y + navBounds.height - 1, "the status card background must extend behind navigation without a gap");
+		assert(Math.abs(cardBounds.y + cardBounds.height - navBounds.y) <= 1, "status card meets navigation without a gap or overlap");
 		assert(await statusCard.evaluate((element) => parseFloat(getComputedStyle(element).borderTopLeftRadius) >= 24));
 		assert(await page.evaluate(() => document.documentElement.scrollHeight <= innerHeight), "portrait location view must fit the screen");
 		const initialPoints = await svg.locator("polygon").first().getAttribute("points");
-		await page.getByRole("button", { name: "Putar kanan", exact: true }).click();
+		await svg.focus(); await page.keyboard.press("ArrowRight");
 		await expect(svg.locator("polygon").first()).not.toHaveAttribute("points", initialPoints);
 		await page.getByRole("button", { name: "Reset tampilan", exact: true }).click();
 		const initialBox = await svg.getAttribute("viewBox");
-		await page.getByRole("button", { name: "Perbesar", exact: true }).click();
+		await svg.focus(); await page.keyboard.press("+");
 		await expect(svg).not.toHaveAttribute("viewBox", initialBox);
 		await page.getByRole("button", { name: "Reset tampilan", exact: true }).click();
 		await page.getByRole("button", { name: "Explode panel", exact: true }).click();
 		await expect(svg).toHaveAttribute("data-explode", "100");
-		await page.getByRole("button", { name: "Perkecil", exact: true }).click();
-		await page.getByRole("button", { name: "Perkecil", exact: true }).click();
+		await svg.focus(); await page.keyboard.press("-");
+		await svg.focus(); await page.keyboard.press("-");
 		await expect.poll(() => svg.evaluate((element) => element.getAnimations({ subtree: true }).some((animation) => animation.playState === "running"))).toBe(false);
 		await expect.poll(() => svg.evaluate((element) => {
 			const bounds = element.getBoundingClientRect();
@@ -175,6 +176,9 @@ async function main() {
 		await expect(editButton).toBeDisabled();
 		await expect(statusCard).toContainText("Task ClickUp untuk serial ini belum ditemukan");
 		await expect(statusCard).toContainText("STATUS TIDAK TERSEDIA");
+		const lbyCard = await statusCard.boundingBox(), lbyNav = await nav.boundingBox();
+		assert(Math.abs(lbyCard.y + lbyCard.height - lbyNav.y) <= 1, "LBY-only card meets navigation without a gap or overlap");
+		assert(!/\p{Script=Han}/u.test(await statusCard.innerText()), "LBY-only panel name displays without Chinese characters");
 		assert.equal((await control("writes")).writes, 1, "LBY-only lookup must not write to ClickUp");
 		assert.equal((await context.request.post(`${base}/api/panel/manual`, { data: { task_id: null, status: "BARANG_DITERIMA" } })).status(), 400, "an LBY-only panel cannot be used as a status-write target");
 		assert.equal((await lookup("unknown")).status(), 404, "absent from both sources remains not found");

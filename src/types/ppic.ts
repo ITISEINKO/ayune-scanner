@@ -19,6 +19,7 @@ export type PpicPermission = {
 	clickup_user_id: string;
 	allowed_status: PpicStatuses;
 	active: 0 | 1;
+	can_import_lby: 0 | 1;
 	updated_by: string;
 	updated_at: string;
 	role: PpicRole;

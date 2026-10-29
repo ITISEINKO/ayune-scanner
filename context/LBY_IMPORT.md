@@ -20,6 +20,18 @@ The helper reads the order identity and expiry from the supplied share token usi
 
 No new dependency is required; tested with Node.js 22.23.4, including native `node:zlib.crc32`. The internal vendor protocol may change; the importer must then be updated from current evidence, rather than silently guessing data.
 
+### Revision identity
+
+Panel names are included in the sanitized snapshot and its revision hash. A name-only change stages a new immutable candidate, so corrected labels and name-based door classification can reach the viewer after explicit activation. Identical names and geometry still reuse the existing revision; older snapshots remain readable through their saved mappings.
+
+### Curved geometry (2026-10-28)
+
+New imports retain sanitized mesh vertices, faces and visible edges for drawn `genType: "01"` outlines (`LineModel`/`ArcModel`) and bent `genType: "02"` L/U panels (`arcType: "00"`/`"02"`). Bent panels use their formed cross-section and height, not their flattened manufacturing size. This follows the inspected vendor renderer's `GenPlankWithLineModels` origin normalization and `GenArcPlankShapeNoFlip` construction. Ordinary template panels retain their existing box representation. Parent transforms apply to both representations.
+
+Curves are sampled within 0.25 source units before world-coordinate rounding to 0.1 units. Unsupported bent types, non-planar/open/disconnected outlines and excessive geometry reject the candidate; they do not replace active data. This is still a location viewer: holes, machining details, hardware and arbitrary template-generated curved solids are not a complete CAD export.
+
+Existing immutable revisions keep their original box geometry. Import the same share link again in `/drafter`, open the new Preview, then activate the reviewed revision through the existing workflow. Revision-pinned links keep showing that pinned revision. Checks: `node tests/lby-geometry.cjs`, `node tests/panel-location.cjs` after building, and the existing Postman import simulation plus `node tests/lby-import.cjs`.
+
 ## Where data is saved
 
 ```text

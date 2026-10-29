@@ -84,14 +84,16 @@ function unzipModel(bytes, orderId) {
 	return raw;
 }
 
-async function fetchProject(link, key, signal = AbortSignal.timeout(240000)) {
+async function fetchProject(link, key, signal = AbortSignal.timeout(240000), onProgress = (_stage) => {}) {
 	projectKey(key);
 	const source = parseShareLink(link);
+	onProgress("downloading");
 	const [panels, models] = await Promise.all([
 		apiData(`erp/anyTenant/app/getPlankByOrderId/${source.orderId}`, "Panel lookup", signal),
 		apiData(`cd/anyTenant/app/getByOrderId/${source.orderId}`, "Model lookup", signal),
 	]);
-	assert(Array.isArray(panels) && panels.length && Object.keys(models).length === 1, "Expected panels and one model file");
+	assert(Array.isArray(panels) && Object.keys(models).length === 1, "Expected panels and one model file");
+	assert(panels.length, "LBY_NO_PANEL_DATA");
 	const value = Object.values(models)[0];
 	assert(typeof value === "string", "Unsupported model response");
 	let raw;
@@ -102,11 +104,12 @@ async function fetchProject(link, key, signal = AbortSignal.timeout(240000)) {
 			["www.lbyerp.com", "ali-oss-lby.oss-cn-hangzhou.aliyuncs.com"].includes(download.hostname), "Unexpected model download host");
 		raw = unzipModel(await readRemote(download.toString(), "Model download", signal), source.orderId);
 	}
+	onProgress("panels");
 	const model = JSON.parse(raw);
 	assert(String(model.value?.orderId) === source.orderId, "Model belongs to another order");
 	assert(!model.value._V_, "Compressed CAD schema is not supported by this importer");
 	assert(panels.every((panel) => String(panel.orderId) === source.orderId), "Panel belongs to another order");
-	const { mapping, snapshot } = mapLbyPanels({ code: 0, data: panels }, model, true);
+	const { mapping, snapshot } = mapLbyPanels({ code: 0, data: panels }, model, true, () => onProgress("rooms"));
 	const locations = `${JSON.stringify(snapshot)}\n`, mappingJson = `${JSON.stringify(mapping, null, 2)}\n`;
 	const revision = sha(locations);
 	const manifest = { projectKey: key, name: source.name, orderId: source.orderId, revision, version: snapshot.version,
@@ -150,7 +153,7 @@ function activateProject(key, revision, root = ROOT) {
 	const catalog = fs.existsSync(catalogPath) ? JSON.parse(fs.readFileSync(catalogPath)) : {};
 	assert(!catalog[key]?.orderId || catalog[key].orderId === manifest.orderId, "Project key already belongs to another order");
 	catalog[key] = { name: manifest.name, orderId: manifest.orderId, version: manifest.version,
-		snapshot: `imports/${key}/${revision}/locations.json` };
+		snapshot: `imports/${key}/${revision}/locations.json`, mapping: `imports/${key}/${revision}/mapping.json` };
 	// shortcut: activation is a single-operator CLI; add a file lock before concurrent writers are supported.
 	const pending = `${catalogPath}.${process.pid}.tmp`;
 	fs.writeFileSync(pending, `${JSON.stringify(catalog, null, 2)}\n`, { flag: "wx" });

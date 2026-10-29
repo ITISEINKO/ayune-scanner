@@ -4,7 +4,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import { clickUpHeaders } from "@/lib/clickup";
-import { getPpicAccess, isPpicStatus, isPpicSuperAdmin } from "@/lib/db";
+import { canImportLby, getPpicAccess, isPpicStatus, isPpicSuperAdmin } from "@/lib/db";
 import {
 	CLICKUP_TEAM_ID,
 	CLICKUP_PPIC_CHANNEL_ID,
@@ -94,12 +94,14 @@ export const encodePpicSession = (
 	userId: string,
 	role: PpicRole,
 	allowedStatus: PpicStatuses | null,
+	canImportLby = false,
 ) => {
 	const payload = Buffer.from(
 		JSON.stringify({
 			user_id: userId,
 			role,
 			allowed_status: allowedStatus,
+			...(canImportLby ? { can_import_lby: true } : {}),
 			refreshed_at: Date.now(),
 		}),
 	).toString("base64url");
@@ -175,6 +177,7 @@ export const ppicSession = async () => {
 			user_id?: unknown;
 			role?: unknown;
 			allowed_status?: unknown;
+			can_import_lby?: unknown;
 			refreshed_at?: unknown;
 		};
 		if (
@@ -189,17 +192,19 @@ export const ppicSession = async () => {
 				user_id: session.user_id,
 				role: session.role,
 				allowed_status: null,
+				can_import_lby: false,
 				refreshed_at: session.refreshed_at,
 			};
 		const allowedStatus =
 			session.allowed_status === null
 				? null
 				: ppicStatuses(session.allowed_status);
-		if (session.role === "MEMBER" && allowedStatus)
+		if (session.role === "MEMBER" && (allowedStatus || session.can_import_lby === true))
 			return {
 				user_id: session.user_id,
 				role: "MEMBER" as const,
 				allowed_status: allowedStatus,
+				can_import_lby: session.can_import_lby === true,
 				refreshed_at: session.refreshed_at,
 			};
 	} catch {
@@ -215,6 +220,7 @@ export const ppicLoginState = async (userId: string) => {
 			role: access.role,
 			allowed_status: null,
 			path: "/admin",
+			can_import_lby: false,
 		};
 	const allowedStatus =
 		access?.role === "MEMBER" &&
@@ -222,10 +228,12 @@ export const ppicLoginState = async (userId: string) => {
 		Array.isArray(access.allowed_status)
 			? access.allowed_status
 			: null;
+	const importer = await canImportLby(userId);
 	return {
 		role: "MEMBER" as const,
 		allowed_status: allowedStatus,
-		path: "/projects",
+		can_import_lby: importer,
+		path: importer ? "/drafter" : "/projects",
 	};
 };
 
@@ -234,7 +242,7 @@ export const postLoginPathForUser = async (userId: string) =>
 
 export const postLoginPath = async () => {
 	const session = await ppicSession();
-	if (session) return hasPpicAdminAccess(session.role) ? "/admin" : "/projects";
+	if (session) return hasPpicAdminAccess(session.role) ? "/admin" : session.can_import_lby ? "/drafter" : "/projects";
 	const userId = await clickUpUserId();
 	return userId ? postLoginPathForUser(userId) : "/login";
 };

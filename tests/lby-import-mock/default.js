@@ -20,19 +20,23 @@ http.createServer((req, res) => {
 	if (mode === "rate-limit") { res.writeHead(429, { "content-type": "application/json" }); res.end('{"code":429}'); return; }
 	let data;
 	if (url.pathname === `/api/erp/anyTenant/app/getPlankByOrderId/${orderId}`) {
-		data = [{ id: "record", orderId, laberNumber: "000123", splitId: mode === "missing-match" ? "missing" : "panel",
-			roomName: "Room", roomPlankIdx: "1", plankName: "Test panel" }];
+		data = mode === "no-panel-data" ? [] : [{ id: "record", orderId, laberNumber: "000123", splitId: mode === "missing-match" ? "missing" : "panel",
+			roomName: "Room", roomPlankIdx: "1", plankName: mode === "renamed" ? "Renamed panel" : "Test panel" }];
 	} else if (url.pathname === `/api/cd/anyTenant/app/getByOrderId/${orderId}`) {
 		data = { file: mode === "bad-host" ? "http://127.0.0.1/private" : "https://ali-oss-lby.oss-cn-hangzhou.aliyuncs.com/model.zip" };
 	} else if (url.pathname === "/model.zip") {
 		const model = { value: { orderId: mode === "wrong-order" ? "999" : orderId, _V_: 0, docs: [{ id: "doc", models: [{
 			id: "panel", className: "BasePlankModel", position: [0,0,0], quaternion: [0,0,0,1], scale: [1,1,1],
-			sizeX: mode === "invalid-world" ? 1e308 : mode === "changed" ? 30 : 10, sizeY: 20, sizeZ: 1,
+			...(mode === "curved" ? { genType: "02", plankThickness: 19,
+				arcPlankInfo: { arcType: "00", a: 415, b: 20, c: 196, r1: 140, r2: 100, h: 900 } } : {}),
+			doorOpenType: "right",
+			sizeX: mode === "invalid-world" ? 1e308 : ["changed", "revoke-delay"].includes(mode) ? 30 : 10, sizeY: 20, sizeZ: 1,
 		}] }] } };
 		const archive = zip(Buffer.from(JSON.stringify(model)));
 		if (mode === "bad-crc") archive.writeUInt32LE(0, archive.length - 22 - (46 + Buffer.byteLength(`${orderId}.json`)) + 16);
 		const send = () => { res.writeHead(200, { "content-type": "application/zip" }); res.end(archive); };
 		if (mode === "slow") setTimeout(send, 21000);
+		else if (mode === "revoke-delay") setTimeout(send, 1500);
 		else send();
 		return;
 	} else { res.writeHead(501); res.end("Endpoint not modeled"); return; }

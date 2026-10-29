@@ -2,16 +2,23 @@
 const assert = require("node:assert/strict");
 const { createHmac } = require("node:crypto");
 const { spawn } = require("node:child_process");
-const { mkdirSync } = require("node:fs");
+const { mkdirSync, mkdtempSync } = require("node:fs");
+const { tmpdir } = require("node:os");
+const { join } = require("node:path");
+const { createClient } = require("@libsql/client");
 const { chromium, expect } = require("@playwright/test");
 const { STATUS_COLOR_CONFIG } = require("../src/lib/colorStatusConfig.ts");
 
 (async () => {
 	const baseURL = "http://127.0.0.1:3352";
 	const secret = "local-profile-check";
+	const databaseUrl = `file:${join(mkdtempSync(join(tmpdir(), "trackerprod-profile-")), "profile.db").replaceAll("\\", "/")}`;
+	const db = createClient({ url: databaseUrl });
+	await db.execute("CREATE TABLE ppic_permissions (clickup_user_id TEXT PRIMARY KEY, role TEXT, active INTEGER, allowed_status TEXT, can_import_lby INTEGER NOT NULL DEFAULT 0)");
+	await db.execute("INSERT INTO ppic_permissions (clickup_user_id, role, active) VALUES ('local-member', 'SUPER_ADMIN', 1)");
 	const server = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start", "-p", "3352"], {
 		windowsHide: true,
-		env: { ...process.env, CLICKUP_CLIENT_SECRET: secret, TURSO_DATABASE_URL: "file::memory:", TURSO_AUTH_TOKEN: "local-only", ABLY_API_KEY: "" },
+		env: { ...process.env, CLICKUP_CLIENT_SECRET: secret, TURSO_DATABASE_URL: databaseUrl, TURSO_AUTH_TOKEN: "local-only", ABLY_API_KEY: "" },
 		stdio: ["ignore", "pipe", "pipe"],
 	});
 	let logs = "";
@@ -201,5 +208,6 @@ const { STATUS_COLOR_CONFIG } = require("../src/lib/colorStatusConfig.ts");
 		server.stdout.destroy();
 		server.stderr.destroy();
 		server.unref();
+		db.close();
 	}
 })().catch((error) => { console.error(error); process.exitCode = 1; });

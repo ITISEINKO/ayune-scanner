@@ -21,7 +21,9 @@ http.createServer((req, res) => {
 	let status = 200;
 	let body;
 	if (mode === "lby-online") {
-		if (req.method === "GET" && /^\/api\/v2\/task\/(online-project|online-other|z96buhry4p)$/.test(url.pathname)) {
+		if (req.method === "GET" && url.pathname === "/api/v2/user") {
+			body = { user: { id: "online-admin" } };
+		} else if (req.method === "GET" && /^\/api\/v2\/task\/(online-project|online-other|z96buhry4p)$/.test(url.pathname)) {
 			body = { id: url.pathname.split("/").pop(), name: "Online import project", custom_id: "AY-ONLINE", parent: null, list: { id: listId }, status: { status: "in progress" } };
 		} else { status = 501; body = { error: "Endpoint not modeled" }; }
 	} else if (mode?.startsWith("manual-location")) {

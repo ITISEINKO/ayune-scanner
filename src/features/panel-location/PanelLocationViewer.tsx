@@ -1,47 +1,82 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-	ArrowDown,
-	ArrowLeft,
-	ArrowRight,
-	ArrowUp,
-	MapPin,
-	RotateCcw,
-	Plus,
-	Minus,
-	Expand,
-} from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { MapPin, RotateCcw, Eye, EyeOff, DoorOpen, Expand } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { projectPanelLocations } from "@/lib/panelLocation";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { isDoorPanel, panelLocationUrl, projectPanelLocations } from "@/lib/panelLocation";
 import type { PanelLocationView } from "@/types/panelLocation";
 
-const FACES = [
-	[0, 1, 2, 3],
-	[4, 5, 6, 7],
-	[0, 1, 5, 4],
-	[1, 2, 6, 5],
-	[2, 3, 7, 6],
-	[3, 0, 4, 7],
-];
 const INITIAL_YAW = -0.65;
-const INITIAL_PITCH = 0.35;
+const INITIAL_PITCH = 0.25;
 
 export function PanelLocationViewer({
+	projectId,
 	projectName,
 	version,
+	versionNumber,
 	barcode,
 	panels,
 	immersive = false,
-}: PanelLocationView & { immersive?: boolean }) {
+	preview = false,
+}: PanelLocationView & { immersive?: boolean; preview?: boolean }) {
+	const activeVersion = useQuery({
+		queryKey: ["panel-location-version", projectId],
+		queryFn: async ({ signal }) => {
+			const response = await fetch(`/api/panel/location-version?${new URLSearchParams({ project: projectId })}`, { cache: "no-store", signal });
+			if (!response.ok) throw new Error("LOCATION_UNAVAILABLE");
+			const result = await response.json() as { active?: Pick<PanelLocationView, "version" | "versionNumber"> | null };
+			if (result.active !== null && (typeof result.active?.version !== "string" || !Number.isInteger(result.active.versionNumber))) throw new Error("INVALID_RESPONSE");
+			return result.active;
+		},
+		enabled: Boolean(projectId && panels.length),
+		staleTime: 0,
+		refetchInterval: 30_000,
+		refetchIntervalInBackground: false,
+		refetchOnWindowFocus: "always",
+		refetchOnReconnect: "always",
+		retry: 1,
+	});
+	const outdated = activeVersion.isFetchedAfterMount && activeVersion.data !== undefined && (activeVersion.data?.version !== version || activeVersion.data?.versionNumber !== versionNumber);
 	const [yaw, setYaw] = useState(INITIAL_YAW);
 	const [pitch, setPitch] = useState(INITIAL_PITCH);
 	const [zoom, setZoom] = useState(1);
 	const [explode, setExplode] = useState(0);
 	const [animateExplode, setAnimateExplode] = useState(false);
+	const [hideDoors, setHideDoors] = useState(false);
+	const [doorsOpen, setDoorsOpen] = useState(false);
+	const [doorProgress, setDoorProgress] = useState(0);
+	const currentDoorProgress = useRef(0);
+	const doorFrame = useRef<number | null>(null);
 	const [aspect, setAspect] = useState(1);
 	const viewport = useRef<SVGSVGElement>(null);
-	const drag = useRef<{ x: number; y: number } | null>(null);
+	const pointers = useRef(new Map<number, { x: number; y: number }>());
+	const changeZoom = (factor: number) =>
+		setZoom((value) => Math.max(0.25, Math.min(3, value * factor)));
+	useEffect(() => {
+		const target = doorsOpen ? 1 : 0;
+		const from = currentDoorProgress.current;
+		if (from === target) return;
+		if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+			currentDoorProgress.current = target;
+			setDoorProgress(target);
+			return;
+		}
+		const started = performance.now();
+		const step = (now: number) => {
+			const elapsed = Math.min(1, (now - started) / 450);
+			const eased = elapsed * elapsed * (3 - 2 * elapsed);
+			currentDoorProgress.current = from + (target - from) * eased;
+			setDoorProgress(currentDoorProgress.current);
+			doorFrame.current = elapsed < 1 ? requestAnimationFrame(step) : null;
+		};
+		doorFrame.current = requestAnimationFrame(step);
+		return () => {
+			if (doorFrame.current !== null) cancelAnimationFrame(doorFrame.current);
+			doorFrame.current = null;
+		};
+	}, [doorsOpen]);
 	useEffect(() => {
 		const element = viewport.current;
 		if (!element) return;
@@ -50,44 +85,93 @@ export function PanelLocationViewer({
 				setAspect(entry.contentRect.width / entry.contentRect.height);
 		});
 		observer.observe(element);
-		return () => observer.disconnect();
+		const wheel = (event: WheelEvent) => {
+			event.preventDefault();
+			changeZoom(Math.exp(Math.max(-100, Math.min(100, event.deltaY)) * 0.004));
+		};
+		element.addEventListener("wheel", wheel, { passive: false });
+		return () => {
+			observer.disconnect();
+			element.removeEventListener("wheel", wheel);
+		};
 	}, []);
 	const selected = panels.find((panel) => panel.barcode === barcode);
 	const panelLabel = selected?.panelNumber
 		? `Panel ${selected.panelNumber}`
 		: "Panel";
+	const fitted = useMemo(
+		() =>
+			panels.length ? projectPanelLocations(panels, yaw, pitch, barcode) : [],
+		[panels, yaw, pitch, barcode],
+	);
 	const projected = useMemo(
-		() => (panels.length ? projectPanelLocations(panels, yaw, pitch) : []),
-		[panels, yaw, pitch],
+		() =>
+			doorProgress === 0
+				? fitted
+				: projectPanelLocations(panels, yaw, pitch, barcode, doorProgress),
+		[fitted, panels, yaw, pitch, barcode, doorProgress],
 	);
 	// Fit both endpoints so changing explode progress does not move the camera.
 	const points = useMemo(
 		() =>
-			projected.flatMap((panel) =>
-				panel.points.flatMap((point) => [
+			fitted.flatMap((panel) =>
+				panel.fitPoints.flatMap((point) => [
 					point,
 					point.map((value, axis) => value + panel.explodeOffset[axis]),
 				]),
 			),
-		[projected],
+		[fitted],
 	);
 	const [minX, maxX, minY, maxY] = useMemo(() => {
-		const xs = points.map((point) => point[0]), ys = points.map((point) => point[1]);
+		const xs = points.map((point) => point[0]),
+			ys = points.map((point) => point[1]);
 		return [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
 	}, [points]);
-	const width = Math.max(maxX - minX, (maxY - minY) * aspect, 1) * 1.3 * zoom;
+	const width = Math.max(maxX - minX, (maxY - minY) * aspect, 1) * 1.15 * zoom;
 	const height = width / aspect;
-	const shapes = useMemo(() => projected.map((panel) => {
-		// shortcut: translucent context boxes share one path; restore per-face sorting if opaque surfaces are needed.
-		const faces = FACES.map((face) => {
-			const points = face.map((corner) => panel.points[corner]);
-			// Matching winding keeps the combined path filled where front and back faces overlap.
-			const area = points.reduce((sum, point, index) => sum + point[0] * points[(index + 1) % points.length][1] - point[1] * points[(index + 1) % points.length][0], 0);
-			if (area < 0) points.reverse();
-			return points.map((point) => `${point[0]},${point[1]}`).join(" ");
-		});
-		return { ...panel, faces, path: faces.map((points) => `M${points}Z`).join(" "), depth: panel.points.reduce((sum, point) => sum + point[2], 0) / panel.points.length };
-	}).sort((a, b) => b.depth - a.depth), [projected]);
+	const shapes = useMemo(
+		() =>
+			projected
+				.map((panel) => {
+					// shortcut: translucent panels share one fill path; use a depth buffer for opaque CAD rendering.
+					const faces = panel.faceIndices.map((face) => {
+						const points = face.map((corner) => panel.points[corner]);
+						// Matching winding keeps the combined path filled where front and back faces overlap.
+						const area = points.reduce(
+							(sum, point, index) =>
+								sum +
+								point[0] * points[(index + 1) % points.length][1] -
+								point[1] * points[(index + 1) % points.length][0],
+							0,
+						);
+						if (area < 0) points.reverse();
+						return points.map((point) => `${point[0]},${point[1]}`).join(" ");
+					});
+					return {
+						...panel,
+						faces,
+						path: faces.map((points) => `M${points}Z`).join(" "),
+						edges: panel.edgeIndices.map((edge) => `M${edge.map((index) => `${panel.points[index][0]},${panel.points[index][1]}`).join("L")}`).join(" "),
+						depth:
+							panel.points.reduce((sum, point) => sum + point[2], 0) /
+							panel.points.length,
+					};
+				})
+				.sort((a, b) => b.depth - a.depth),
+		[projected],
+	);
+	const target = shapes.find((panel) => panel.barcode === barcode);
+	const targetCenter =
+		target &&
+		[0, 1].map(
+			(axis) =>
+				target.points.reduce((sum, point) => sum + point[axis], 0) /
+				target.points.length,
+		);
+	const doorCount = panels.filter(
+		(panel) => isDoorPanel(panel) && panel.barcode !== barcode,
+	).length;
+	const animatedDoorCount = panels.filter((panel) => panel.doorOpenType).length;
 	const rotateUp = (delta: number) =>
 		setPitch((value) => Math.max(-1.2, Math.min(1.2, value + delta)));
 	const reset = () => {
@@ -96,25 +180,50 @@ export function PanelLocationViewer({
 		setPitch(INITIAL_PITCH);
 		setZoom(1);
 		setExplode(0);
+		setHideDoors(false);
+		setDoorsOpen(false);
+		if (doorFrame.current !== null) cancelAnimationFrame(doorFrame.current);
+		doorFrame.current = null;
+		currentDoorProgress.current = 0;
+		setDoorProgress(0);
 	};
 	const drawPanels = (active: boolean) =>
 		shapes
-			.filter((panel) => (panel.barcode === barcode) === active)
+			.filter(
+				(panel) =>
+					(panel.barcode === barcode) === active &&
+					(active || !hideDoors || !isDoorPanel(panel)),
+			)
 			.map((panel) => (
 				<g
 					key={panel.barcode}
+					data-barcode={panel.barcode}
 					style={{
 						transform: `translate(${panel.explodeOffset[0] * explode}px, ${panel.explodeOffset[1] * explode}px)`,
 					}}
-					className={animateExplode ? "motion-safe:transition-transform motion-safe:duration-300 motion-safe:ease-out" : undefined}
-					fill={active ? "#ef4444" : "#94a3b8"}
-					fillOpacity={active ? 0.78 : 0.22}
-					stroke={active ? "#be123c" : "#64748b"}
-					strokeOpacity={active ? 1 : 0.4}
+					className={
+						animateExplode
+							? "motion-safe:transition-transform motion-safe:duration-300 motion-safe:ease-out"
+							: undefined
+					}
+					fill={active ? "#ef4444" : "#a1a1aa"}
+					fillOpacity={active ? 0.78 : 0.14}
+					stroke={active ? "#be123c" : "#52525b"}
+					strokeOpacity={active ? 1 : 0.55}
 					strokeWidth={active ? 1.8 : 0.7}
 				>
-					{active ? panel.faces.map((points, index) => <polygon key={index} points={points} fill="#ef4444" vectorEffect="non-scaling-stroke" />)
-						: <path d={panel.path} vectorEffect="non-scaling-stroke" />}
+					{panel.geometry ? (
+						<>
+							<path d={panel.path} stroke="none" />
+							<path d={panel.edges} fill="none" vectorEffect="non-scaling-stroke" />
+						</>
+					) : active ? (
+						panel.faces.map((points, index) => (
+							<polygon key={index} points={points} fill="#ef4444" vectorEffect="non-scaling-stroke" />
+						))
+					) : (
+						<path d={panel.path} vectorEffect="non-scaling-stroke" />
+					)}
 				</g>
 			));
 
@@ -143,6 +252,24 @@ export function PanelLocationViewer({
 					/>
 				</header>
 			)}
+			<div className={immersive ? "absolute inset-x-3 top-16 z-10 space-y-2" : "space-y-2"}>
+				{(immersive || preview) && <p className="w-fit rounded-full bg-card/95 px-3 py-1 text-[11px] text-muted-foreground">
+					{preview ? "Preview versi" : "Versi tampilan"} V{versionNumber}
+				</p>}
+				{outdated && <Alert className="border border-amber-500/40 bg-card text-amber-900 dark:text-amber-200">
+					<AlertDescription className="text-inherit">
+						{activeVersion.data === null ? "Model ini belum memiliki versi aktif." : `Tampilan ini memakai V${versionNumber}. Versi aktif sekarang V${activeVersion.data?.versionNumber}.`}
+					</AlertDescription>
+					{activeVersion.data !== null && <Button size="sm" variant="outline" className="mt-2 w-fit" onClick={() => {
+						if (preview) window.location.assign(panelLocationUrl(projectId, barcode));
+						else window.location.reload();
+					}}>Muat versi aktif</Button>}
+				</Alert>}
+				{(activeVersion.isError || activeVersion.fetchStatus === "paused") && <Alert className="border border-amber-500/40 bg-card text-amber-900 dark:text-amber-200">
+					<AlertDescription className="text-inherit">Versi aktif belum dapat diperiksa.</AlertDescription>
+					<Button size="sm" variant="outline" className="mt-2 w-fit" onClick={() => void activeVersion.refetch()}>Periksa lagi</Button>
+				</Alert>}
+			</div>
 
 			{selected ? (
 				<>
@@ -181,42 +308,75 @@ export function PanelLocationViewer({
 							style={{ touchAction: "none" }}
 							role="img"
 							tabIndex={0}
-							aria-label={`Posisi ${panelLabel.toLowerCase()}, barcode ${barcode}, ruang ${selected.roomName}. Gunakan tombol panah untuk memutar.`}
+							aria-label={`Posisi ${panelLabel.toLowerCase()}, barcode ${barcode}, ruang ${selected.roomName}. Geser atau tombol panah untuk memutar. Scroll, pinch, atau tombol plus dan minus untuk zoom.`}
 							data-selected-barcode={barcode}
 							data-panel-count={panels.length}
 							data-explode={Math.round(explode * 100)}
+							data-doors-hidden={hideDoors}
+							data-doors-open={doorsOpen}
+							data-door-progress={Math.round(doorProgress * 100)}
 							onPointerDown={(event) => {
 								if (event.button !== 0) return;
 								setAnimateExplode(false);
-								drag.current = { x: event.clientX, y: event.clientY };
+								pointers.current.set(event.pointerId, {
+									x: event.clientX,
+									y: event.clientY,
+								});
 								event.currentTarget.setPointerCapture(event.pointerId);
 							}}
 							onPointerMove={(event) => {
-								if (!drag.current) return;
-								const dx = event.clientX - drag.current.x,
-									dy = event.clientY - drag.current.y;
-								setYaw((value) => value + dx * 0.008);
-								rotateUp(dy * 0.008);
-								drag.current = { x: event.clientX, y: event.clientY };
+								const previous = pointers.current.get(event.pointerId);
+								if (!previous) return;
+								const other = [...pointers.current.entries()].find(
+									([id]) => id !== event.pointerId,
+								)?.[1];
+								if (pointers.current.size === 2 && other) {
+									const before = Math.hypot(
+										previous.x - other.x,
+										previous.y - other.y,
+									);
+									const after = Math.hypot(
+										event.clientX - other.x,
+										event.clientY - other.y,
+									);
+									if (before > 0 && after > 0) changeZoom(before / after);
+								} else if (pointers.current.size === 1) {
+									setYaw(
+										(value) => value + (event.clientX - previous.x) * 0.008,
+									);
+									rotateUp((event.clientY - previous.y) * 0.008);
+								}
+								pointers.current.set(event.pointerId, {
+									x: event.clientX,
+									y: event.clientY,
+								});
 							}}
-							onPointerUp={() => {
-								drag.current = null;
+							onPointerUp={(event) => {
+								pointers.current.delete(event.pointerId);
 							}}
-							onPointerCancel={() => {
-								drag.current = null;
+							onPointerCancel={(event) => {
+								pointers.current.delete(event.pointerId);
 							}}
-							onLostPointerCapture={() => {
-								drag.current = null;
+							onLostPointerCapture={(event) => {
+								pointers.current.delete(event.pointerId);
 							}}
 							onKeyDown={(event) => {
 								if (
-									!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(
-										event.key,
-									)
+									![
+										"ArrowLeft",
+										"ArrowRight",
+										"ArrowUp",
+										"ArrowDown",
+										"+",
+										"=",
+										"-",
+									].includes(event.key)
 								)
 									return;
 								event.preventDefault();
 								setAnimateExplode(false);
+								if (event.key === "+" || event.key === "=") changeZoom(0.8);
+								if (event.key === "-") changeZoom(1 / 0.8);
 								if (event.key === "ArrowLeft") setYaw((value) => value - 0.2);
 								if (event.key === "ArrowRight") setYaw((value) => value + 0.2);
 								if (event.key === "ArrowUp") rotateUp(-0.2);
@@ -225,6 +385,24 @@ export function PanelLocationViewer({
 						>
 							<title>{`${panelLabel} di ruang ${selected.roomName}`}</title>
 							{drawPanels(false)}
+							{explode > 0 && target && targetCenter && (
+								<g
+									fill="none"
+									stroke="#be123c"
+									strokeDasharray="5 4"
+									opacity={0.6}
+									aria-hidden="true"
+								>
+									<path d={target.geometry ? target.edges : target.path} vectorEffect="non-scaling-stroke" />
+									<line
+										x1={targetCenter[0]}
+										y1={targetCenter[1]}
+										x2={targetCenter[0] + target.explodeOffset[0] * explode}
+										y2={targetCenter[1] + target.explodeOffset[1] * explode}
+										vectorEffect="non-scaling-stroke"
+									/>
+								</g>
+							)}
 							{/* Keep the target visible through surrounding panels, including panels at the back. */}
 							{drawPanels(true)}
 						</svg>
@@ -239,55 +417,50 @@ export function PanelLocationViewer({
 							<Button
 								variant="ghost"
 								size="icon"
-								aria-label="Putar kiri"
-								onClick={() => { setAnimateExplode(false); setYaw((v) => v - 0.3); }}
+								aria-label="Buka/tutup pintu"
+								aria-pressed={doorsOpen}
+								disabled={animatedDoorCount === 0}
+								title={
+									animatedDoorCount === 0
+										? "Arah buka pintu belum tersedia"
+										: doorsOpen
+											? "Tutup pintu"
+											: "Buka pintu"
+								}
+								onClick={() => {
+									setAnimateExplode(false);
+									setHideDoors(false);
+									setDoorsOpen((value) => !value);
+								}}
 							>
-								<ArrowLeft />
+								<DoorOpen aria-hidden="true" />
 							</Button>
 							<Button
 								variant="ghost"
 								size="icon"
-								aria-label="Putar kanan"
-								onClick={() => { setAnimateExplode(false); setYaw((v) => v + 0.3); }}
+								aria-label="Sembunyikan pintu"
+								aria-pressed={hideDoors}
+								disabled={doorCount === 0}
+								title={
+									doorCount === 0
+										? "Tidak ada pintu lain yang teridentifikasi pada ruang ini"
+										: hideDoors
+											? "Tampilkan pintu"
+											: "Sembunyikan pintu"
+								}
+								onClick={() => setHideDoors((value) => !value)}
 							>
-								<ArrowRight />
-							</Button>
-							<Button
-								variant="ghost"
-								size="icon"
-								aria-label="Putar atas"
-								onClick={() => { setAnimateExplode(false); rotateUp(-0.3); }}
-							>
-								<ArrowUp />
-							</Button>
-							<Button
-								variant="ghost"
-								size="icon"
-								aria-label="Putar bawah"
-								onClick={() => { setAnimateExplode(false); rotateUp(0.3); }}
-							>
-								<ArrowDown />
-							</Button>
-							<Button
-								variant="ghost"
-								size="icon"
-								aria-label="Perbesar"
-								onClick={() => setZoom((v) => Math.max(0.25, v * 0.8))}
-							>
-								<Plus />
-							</Button>
-							<Button
-								variant="ghost"
-								size="icon"
-								aria-label="Perkecil"
-								onClick={() => setZoom((v) => Math.min(3, v / 0.8))}
-							>
-								<Minus />
+								{hideDoors ? (
+									<Eye aria-hidden="true" />
+								) : (
+									<EyeOff aria-hidden="true" />
+								)}
 							</Button>
 							<Button
 								variant="ghost"
 								size="icon"
 								aria-label="Reset tampilan"
+								title="Reset tampilan"
 								onClick={reset}
 							>
 								<RotateCcw />
@@ -316,10 +489,13 @@ export function PanelLocationViewer({
 									className="min-h-10"
 									aria-label="Explode panel"
 									aria-pressed={explode > 0}
-									onClick={() => { setAnimateExplode(true); setExplode(explode > 0 ? 0 : 1); }}
+									onClick={() => {
+										setAnimateExplode(true);
+										setExplode(explode > 0 ? 0 : 1);
+									}}
 								>
 									<Expand aria-hidden="true" />
-									Explode
+									{explode > 0 ? "Pasang kembali" : "Tarik panel"}
 								</Button>
 								<label className="sr-only" htmlFor={`explode-${barcode}`}>
 									Jarak explode
@@ -331,9 +507,10 @@ export function PanelLocationViewer({
 									max={100}
 									step={1}
 									value={Math.round(explode * 100)}
-									onChange={(event) =>
-										{ setAnimateExplode(false); setExplode(Number(event.target.value) / 100); }
-									}
+									onChange={(event) => {
+										setAnimateExplode(false);
+										setExplode(Number(event.target.value) / 100);
+									}}
 									className="h-10 min-w-0 flex-1 cursor-pointer accent-primary"
 								/>
 								<output
@@ -343,6 +520,9 @@ export function PanelLocationViewer({
 									{Math.round(explode * 100)}%
 								</output>
 							</div>
+							<p className="text-center text-[11px] text-muted-foreground">
+								Tarik panel merah dari posisinya · Scroll / pinch untuk zoom
+							</p>
 						</div>
 					</div>
 					{!immersive && (
@@ -361,15 +541,9 @@ export function PanelLocationViewer({
 						: "Masukkan barcode untuk melihat posisi panel."}
 				</p>
 			)}
-			<footer
-				className={
-					immersive
-						? "sr-only"
-						: "mt-auto text-center text-xs text-muted-foreground"
-				}
-			>
-				Snapshot {version}
-			</footer>
+			{!immersive && !preview && <footer className="mt-auto text-center text-xs text-muted-foreground">
+				Versi tampilan V{versionNumber}
+			</footer>}
 		</section>
 	);
 }

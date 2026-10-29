@@ -169,9 +169,7 @@ export function Scanner({
 					aria-hidden="true"
 				/>
 			</div>
-			<p className="px-2 mb-2 shrink-0 text-xs font-medium text-muted-foreground">
-				Status Barang Scan
-			</p>
+			{statuses && <p className="px-2 mb-2 shrink-0 text-xs font-medium text-muted-foreground">Status Barang Scan</p>}
 			{statuses && (
 				<div className="mb-3 flex items-center gap-3">
 					<DropdownMenu>

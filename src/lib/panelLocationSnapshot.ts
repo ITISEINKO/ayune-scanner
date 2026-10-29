@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import catalog from "@/data/panel-locations/catalog.json";
+import { withPanelLocationDetails } from "@/lib/panelLocation";
 import { getStoredPanelLocation, getStoredPanelLocationByBarcode } from "@/lib/panelLocationStore";
 import type { PanelLocationSnapshot, PanelLocationView } from "@/types/panelLocation";
 
@@ -29,12 +30,15 @@ export const getPanelLocation = async (
 	if (!stored && (revision || !Object.hasOwn(catalog, project))) return null;
 	const entry = catalog[project as keyof typeof catalog];
 	const snapshot = stored?.snapshot ?? bundledSnapshot ?? JSON.parse(await readFile(path.join(process.cwd(), "src/data/panel-locations", entry.snapshot), "utf8")) as PanelLocationSnapshot;
+	const namedSnapshot = stored ? snapshot : withPanelLocationDetails(snapshot, JSON.parse(await readFile(
+		path.join(process.cwd(), "src/data/panel-locations", entry.mapping ?? path.join(path.dirname(entry.snapshot), "mapping.json")), "utf8")));
 	const selected = snapshot.panels.find((panel) => panel.barcode === barcode);
 	return {
 		projectId: project,
 		projectName: stored?.metadata.name ?? entry.name,
 		version: snapshot.version,
+		versionNumber: stored?.metadata.versionNumber ?? 1,
 		barcode,
-		panels: selected ? snapshot.panels.filter((panel) => panel.roomName === selected.roomName) : [],
+		panels: selected ? namedSnapshot.panels.filter((panel) => panel.roomName === selected.roomName) : [],
 	};
 };

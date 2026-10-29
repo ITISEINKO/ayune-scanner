@@ -29,6 +29,11 @@ const memberItems = [
 	{ href: "/history", label: "History", icon: History },
 	{ href: "/profile", label: "Profile", icon: User },
 ];
+const drafterItems = [
+	{ href: "/drafter", label: "Models", icon: FolderKanban },
+	{ href: "/cari-lokasi", label: "Cari", icon: Search },
+	{ href: "/drafter/profile", label: "Profile", icon: User },
+];
 
 const getNavigationItemsByRole = (role: PpicRole | null) => {
 	if (hasPpicAdminAccess(role)) return superAdminItems;
@@ -36,16 +41,23 @@ const getNavigationItemsByRole = (role: PpicRole | null) => {
 	return [];
 };
 
-export function BottomNavigation({ role }: { role: PpicRole | null }) {
+export function BottomNavigation({
+	role,
+	workspace,
+}: {
+	role: PpicRole | null;
+	workspace?: "drafter";
+}) {
 	const pathname = usePathname();
 	if (pathname === "/login") return null;
-	const navigationItems = getNavigationItemsByRole(role);
+	const navigationItems =
+		workspace === "drafter" ? drafterItems : getNavigationItemsByRole(role);
 	if (!navigationItems.length) return null;
 
 	return (
 		<nav
 			aria-label="Main navigation"
-			className="fixed inset-x-0 bottom-0 z-50 mx-auto flex max-w-lg items-center rounded-t-2xl border border-border/70 bg-primary px-3 py-3 shadow-lg"
+			className="fixed inset-x-0 bottom-0 z-50 mx-auto flex h-(--bottom-navigation-height) max-w-lg items-center rounded-t-2xl border border-border/70 bg-primary px-3 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] shadow-lg"
 		>
 			{navigationItems.map(({ href, label, icon: Icon }, index) => {
 				const active =

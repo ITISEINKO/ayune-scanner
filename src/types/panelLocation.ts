@@ -2,7 +2,10 @@ export type PanelLocation = {
 	barcode: string;
 	roomName: string;
 	panelNumber: string;
+	panelName?: string;
+	doorOpenType?: "left" | "right" | "up" | "bottom";
 	corners: number[][];
+	geometry?: { vertices: number[][]; faces: number[][]; edges: number[][] };
 };
 
 export type PanelLocationSnapshot = {
@@ -11,6 +14,7 @@ export type PanelLocationSnapshot = {
 };
 
 export type PanelLocationView = PanelLocationSnapshot & {
+	versionNumber: number;
 	projectId: string;
 	projectName: string;
 	barcode: string;
@@ -38,6 +42,7 @@ export type LbyImportManifest = {
 };
 
 export type LbyImportVersion = LbyImportManifest & {
+	versionNumber: number;
 	roomCount: number;
 	sampleBarcode: string;
 };
@@ -47,4 +52,14 @@ export type LbyImportState = {
 	activeRevision: string | null;
 	bundledVersion: string | null;
 	versions: LbyImportVersion[];
+};
+
+export type LbyImportStage = "downloading" | "panels" | "rooms" | "saving";
+
+export type LbyImportResponse = {
+	ok?: boolean;
+	error?: string;
+	stage?: LbyImportStage;
+	state?: LbyImportState;
+	states?: LbyImportState[];
 };

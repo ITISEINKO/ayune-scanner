@@ -1,7 +1,7 @@
 import { hasPpicAdminAccess } from "@/types/ppic";
 import { notFound, redirect } from "next/navigation";
 import { PanelLocationViewer } from "@/features/panel-location/PanelLocationViewer";
-import { getPpicAccess } from "@/lib/db";
+import { canImportLby, getPpicAccess } from "@/lib/db";
 import { getPanelLocation } from "@/lib/panelLocationSnapshot";
 import { ppicSession, requireClickUpToken } from "@/lib/session";
 
@@ -16,13 +16,14 @@ export default async function PanelLocationPage({
 	const session = await ppicSession();
 	if (!session) redirect("/login");
 	const access = await getPpicAccess(session.user_id);
+	const importer = await canImportLby(session.user_id);
 	if (
-		!hasPpicAdminAccess(access?.role) &&
+		!importer && !hasPpicAdminAccess(access?.role) &&
 		!(access?.role === "MEMBER" && Number(access.active) === 1)
 	)
 		redirect("/unauthorized");
 	const { project, barcode = "", revision } = await searchParams;
-	if (revision !== undefined && access?.role !== "ADMIN") redirect("/unauthorized");
+	if (revision !== undefined && !importer) redirect("/unauthorized");
 	// Only imported projects can be read; query strings never become file paths or vendor requests.
 	if (
 		(project !== undefined && typeof project !== "string") ||
@@ -36,12 +37,12 @@ export default async function PanelLocationPage({
 	try { location = await getPanelLocation(project ?? "", serial, revision); }
 	catch (cause) {
 		if (!(cause instanceof Error) || cause.message !== "LOCATION_AMBIGUOUS") throw cause;
-		return <main className="mx-auto max-w-lg p-6"><p role="alert">Serial ditemukan di beberapa model aktif. Periksa model LBY di profil admin.</p></main>;
+		return <main className="mx-auto max-w-lg p-6"><p role="alert">Serial ditemukan di beberapa model aktif. Periksa halaman model LBY.</p></main>;
 	}
 	if (!location) notFound();
 	return (
 		<main className="mx-auto min-h-dvh max-w-6xl p-4 sm:p-6">
-			<PanelLocationViewer key={`${project}:${serial}`} {...location} />
+			<PanelLocationViewer key={`${project}:${serial}:${revision ?? location.version}`} {...location} preview={revision !== undefined} />
 		</main>
 	);
 }

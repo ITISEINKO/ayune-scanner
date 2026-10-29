@@ -119,6 +119,7 @@ export async function GET(request: NextRequest) {
 		userId,
 		loginState.role,
 		loginState.allowed_status,
+		loginState.can_import_lby,
 	);
 	if (session)
 		response.cookies.set(PPIC_SESSION_COOKIE, session, {

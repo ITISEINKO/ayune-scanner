@@ -1,13 +1,12 @@
 import { ProfileLayout } from "@/features/profile";
 import { ppicSession } from "@/lib/session";
-import { getPpicAccess } from "@/lib/db";
-import { LbyImportDialog } from "@/features/admin/LbyImportDialog";
+import { canImportLby } from "@/lib/db";
+import Link from "next/link";
+import { buttonVariants } from "@/components/ui/button";
 
 export async function AdminProfilePage() {
 	const session = await ppicSession();
-	const canImport =
-		session?.role === "ADMIN" &&
-		(await getPpicAccess(session.user_id))?.role === "ADMIN";
+	const canImport = session ? await canImportLby(session.user_id) : false;
 	return (
 		<ProfileLayout role={session?.role ?? "SUPER_ADMIN"}>
 			{canImport && (
@@ -20,7 +19,7 @@ export async function AdminProfilePage() {
 						Tambahkan link model LBY. Panel dicocokkan lewat board number /
 						serial number, tanpa memilih project ClickUp.
 					</p>
-					<LbyImportDialog />
+					<Link href="/drafter" className={buttonVariants({ variant: "outline", className: "w-full" })}>Kelola model LBY</Link>
 				</section>
 			)}
 		</ProfileLayout>

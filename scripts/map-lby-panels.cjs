@@ -1,8 +1,9 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
+const { panelGeometry } = require("./lby-panel-geometry.cjs");
 
 // Inspect downloaded responses offline; never persist signed download URLs.
-function mapLbyPanels(response, model, includeLocations = false) {
+function mapLbyPanels(response, model, includeLocations = false, onMapped = () => {}) {
 assert.equal(response.code, 0, "Vendor panel response failed");
 assert(Array.isArray(response.data) && response.data.length > 0, "No panels");
 assert(Array.isArray(model.value?.docs), "Missing model documents");
@@ -29,6 +30,8 @@ const panels = response.data.map((panel) => {
 	const match = objects.get(panel.splitId);
 	assert(match, `No model for barcode ${panel.laberNumber}: ${panel.splitId}`);
 	const { doc, object } = match;
+	const opening = object.doorOpenType ?? object.userData?.doorOpenType;
+	const doorOpenType = ["left", "right", "up", "bottom"].includes(opening) ? opening : undefined;
 	for (const [key, count] of [["position", 3], ["quaternion", 4], ["scale", 3]]) {
 		assert(Array.isArray(object[key]) && object[key].length === count &&
 			object[key].every(Number.isFinite), `Invalid ${key}: ${object.id}`);
@@ -40,6 +43,7 @@ const panels = response.data.map((panel) => {
 		cabinetName: panel.cabinetName,
 		panelName: panel.plankName,
 		panelNumber: panel.roomPlankIdx,
+		...(doorOpenType ? { doorOpenType } : {}),
 		finishedSize: [panel.endLength, panel.endWidth, panel.endThickness],
 		model: {
 			documentId: doc.id,
@@ -56,6 +60,7 @@ const panels = response.data.map((panel) => {
 	};
 });
 
+onMapped();
 const byRoom = {};
 for (const panel of panels) byRoom[panel.roomName] = (byRoom[panel.roomName] ?? 0) + 1;
 const result = {
@@ -81,9 +86,8 @@ if (includeLocations) {
 		}
 		const size = [object.sizeX, object.sizeY, object.sizeZ];
 		assert(size.every((n) => Number.isFinite(n) && n > 0), `Invalid size: ${object.id}`);
-		// shortcut: panel boxes omit cutouts and curved edges; use full outlines if assembly identification needs them.
-		const corners = [[0,0,0],[1,0,0],[1,1,0],[0,1,0],[0,0,1],[1,0,1],[1,1,1],[0,1,1]].map((corner) => {
-			let point = corner.map((n, axis) => n * size[axis]);
+		const transform = (local) => {
+			let point = local;
 			for (const ancestor of chain) {
 				const position = ancestor.position ?? [0, 0, 0];
 				const scale = ancestor.scale ?? [1, 1, 1];
@@ -101,8 +105,14 @@ if (includeLocations) {
 			const rounded = point.map((n) => Math.round(n * 10) / 10);
 			assert(rounded.every(Number.isFinite), `Invalid world position: ${object.id}`);
 			return rounded;
-		});
-		return { barcode: panel.barcode, roomName: panel.roomName, panelNumber: panel.panelNumber, corners };
+		};
+		const corners = [[0,0,0],[1,0,0],[1,1,0],[0,1,0],[0,0,1],[1,0,1],[1,1,1],[0,1,1]]
+			.map((corner) => transform(corner.map((n, axis) => n * size[axis])));
+		const geometry = panelGeometry(object);
+		return { barcode: panel.barcode, roomName: panel.roomName, panelNumber: panel.panelNumber,
+			...(typeof panel.panelName === "string" ? { panelName: panel.panelName } : {}),
+			...(panel.doorOpenType ? { doorOpenType: panel.doorOpenType } : {}), corners,
+			...(geometry ? { geometry: { ...geometry, vertices: geometry.vertices.map(transform) } } : {}) };
 	});
 	const { createHash } = require("node:crypto");
 	snapshot = {

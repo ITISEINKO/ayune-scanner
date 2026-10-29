@@ -3,12 +3,14 @@
     "name": "RUKO JAKARTA PASAR MINGGU",
     "orderId": "815718262078702236",
     "version": "fbad68f9de99",
-    "snapshot": "z96buhry4p.json"
+    "snapshot": "z96buhry4p.json",
+    "mapping": "../../../context/LBY_PANEL_MAPPING.json"
   },
   "z96buhr3eu": {
     "name": "FIORDINI FIB NO.66  LANTAI 3",
     "orderId": "734821999007760514",
     "version": "76852806d469",
-    "snapshot": "imports/z96buhr3eu/fa56c09c1bd10c6755b973b0e5366e312c399173d716cb1973db44fe1eb27062/locations.json"
+    "snapshot": "imports/z96buhr3eu/fa56c09c1bd10c6755b973b0e5366e312c399173d716cb1973db44fe1eb27062/locations.json",
+    "mapping": "imports/z96buhr3eu/fa56c09c1bd10c6755b973b0e5366e312c399173d716cb1973db44fe1eb27062/mapping.json"
   }
 }

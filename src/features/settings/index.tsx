@@ -38,10 +38,12 @@ export const SettingPage = ({ canManageAdmin = false }: { canManageAdmin?: boole
 		members,
 		roles,
 		permissions,
+		lbyImporters,
 		loading,
 		error,
 		updateRole,
 		updatePermission,
+		updateLbyPermission,
 		savingMemberId,
 	} = usePanelMembers();
 	const [saveError, setSaveError] = useState(false);
@@ -53,6 +55,7 @@ export const SettingPage = ({ canManageAdmin = false }: { canManageAdmin?: boole
 	const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
 	const [draftRole, setDraftRole] = useState<PpicRole>("MEMBER");
 	const [draftStatuses, setDraftStatuses] = useState<PpicStatuses>([]);
+	const [draftLbyImport, setDraftLbyImport] = useState(false);
 
 	useEffect(() => {
 		const timeout = window.setTimeout(
@@ -66,7 +69,7 @@ export const SettingPage = ({ canManageAdmin = false }: { canManageAdmin?: boole
 		members?.filter((member) => {
 			if (!member.name.toLowerCase().includes(debouncedSearch)) return false;
 			const inactive =
-				!hasPpicAdminAccess(roles[member.id]) && !permissions[member.id]?.length;
+				!hasPpicAdminAccess(roles[member.id]) && !permissions[member.id]?.length && !lbyImporters[member.id];
 			return statusFilter === "inactive"
 				? inactive
 				: !inactive &&
@@ -79,6 +82,7 @@ export const SettingPage = ({ canManageAdmin = false }: { canManageAdmin?: boole
 	const openEditor = (member: PanelMember) => {
 		setDraftRole(roles[member.id] ?? "MEMBER");
 		setDraftStatuses(permissions[member.id] ?? []);
+		setDraftLbyImport(lbyImporters[member.id] ?? false);
 		setEditingMemberId(member.id);
 	};
 
@@ -86,13 +90,16 @@ export const SettingPage = ({ canManageAdmin = false }: { canManageAdmin?: boole
 		if (!editingMember) return;
 		setSaveError(false);
 		try {
-			if ((roles[editingMember.id] ?? "MEMBER") !== draftRole)
+			const roleChanged = (roles[editingMember.id] ?? "MEMBER") !== draftRole;
+			if (roleChanged)
 				await updateRole(editingMember.id, draftRole);
-			if (draftRole === "MEMBER")
-				await updatePermission(
-					editingMember.id,
-					draftStatuses.length ? draftStatuses : null,
-				);
+			if (draftRole === "MEMBER") {
+				const savedStatuses = permissions[editingMember.id] ?? [];
+				if (roleChanged || draftStatuses.length !== savedStatuses.length || draftStatuses.some((status) => !savedStatuses.includes(status)))
+					await updatePermission(editingMember.id, draftStatuses.length ? draftStatuses : null);
+			}
+			if (draftRole !== "ADMIN" && (lbyImporters[editingMember.id] ?? false) !== draftLbyImport)
+				await updateLbyPermission(editingMember.id, draftLbyImport);
 			toast.success("Akses berhasil diperbarui.");
 			setEditingMemberId(null);
 		} catch {
@@ -277,7 +284,8 @@ export const SettingPage = ({ canManageAdmin = false }: { canManageAdmin?: boole
 										</h2>
 										<div className="mt-0.5 flex items-center gap-2 text-sm text-muted-foreground">
 											<span>{role === "ADMIN" ? "Admin" : role === "SUPER_ADMIN" ? "Super Admin" : "Member"}</span>
-											{role === "MEMBER" && !selectedStatuses.length && (
+											{role !== "ADMIN" && lbyImporters[member.id] && <Badge variant="outline">Drafter</Badge>}
+											{role === "MEMBER" && !selectedStatuses.length && !lbyImporters[member.id] && (
 												<Badge
 													variant="destructive"
 													className="h-5 px-2 text-xs"
@@ -343,7 +351,7 @@ export const SettingPage = ({ canManageAdmin = false }: { canManageAdmin?: boole
 										</DrawerTitle>
 										<DrawerDescription>
 											{roles[editingMember.id] === "ADMIN" ? "Admin" : roles[editingMember.id] === "SUPER_ADMIN" ? "Super Admin" : "Member"}
-											{` · ${hasPpicAdminAccess(roles[editingMember.id]) || permissions[editingMember.id]?.length ? "Aktif" : "Nonaktif"}`}
+											{` · ${hasPpicAdminAccess(roles[editingMember.id]) || permissions[editingMember.id]?.length || lbyImporters[editingMember.id] ? "Aktif" : "Nonaktif"}`}
 										</DrawerDescription>
 									</div>
 								</div>
@@ -388,6 +396,15 @@ export const SettingPage = ({ canManageAdmin = false }: { canManageAdmin?: boole
 											Akses halaman
 										</p>
 										<div className="divide-y">
+											<div className="py-3">
+												<label className="flex min-h-10 items-center gap-3">
+													<span className="flex-1">Drafter: model LBY</span>
+													<Checkbox checked={draftRole === "ADMIN" || draftLbyImport} disabled={draftRole === "ADMIN"}
+														className="h-7 w-12 justify-start rounded-full border-input bg-muted p-1 before:size-5 before:rounded-full before:bg-card before:shadow-sm before:transition-transform data-checked:bg-accent data-checked:border-input data-checked:before:translate-x-5 **:data-[slot=checkbox-indicator]:hidden"
+														onCheckedChange={(checked) => setDraftLbyImport(checked === true)} />
+												</label>
+												<p className="text-xs text-muted-foreground">Import, preview, dan aktifkan model. Akses scan diatur terpisah.</p>
+											</div>
 											{statusOptions.map((option) => (
 												<label
 													key={option.status}

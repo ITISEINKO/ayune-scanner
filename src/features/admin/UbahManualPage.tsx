@@ -18,6 +18,7 @@ import {
 import { statusBarangScanOptions } from "@/lib/produksiPanel";
 import { PanelLocationViewer } from "@/features/panel-location/PanelLocationViewer";
 import type { ManualPanelItem } from "@/types/panelLocation";
+import { panelDisplayName } from "@/lib/panelLocation";
 
 const messageFor = (error?: string) =>
 	({
@@ -117,7 +118,7 @@ export const UbahManualPage = ({ serialNumber }: { serialNumber?: string }) => {
 		<main
 			className={
 				serialNumber
-					? "relative mx-auto flex h-dvh max-w-lg flex-col overflow-hidden bg-neutral-50 dark:bg-background"
+					? "relative mx-auto flex h-dvh max-w-lg flex-col overflow-hidden bg-neutral-50 pb-(--bottom-navigation-height) dark:bg-background"
 					: "mx-auto min-h-dvh max-w-lg p-4 pb-28"
 			}
 		>
@@ -205,12 +206,12 @@ export const UbahManualPage = ({ serialNumber }: { serialNumber?: string }) => {
 					)}
 					<section
 						aria-label="Status barang"
-						className="relative z-10 shrink-0 rounded-t-[1.75rem] border border-b-0 border-border/60 bg-card px-5 pb-28
+						className="relative z-10 shrink-0 rounded-t-[1.75rem] border border-b-0 border-border/60 bg-card px-5 pb-5
 						 pt-5 shadow-[0_-6px_24px_-14px_rgb(31_26_20/0.12)]"
 					>
 						<div className="flex items-start justify-between gap-3">
 							<h2 className="min-w-0 flex-1 text-lg font-extrabold leading-snug">
-								{item.nama}
+								{panelDisplayName(item.nama, locatedPanel?.panelNumber ? `Panel ${locatedPanel.panelNumber}` : "Panel")}
 							</h2>
 							<Badge
 								title={item.status ? `Status saat ini: ${item.status}` : "Task ClickUp belum ditemukan"}
@@ -256,7 +257,7 @@ export const UbahManualPage = ({ serialNumber }: { serialNumber?: string }) => {
 								Serial: {item.serial_number}
 							</Badge>
 							<DrawerTitle className="text-2xl font-bold">
-								{item.nama}
+								{panelDisplayName(item.nama)}
 							</DrawerTitle>
 							<DrawerDescription className="mt-1">
 								Pilih status baru untuk barang ini.

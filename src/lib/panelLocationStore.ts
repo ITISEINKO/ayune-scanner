@@ -3,7 +3,8 @@ import { gzipSync, gunzipSync } from "node:zlib";
 import { unstable_cache } from "next/cache";
 import { db } from "@/lib/db";
 import catalog from "@/data/panel-locations/catalog.json";
-import type { LbyImportManifest, LbyImportState, LbyImportVersion, PanelLocationSnapshot } from "@/types/panelLocation";
+import { withPanelLocationDetails } from "@/lib/panelLocation";
+import type { LbyImportManifest, LbyImportState, LbyImportVersion, PanelLocationSnapshot, PanelLocationView } from "@/types/panelLocation";
 
 const sha = (value: string) => createHash("sha256").update(value).digest("hex");
 const bundled = (project: string) => Object.hasOwn(catalog, project) ? catalog[project as keyof typeof catalog] : null;
@@ -16,6 +17,7 @@ const ensureSchema = () => schema ??= db.batch([
 	`CREATE TABLE IF NOT EXISTS ppic_panel_location_revision (
 		project_id TEXT NOT NULL, revision TEXT NOT NULL, metadata_json TEXT NOT NULL,
 		snapshot_gzip BLOB NOT NULL, mapping_gzip BLOB NOT NULL, imported_by TEXT NOT NULL,
+		version_number INTEGER,
 		PRIMARY KEY (project_id, revision)
 	)`,
 	`CREATE TABLE IF NOT EXISTS ppic_panel_location_barcode (
@@ -23,6 +25,20 @@ const ensureSchema = () => schema ??= db.batch([
 		PRIMARY KEY (barcode, project_id, revision)
 	)`,
 ], "write").then(async () => {
+	if (!(await db.execute("PRAGMA table_info(ppic_panel_location_revision)")).rows.some((row) => row.name === "version_number")) {
+		try { await db.execute("ALTER TABLE ppic_panel_location_revision ADD COLUMN version_number INTEGER"); }
+		catch (error) {
+			if (!(await db.execute("PRAGMA table_info(ppic_panel_location_revision)")).rows.some((row) => row.name === "version_number")) throw error;
+		}
+	}
+	const unnumbered = await db.execute("SELECT DISTINCT project_id FROM ppic_panel_location_revision WHERE version_number IS NULL");
+	for (const row of unnumbered.rows) {
+		const project = String(row.project_id);
+		await db.execute({ sql: `UPDATE ppic_panel_location_revision AS r SET version_number =
+			(SELECT count(*) FROM ppic_panel_location_revision older WHERE older.project_id = r.project_id AND older.rowid <= r.rowid) + ?
+			WHERE project_id = ? AND version_number IS NULL`, args: [Number(Boolean(bundled(project))), project] });
+	}
+	await db.execute("CREATE UNIQUE INDEX IF NOT EXISTS ppic_panel_location_version_number ON ppic_panel_location_revision(project_id, version_number)");
 	// Backfill active imports created before the serial index existed.
 	const active = await db.execute(`SELECT r.project_id, r.revision, r.snapshot_gzip
 		FROM ppic_panel_location_revision r JOIN ppic_panel_location_project p
@@ -41,13 +57,13 @@ export const getLbyImportState = async (project: string): Promise<LbyImportState
 	await ensureSchema();
 	const [active, versions] = await db.batch([
 		{ sql: "SELECT active_revision FROM ppic_panel_location_project WHERE project_id = ?", args: [project] },
-		{ sql: "SELECT metadata_json FROM ppic_panel_location_revision WHERE project_id = ? ORDER BY json_extract(metadata_json, '$.importedAt') DESC", args: [project] },
+		{ sql: "SELECT metadata_json, version_number FROM ppic_panel_location_revision WHERE project_id = ? ORDER BY version_number DESC", args: [project] },
 	], "read");
 	return {
 		projectKey: project,
 		activeRevision: active.rows[0]?.active_revision ? String(active.rows[0].active_revision) : null,
 		bundledVersion: bundled(project)?.version ?? null,
-		versions: versions.rows.map((row) => JSON.parse(String(row.metadata_json)) as LbyImportVersion),
+		versions: versions.rows.map((row) => ({ ...JSON.parse(String(row.metadata_json)), versionNumber: Number(row.version_number) }) as LbyImportVersion),
 	};
 };
 
@@ -99,16 +115,18 @@ export const saveLbyImport = async (project: string, id: string, actor: string, 
 	const snapshot = JSON.parse(locations) as PanelLocationSnapshot;
 	const snapshotGzip = gzipSync(locations), mappingGzip = gzipSync(mappingJson);
 	if (snapshotGzip.length + mappingGzip.length > 1024 * 1024) throw new Error("MODEL_TOO_LARGE");
-	const metadata: LbyImportVersion = { ...manifest,
+	const metadata: Omit<LbyImportVersion, "versionNumber"> = { ...manifest,
 		roomCount: new Set(snapshot.panels.map((panel) => panel.roomName)).size,
 		sampleBarcode: snapshot.panels[0].barcode,
 	};
+	// shortcut: revisions have no deletion flow; use a project counter before supporting revision deletion.
 	const [result] = await db.batch([{
 		sql: `INSERT OR IGNORE INTO ppic_panel_location_revision
-			(project_id, revision, metadata_json, snapshot_gzip, mapping_gzip, imported_by)
-			SELECT project_id, ?, ?, ?, ?, ? FROM ppic_panel_location_project
+			(project_id, revision, metadata_json, snapshot_gzip, mapping_gzip, imported_by, version_number)
+			SELECT project_id, ?, ?, ?, ?, ?,
+			COALESCE((SELECT max(version_number) FROM ppic_panel_location_revision WHERE project_id = ?), ?) + 1 FROM ppic_panel_location_project
 			WHERE project_id = ? AND import_id = ? AND import_until > ? AND (order_id IS NULL OR order_id = ?)`,
-		args: [manifest.revision, JSON.stringify(metadata), snapshotGzip, mappingGzip, actor, project, id, Date.now(), manifest.orderId],
+		args: [manifest.revision, JSON.stringify(metadata), snapshotGzip, mappingGzip, actor, project, Number(Boolean(bundled(project))), project, id, Date.now(), manifest.orderId],
 	}, {
 		sql: `INSERT OR IGNORE INTO ppic_panel_location_barcode (barcode, project_id, revision)
 			SELECT json_extract(value, '$.barcode'), ?, ? FROM json_each(?, '$.panels')
@@ -121,22 +139,22 @@ export const saveLbyImport = async (project: string, id: string, actor: string, 
 		if (!existing || existing.orderId !== manifest.orderId) throw new Error("IMPORT_CONFLICT");
 		return existing;
 	}
-	return metadata;
+	return (await readRevision(project, manifest.revision)).metadata;
 };
 
 const readRevision = unstable_cache(async (project: string, revision: string) => {
 	const result = await db.execute({
-		sql: "SELECT metadata_json, snapshot_gzip, mapping_gzip FROM ppic_panel_location_revision WHERE project_id = ? AND revision = ?",
+		sql: "SELECT metadata_json, snapshot_gzip, mapping_gzip, version_number FROM ppic_panel_location_revision WHERE project_id = ? AND revision = ?",
 		args: [project, revision],
 	});
 	const row = result.rows[0];
 	if (!row) throw new Error("REVISION_NOT_FOUND");
-	const metadata = JSON.parse(String(row.metadata_json)) as LbyImportVersion;
+	const metadata = { ...JSON.parse(String(row.metadata_json)), versionNumber: Number(row.version_number) } as LbyImportVersion;
 	const locations = gunzipSync(Buffer.from(row.snapshot_gzip as ArrayBuffer), { maxOutputLength: 2 * 1024 * 1024 }).toString("utf8");
 	const mapping = gunzipSync(Buffer.from(row.mapping_gzip as ArrayBuffer), { maxOutputLength: 8 * 1024 * 1024 }).toString("utf8");
 	if (metadata.projectKey !== project || metadata.revision !== revision || sha(locations) !== revision || sha(mapping) !== metadata.mappingSha256) throw new Error("CHECKSUM_MISMATCH");
-	return { metadata, snapshot: JSON.parse(locations) as PanelLocationSnapshot };
-}, ["panel-location-revision"], { revalidate: false });
+	return { metadata, snapshot: withPanelLocationDetails(JSON.parse(locations), JSON.parse(mapping)) };
+}, ["panel-location-revision-number"], { revalidate: false });
 
 export const getStoredPanelLocationByBarcode = async (barcode: string) => {
 	await ensureSchema();
@@ -155,6 +173,23 @@ export const getStoredPanelLocation = async (project: string, revision?: string)
 		revision = result.rows[0]?.active_revision ? String(result.rows[0].active_revision) : undefined;
 	}
 	return revision ? readRevision(project, revision) : null;
+};
+
+export const getActivePanelLocationVersion = async (project: string): Promise<Pick<PanelLocationView, "version" | "versionNumber"> | null> => {
+	await ensureSchema();
+	const result = await db.execute({
+		sql: `SELECT p.active_revision, json_extract(r.metadata_json, '$.version') AS version, r.version_number
+			FROM ppic_panel_location_project p LEFT JOIN ppic_panel_location_revision r
+			ON r.project_id = p.project_id AND r.revision = p.active_revision WHERE p.project_id = ?`,
+		args: [project],
+	});
+	const row = result.rows[0];
+	if (row?.active_revision) {
+		if (typeof row.version !== "string") throw new Error("REVISION_NOT_FOUND");
+		return { version: row.version, versionNumber: Number(row.version_number) };
+	}
+	const entry = bundled(project);
+	return entry ? { version: entry.version, versionNumber: 1 } : null;
 };
 
 export const activateLbyImport = async (project: string, revision: string | null, expected: string | null) => {

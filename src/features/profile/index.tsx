@@ -23,9 +23,11 @@ import type { PpicRole } from "@/types/ppic";
 
 export function ProfileLayout({
 	role,
+	roleLabel,
 	children,
 }: {
 	role: PpicRole;
+	roleLabel?: string;
 	children?: ReactNode;
 }) {
 	const { data: profile, isPending, isError, refetch } = useProfile();
@@ -64,7 +66,7 @@ export function ProfileLayout({
 						)}
 						<Badge className="mt-3 h-auto rounded-full border-primary-foreground/20 bg-primary-foreground/10 px-2.5 py-1 text-[10px] font-bold tracking-wider text-primary-foreground">
 							<ShieldCheck aria-hidden="true" />
-							{role.replaceAll("_", " ")}
+							{roleLabel ?? role.replaceAll("_", " ")}
 						</Badge>
 					</div>
 				</div>
