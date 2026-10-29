@@ -9,8 +9,9 @@ export const getPanelLocation = async (
 	project: string,
 	barcode: string,
 	revision?: string,
+	bundled = false,
 ): Promise<PanelLocationView | null> => {
-	const stored = await (revision ? getStoredPanelLocation(project, revision) : getStoredPanelLocationByBarcode(barcode)).catch((cause: unknown) => {
+	const stored = await (bundled ? Promise.resolve(null) : revision ? getStoredPanelLocation(project, revision) : getStoredPanelLocationByBarcode(barcode)).catch((cause: unknown) => {
 		if (revision && cause instanceof Error && cause.message === "REVISION_NOT_FOUND") return null;
 		throw cause;
 	});
@@ -20,9 +21,9 @@ export const getPanelLocation = async (
 	if (!revision) {
 		const matches: { project: string; snapshot: PanelLocationSnapshot }[] = [];
 		for (const [key, entry] of Object.entries(catalog)) {
-			if (await getStoredPanelLocation(key)) continue;
+			if (bundled ? key !== project : await getStoredPanelLocation(key)) continue;
 			const snapshot = JSON.parse(await readFile(path.join(process.cwd(), "src/data/panel-locations", entry.snapshot), "utf8")) as PanelLocationSnapshot;
-			if (snapshot.panels.some((panel) => panel.barcode === barcode)) matches.push({ project: key, snapshot });
+			if (bundled || snapshot.panels.some((panel) => panel.barcode === barcode)) matches.push({ project: key, snapshot });
 		}
 		if (matches.length + Number(Boolean(stored)) > 1) throw new Error("LOCATION_AMBIGUOUS");
 		if (matches[0]) { project = matches[0].project; bundledSnapshot = matches[0].snapshot; }
@@ -32,6 +33,7 @@ export const getPanelLocation = async (
 	const snapshot = stored?.snapshot ?? bundledSnapshot ?? JSON.parse(await readFile(path.join(process.cwd(), "src/data/panel-locations", entry.snapshot), "utf8")) as PanelLocationSnapshot;
 	const namedSnapshot = stored ? snapshot : withPanelLocationDetails(snapshot, JSON.parse(await readFile(
 		path.join(process.cwd(), "src/data/panel-locations", entry.mapping ?? path.join(path.dirname(entry.snapshot), "mapping.json")), "utf8")));
+	if (bundled && !barcode) barcode = snapshot.panels[0]?.barcode ?? "";
 	const selected = snapshot.panels.find((panel) => panel.barcode === barcode);
 	return {
 		projectId: project,

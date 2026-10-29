@@ -58,6 +58,7 @@ export type LbyImportState = {
 export type LbyImportStage = "downloading" | "panels" | "rooms" | "saving";
 
 export type LbyImportResponse = {
+	candidate?: LbyImportVersion;
 	ok?: boolean;
 	error?: string;
 	stage?: LbyImportStage;
