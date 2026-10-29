@@ -5,6 +5,8 @@ let projectStarted = false;
 let projectWrites = 0;
 let projectCompleted = false;
 let completeWrites = 0;
+let manualStatus = "22619cd5-078e-4b12-a6d2-96d723eed52b";
+let manualWrites = 0;
 const component = (id, status) => ({
 	id, parent: "group", name: id,
 	custom_fields: [
@@ -18,14 +20,58 @@ http.createServer((req, res) => {
 	const mode = req.headers["x-test-mode"];
 	let status = 200;
 	let body;
-	if (mode?.startsWith("project-complete")) {
-		const task = { id: "complete-project", name: "Rak Buku · Kantor Contoh", parent: null, list: { id: listId }, status: { status: projectCompleted ? "complete" : "in progress" } };
+	if (mode === "lby-online") {
+		if (req.method === "GET" && url.pathname === "/api/v2/user") {
+			body = { user: { id: "online-admin" } };
+		} else if (req.method === "GET" && /^\/api\/v2\/task\/(online-project|online-other|z96buhry4p)$/.test(url.pathname)) {
+			body = { id: url.pathname.split("/").pop(), name: "Online import project", custom_id: "AY-ONLINE", parent: null, list: { id: listId }, status: { status: "in progress" } };
+		} else { status = 501; body = { error: "Endpoint not modeled" }; }
+	} else if (mode?.startsWith("manual-location")) {
+		const statusId = "3d3a2535-9d01-4ca2-8a51-9b2f9182857c";
+		const options = [
+			{ id: "22619cd5-078e-4b12-a6d2-96d723eed52b", name: "BARANG DITERIMA" },
+			{ id: "65d0e134-287b-4612-a410-109c8d28b2c0", name: "SEDANG DIPACKING" },
+			{ id: "4f941328-79fb-4594-b67e-542b87ccd502", name: "TERPASANG / DIGUNAKAN" },
+		];
+		const serial = JSON.parse(url.searchParams.get("custom_fields") || "[]")[0]?.value;
+		const task = { id: "manual-panel", name: "Panel contoh", list: { id: listId }, parent: "manual-group",
+			...(mode === "manual-location-parent" || mode === "manual-location-cycle" ? {} : { top_level_parent: serial === "no-model" ? "unimported-project" : serial === "15370040711" ? "z96buhr3eu" : "z96buhry4p" }),
+			custom_fields: [{ id: statusId, value: manualStatus }],
+		};
+		if (url.pathname === "/test/reset") {
+			manualStatus = options[0].id; manualWrites = 0; body = {};
+		} else if (url.pathname === "/test/writes") {
+			body = { writes: manualWrites, status: manualStatus };
+		} else if (url.pathname === "/api/v2/user") {
+			body = { user: { id: "manual-admin" } };
+		} else if (url.pathname === `/api/v2/list/${listId}/field`) {
+			body = { fields: [{ id: statusId, name: "STATUS BARANG SCAN", type_config: { options } }] };
+		} else if (url.pathname === `/api/v2/list/${listId}/task`) {
+			if (mode === "manual-location-rate-limit") { status = 429; body = {}; }
+			else body = { tasks: mode === "manual-location-lby-only" || serial === "unknown" ? [] : serial === "duplicate" ? [task, { ...task, id: "duplicate" }] : [task] };
+		} else if (req.method === "GET" && url.pathname === "/api/v2/task/manual-panel") {
+			body = task;
+		} else if (req.method === "GET" && url.pathname === "/api/v2/task/manual-group") {
+			body = { id: "manual-group", parent: mode === "manual-location-cycle" ? "manual-panel" : "z96buhry4p", list: { id: listId } };
+		} else if (req.method === "GET" && url.pathname === "/api/v2/task/z96buhry4p") {
+			body = { id: "z96buhry4p", parent: null, list: { id: listId } };
+		} else if (req.method === "POST" && url.pathname === `/api/v2/task/manual-panel/field/${statusId}`) {
+			if (mode === "manual-location-save-fail") { status = 503; body = {}; }
+			else if (!options.some((option) => option.id === req.body?.value)) { status = 400; body = {}; }
+			else { manualStatus = req.body.value; manualWrites++; body = {}; }
+		} else { status = 501; body = { error: "Endpoint not modeled" }; }
+	} else if (mode?.startsWith("project-complete")) {
+		const task = { id: "complete-project", name: "Rak Buku · Kantor Contoh", parent: null, list: { id: listId }, date_closed: projectCompleted ? String(Date.parse("2026-10-22T10:00:00Z")) : null, status: { status: projectCompleted ? "complete" : "in progress" } };
 		if (url.pathname === "/test/reset") {
 			projectCompleted = false; completeWrites = 0; body = {};
 		} else if (url.pathname === "/test/writes") {
 			body = { writes: completeWrites };
 		} else if (url.pathname === `/api/v2/list/${listId}/task`) {
+			if (url.searchParams.get("statuses[]") === "complete") {
+				body = { tasks: projectCompleted && url.searchParams.get("include_closed") === "true" ? [task] : [], last_page: true };
+			} else {
 			body = { tasks: projectCompleted ? [] : [task], last_page: true };
+			}
 		} else if (url.pathname === "/api/v2/team/90182186539/task") {
 			if (url.searchParams.get("parent") !== task.id || url.searchParams.get("subtasks") !== "true" || url.searchParams.get("include_closed") !== "true") {
 				status = 400; body = { error: "Invalid hierarchy query" };
@@ -41,6 +87,8 @@ http.createServer((req, res) => {
 			}
 		} else if (req.method === "GET" && url.pathname.startsWith("/api/v2/task/")) {
 			const id = url.pathname.split("/").pop();
+			if (mode === "project-complete-forbidden") { status = 403; body = {}; }
+			else
 			body = { ...task, id,
 				...(id === "child" ? { parent: task.id } : {}),
 				...(id === "foreign" ? { list: { id: "other-list" } } : {}),
@@ -60,8 +108,16 @@ http.createServer((req, res) => {
 		} else if (url.pathname === "/test/writes") {
 			body = { writes: projectWrites };
 		} else if (url.pathname === `/api/v2/list/${listId}/task`) {
+			if (url.searchParams.get("statuses[]") === "complete") {
+				const page = url.searchParams.get("page");
+				const done = { ...task, id: "done-project", name: "Completed project", status: { status: "complete" } };
+				if (url.searchParams.get("include_closed") !== "true") { status = 400; body = { error: "Closed tasks must be included" }; }
+				else if (mode === "project-start-rate-limit") { status = 429; body = {}; }
+				else body = { tasks: page === "0" ? [done, { ...done, id: "done-child", parent: done.id }] : [{ ...done, id: "done-project-2" }], last_page: page === "1" };
+			} else {
 			const matches = url.searchParams.get("statuses[]") === task.status.status;
 			body = { tasks: matches ? (url.searchParams.get("page") === "0" ? [task] : [{ ...task, id: "child", parent: task.id }]) : [], last_page: url.searchParams.get("page") === "1" || !matches };
+			}
 		} else if (req.method === "GET" && url.pathname.startsWith("/api/v2/task/")) {
 			const id = url.pathname.split("/").pop();
 			body = { ...task, id,
@@ -88,7 +144,7 @@ http.createServer((req, res) => {
 	} else if (req.method !== "GET") {
 		status = 501;
 		body = { error: "Unexpected mutation" };
-	} else if (mode?.startsWith("home") && url.pathname === "/api/v2/user") {
+	} else if (url.pathname === "/api/v2/user") {
 		body = { user: { id: "local-admin" } };
 	} else if (mode?.startsWith("home") && url.pathname.endsWith("/members")) {
 		body = { data: [
@@ -112,6 +168,11 @@ http.createServer((req, res) => {
 			url.searchParams.get("include_closed") !== "true") {
 			status = 400;
 			body = { error: "Invalid hierarchy query" };
+		} else if (mode?.startsWith("home")) {
+			body = { tasks: [
+				{ id: "group", parent: "project", name: "Panels" },
+				...Array.from({ length: 36 }, (_, index) => component(`p-${index}`, index >= 24 ? null : index < 4 ? "dc6eef4c-6843-4043-9938-b14388511be0" : "22619cd5-078e-4b12-a6d2-96d723eed52b")),
+			], last_page: true };
 		} else if (url.searchParams.get("page") === "0") {
 			body = { tasks: [{ id: "group", parent: "project", name: "Group" }, component("one", "22619cd5-078e-4b12-a6d2-96d723eed52b")], last_page: false };
 		} else if (mode === "rate-limit") {
@@ -128,6 +189,6 @@ http.createServer((req, res) => {
 		res.writeHead(status, { "Content-Type": "application/json" });
 		res.end(JSON.stringify(body));
 	};
-	if (mode === "home-slow" && url.pathname.endsWith("/time_in_status")) setTimeout(respond, 2000);
+	if (mode === "home-slow" && (url.pathname.endsWith("/time_in_status") || url.pathname === `/api/v2/list/${listId}/task`)) setTimeout(respond, 2000);
 	else respond();
 }).listen(process.env.PORT);

@@ -1,3 +1,4 @@
+import { hasPpicAdminAccess } from "@/types/ppic";
 import { NextResponse } from "next/server";
 import { clickUpHeaders } from "@/lib/clickup";
 import { savePpicScanHistory, updatePpicComponentStatus } from "@/lib/db";
@@ -95,7 +96,7 @@ export async function POST(request: Request) {
 	if (!target) return error(400, "INVALID_STATUS");
 	const userId = await requireFreshPpicStatusAccess(status);
 	const session = await ppicSession();
-	if (session?.role === "SUPER_ADMIN") return error(401, "UNAUTHORIZED");
+	if (hasPpicAdminAccess(session?.role)) return error(401, "UNAUTHORIZED");
 	const mainTaskId = await selectedProjectTaskId(userId);
 	if (!mainTaskId) return error(409, "NO_SELECTED_PROJECT");
 	const token = await clickUpToken();

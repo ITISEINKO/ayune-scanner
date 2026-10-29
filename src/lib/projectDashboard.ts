@@ -6,14 +6,18 @@ import {
 	getPpicProjectScanHistory,
 	getPpicProjectStatuses,
 	invalidateAdminProjectSnapshots,
+	isPpicSuperAdmin,
 	seedPpicProjectStatuses,
+	stageAdminProjectSnapshot,
 } from "@/lib/db";
 import { createHash, randomUUID } from "node:crypto";
 import { getPanelProject, invalidateProjectLists, panelListId } from "@/lib/projects";
 import { clickUpHeaders } from "@/lib/clickup";
 import { getScanStatus, serialNumberOf } from "@/lib/projectSerialCache";
 import { applyProjectStatusChanges } from "@/lib/projectStatus";
+import { withCompletedProjectInsights } from "@/lib/completedProjectInsights";
 import { CLICKUP_TEAM_ID } from "@/lib/produksiPanel";
+import { clickUpUserIdForToken } from "@/lib/session";
 import type { ClickUpTask } from "@/types/clickup";
 import type {
 	ProjectDashboard,
@@ -120,38 +124,72 @@ const itemIdFor = (
 	return null;
 };
 
-export const completeProject = async (token: string, taskId: string) => {
-	const task = await getPanelProject(token, taskId);
+const completedSnapshotKey = (token: string, taskId: string) => `completed:${createHash("sha256")
+	.update(JSON.stringify([token, panelListId(), taskId])).digest("hex")}`;
+
+export const completeProject = async (token: string, taskId: string, userId: string) => {
+	let task = await getPanelProject(token, taskId);
 	const status = task.status?.status?.toLowerCase();
 	if (status !== "in progress" && status !== "complete")
 		throw new Error("PROJECT_STATUS_CHANGED");
-	if (status !== "complete") {
-		const tasks = await loadDescendantTasks(token, taskId, AbortSignal.timeout(45_000));
-		if (tasks.some((component) => serialNumberOf(component)?.trim() && !getScanStatus(component)))
-			throw new Error("PROJECT_HAS_UNSCANNED_SERIALS");
-		const response = await fetch(`https://api.clickup.com/api/v2/task/${encodeURIComponent(taskId)}`, {
-			method: "PUT",
-			headers: { ...clickUpHeaders(token), "Content-Type": "application/json" },
-			body: JSON.stringify({ status: "complete" }),
-		});
-		if (!response.ok) throw clickUpError(response);
+	const project = { task_id: taskId, name: task.name ?? null, custom_id: task.custom_id ?? null };
+	let dashboard: ProjectDashboard;
+	if (status === "complete") {
+		dashboard = await getCompletedProjectDashboard(token, project);
+	} else {
+		const scopeKey = completedSnapshotKey(token, taskId);
+		const refreshId = randomUUID();
+		if (!(await claimAdminProjectRefresh(scopeKey, refreshId))) throw new Error("PROJECT_SYNC_IN_PROGRESS");
+		try {
+			task = await getPanelProject(token, taskId);
+			if (task.status?.status?.toLowerCase() !== "in progress") throw new Error("PROJECT_STATUS_CHANGED");
+			const tasks = await loadDescendantTasks(token, taskId, AbortSignal.timeout(45_000));
+			if (tasks.some((component) => serialNumberOf(component)?.trim() && !getScanStatus(component)))
+				throw new Error("PROJECT_HAS_UNSCANNED_SERIALS");
+			dashboard = await buildProjectDashboard(token, project, { parent: task, tasks });
+			const names = await getPpicMemberNames([userId]);
+			dashboard.completion = {
+				completedAt: null,
+				capturedAt: new Date().toISOString(),
+				completedBy: { userId, name: names[userId] ?? userId },
+				source: "completion",
+			};
+			// Persist the review before changing ClickUp so a failed final save can be recovered on retry.
+			await stageAdminProjectSnapshot(scopeKey, refreshId, dashboard);
+			const response = await fetch(`https://api.clickup.com/api/v2/task/${encodeURIComponent(taskId)}`, {
+				method: "PUT",
+				headers: { ...clickUpHeaders(token), "Content-Type": "application/json" },
+				body: JSON.stringify({ status: "complete" }),
+			});
+			if (!response.ok) throw clickUpError(response);
+			dashboard = withCompletedProjectInsights({
+				...dashboard,
+				project: { ...dashboard.project, status: "complete" },
+				completion: { ...dashboard.completion, completedAt: new Date().toISOString() },
+			});
+			if (!(await finishAdminProjectRefresh(scopeKey, refreshId, dashboard))) throw new Error("PROJECT_SYNC_SUPERSEDED");
+		} catch (cause) {
+			await finishAdminProjectRefresh(scopeKey, refreshId);
+			throw cause;
+		}
 	}
 	invalidateProjectLists();
 	await invalidateAdminProjectSnapshots(taskId);
-	return { ...task, status: { status: "complete" } };
+	return { ...task, status: { status: "complete" }, dashboard };
 };
 
 const buildProjectDashboard = async (
 	token: string,
 	project: SelectedProject,
+	source?: { parent: ClickUpTask; tasks?: ClickUpTask[] },
 ): Promise<ProjectDashboard> => {
 	const startedAt = Date.now();
 	const signal = AbortSignal.timeout(45_000);
 	const [parent, history, currentStatus, allTasks] = await Promise.all([
-		loadTask(token, project.task_id, signal),
+		source?.parent ?? loadTask(token, project.task_id, signal),
 		getPpicProjectScanHistory(project.task_id),
 		loadCurrentStatusDuration(token, project.task_id, signal),
-		loadDescendantTasks(token, project.task_id, signal),
+		source?.tasks ?? loadDescendantTasks(token, project.task_id, signal),
 	]);
 	if (
 		parent.id !== project.task_id ||
@@ -232,14 +270,57 @@ const buildProjectDashboard = async (
 	};
 };
 
+export const getCompletedProjectDashboard = async (token: string, project: SelectedProject) => {
+	// Verify current ClickUp access before returning a frozen snapshot.
+	const parent = await getPanelProject(token, project.task_id);
+	if (parent.status?.status?.toLowerCase() !== "complete") throw new Error("PROJECT_STATUS_CHANGED");
+	const scopeKey = completedSnapshotKey(token, project.task_id);
+	const saved = await getAdminProjectSnapshot(scopeKey);
+	if (saved?.project.status === "complete" && saved.completion) return withCompletedProjectInsights(saved);
+	const refreshId = randomUUID();
+	if (!(await claimAdminProjectRefresh(scopeKey, refreshId))) throw new Error("PROJECT_SYNC_IN_PROGRESS");
+	try {
+		const current = await getAdminProjectSnapshot(scopeKey);
+		if (current?.project.status === "complete" && current.completion) {
+			await finishAdminProjectRefresh(scopeKey, refreshId);
+			return withCompletedProjectInsights(current);
+		}
+		const dashboard = current?.completion ? current : await buildProjectDashboard(token, project, { parent });
+		const archived = withCompletedProjectInsights({
+			...dashboard,
+			project: { ...dashboard.project, status: "complete" },
+			completion: {
+				completedAt: parent.date_closed ?? parent.date_done ?? null,
+				capturedAt: dashboard.completion?.capturedAt ?? new Date().toISOString(),
+				// A legacy or recovered completion cannot prove who performed the ClickUp update.
+				completedBy: null,
+				source: dashboard.completion?.source ?? "first-view",
+			},
+		});
+		if (!(await finishAdminProjectRefresh(scopeKey, refreshId, archived))) throw new Error("PROJECT_SYNC_SUPERSEDED");
+		return archived;
+	} catch (cause) {
+		await finishAdminProjectRefresh(scopeKey, refreshId);
+		throw cause;
+	}
+};
+
 export const getProjectDashboard = async (
 	token: string,
 	project: SelectedProject,
 	refresh = false,
 ) => {
-	// Keep snapshots isolated by ClickUp access scope without persisting credentials.
+	const archived = await getAdminProjectSnapshot(completedSnapshotKey(token, project.task_id));
+	if (archived?.project.status === "complete" && archived.completion) {
+		const current = await getPanelProject(token, project.task_id);
+		if (current.status?.status?.toLowerCase() === "complete") return withCompletedProjectInsights(archived);
+		refresh = true;
+	}
+	const sourceToken = process.env.CLICKUP_TOKEN;
+	if (!sourceToken) throw new Error("DASHBOARD_TOKEN_MISSING");
+	// All authorized admins use the server account's project snapshot and refresh lease.
 	const scopeKey = createHash("sha256")
-		.update(JSON.stringify([token, panelListId(), project.task_id]))
+		.update(JSON.stringify([sourceToken, panelListId(), project.task_id]))
 		.digest("hex");
 	let dashboard = refresh ? null : await getAdminProjectSnapshot(scopeKey);
 	if (!dashboard) {
@@ -249,7 +330,12 @@ export const getProjectDashboard = async (
 		try {
 			// A concurrent first load may have finished between the read and lease acquisition.
 			dashboard = refresh ? null : await getAdminProjectSnapshot(scopeKey);
-			dashboard ??= await buildProjectDashboard(token, project);
+			if (!dashboard) {
+				const serviceUserId = await clickUpUserIdForToken(sourceToken);
+				if (!serviceUserId || !(await isPpicSuperAdmin(serviceUserId)))
+					throw new Error("DASHBOARD_SERVICE_UNAUTHORIZED");
+				dashboard = await buildProjectDashboard(sourceToken, project);
+			}
 			if (!(await finishAdminProjectRefresh(scopeKey, refreshId, dashboard)))
 				throw new Error("PROJECT_SYNC_SUPERSEDED");
 		} catch (cause) {
@@ -257,6 +343,8 @@ export const getProjectDashboard = async (
 			throw cause;
 		}
 	}
+	if (dashboard.project.status?.toLowerCase() === "complete")
+		return getCompletedProjectDashboard(token, project);
 	const updated = applyProjectStatusChanges(
 		dashboard,
 		(await getPpicProjectStatuses(project.task_id)).filter(

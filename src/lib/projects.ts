@@ -1,6 +1,7 @@
 import { clickUpHeaders } from "@/lib/clickup";
 import { PANEL_LIST_ID } from "@/lib/produksiPanel";
 import type { ClickUpTask } from "@/types/clickup";
+import type { ProjectListStatus } from "@/types/project";
 
 const projectCache = new Map<string, { expires: number; tasks: ClickUpTask[] }>();
 
@@ -9,7 +10,7 @@ export const panelListId = () =>
 
 export const projectsByStatus = async (
 	token: string,
-	status: "in progress" | "to do",
+	status: ProjectListStatus,
 	refresh = false,
 ) => {
 	const cacheKey = `${token}:${status}`;
@@ -21,6 +22,7 @@ export const projectsByStatus = async (
 			"statuses[]": status,
 			page: String(page),
 		});
+		if (status === "complete") query.set("include_closed", "true");
 		const response = await fetch(
 			`https://api.clickup.com/api/v2/list/${panelListId()}/task?${query}`,
 			{ headers: clickUpHeaders(token), cache: "no-store" },

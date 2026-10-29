@@ -1,10 +1,13 @@
 "use client";
 
+import { hasPpicAdminAccess } from "@/types/ppic";
+
 import {
 	FolderKanban,
 	History,
 	House,
 	ScanLine,
+	Search,
 	User,
 	Users,
 } from "lucide-react";
@@ -22,33 +25,44 @@ const superAdminItems = [
 ];
 const memberItems = [
 	{ href: "/projects", label: "Projects", icon: FolderKanban },
+	{ href: "/cari-lokasi", label: "Cari", icon: Search },
 	{ href: "/history", label: "History", icon: History },
 	{ href: "/profile", label: "Profile", icon: User },
 ];
+const drafterItems = [
+	{ href: "/drafter", label: "Models", icon: FolderKanban },
+	{ href: "/cari-lokasi", label: "Cari", icon: Search },
+	{ href: "/drafter/profile", label: "Profile", icon: User },
+];
 
 const getNavigationItemsByRole = (role: PpicRole | null) => {
-	if (role === "SUPER_ADMIN") return superAdminItems;
+	if (hasPpicAdminAccess(role)) return superAdminItems;
 	if (role === "MEMBER") return memberItems;
 	return [];
 };
 
 export function BottomNavigation({
 	role,
+	workspace,
 }: {
 	role: PpicRole | null;
+	workspace?: "drafter";
 }) {
 	const pathname = usePathname();
 	if (pathname === "/login") return null;
-	const navigationItems = getNavigationItemsByRole(role);
+	const navigationItems =
+		workspace === "drafter" ? drafterItems : getNavigationItemsByRole(role);
 	if (!navigationItems.length) return null;
 
 	return (
 		<nav
 			aria-label="Main navigation"
-			className="fixed inset-x-0 bottom-0 z-50 mx-auto flex max-w-lg items-center rounded-t-2xl border border-border/70 bg-primary px-3 py-3 shadow-lg"
+			className="fixed inset-x-0 bottom-0 z-50 mx-auto flex h-(--bottom-navigation-height) max-w-lg items-center rounded-t-2xl border border-border/70 bg-primary px-3 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] shadow-lg"
 		>
 			{navigationItems.map(({ href, label, icon: Icon }, index) => {
-				const active = pathname === href ||
+				const active =
+					pathname === href ||
+					(href === "/admin/ubah-manual" && pathname.startsWith(`${href}/`)) ||
 					(href === "/admin/projects" && pathname === "/admin/project");
 				const className = `flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-md px-1 py-2 text-xs text-white ${
 					active ? "font-bold bg-white/10" : "font-medium"

@@ -1,6 +1,6 @@
 # AdminDashboard data flow, calculations, and edge cases
 
-Reviewed: 2026-10-24. Describes the current working tree, including the cached dashboard endpoint and daily stacked scan chart. This is implementation documentation; live ClickUp/Turso contents and deployment behavior were not verified. Older plans such as [PLAN_ADMIN_DASHBOARD.md](PLAN_ADMIN_DASHBOARD.md) describe proposals and must not be treated as the current implementation.
+Reviewed: 2026-10-27. Describes the shared dashboard summary, five-minute background refresh, scheduled prewarm and daily stacked scan chart. This is implementation documentation; production cron execution has not been verified. Older plans such as [PLAN_ADMIN_DASHBOARD.md](PLAN_ADMIN_DASHBOARD.md) describe proposals and must not be treated as the current implementation.
 
 ## What the numbers measure
 
@@ -21,14 +21,20 @@ flowchart TD
     Browser[Browser opens /admin] --> Home[AdminHome server component]
     Home --> Auth[requireSuperAdmin + clickUpToken]
     Auth --> LocalRole[Fresh local admin role]
-    LocalRole --> Last[(Saved dashboard summary)]
+    LocalRole --> Last[(Shared saved dashboard summary)]
     Last -->|found| UI
     Last -->|missing| Shell[Render matching skeleton]
-    Shell --> Endpoint[GET /api/admin/dashboard?refresh=1]
-    UI -->|explicit refresh only| Endpoint
+    Shell --> Endpoint[GET /api/admin/dashboard]
+    UI -->|visible five-minute interval or stale focus/reconnect| Endpoint
+    UI -->|manual refresh=1| Endpoint
     Endpoint --> Guard[Signed identity + token + fresh local admin role]
-    Guard --> Projects[inProgressProjects]
-    Guard --> Roster[panelChannelMembers]
+    Cron[Vercel cron 05:45 WIB] --> Secret[CRON_SECRET validation]
+    Secret --> Service[Server CLICKUP_TOKEN + current local admin role]
+    Guard --> Fresh[Shared five-minute freshness check and database lease]
+    Fresh -->|fresh, busy or automatic cooldown| Last
+    Fresh -->|lease acquired| Service
+    Service --> Projects[Fresh inProgressProjects list]
+    Service --> Roster[panelChannelMembers]
     Projects --> Dashboards[getProjectDashboard for every project]
     Dashboards --> Snapshot[(Turso project snapshot)]
     Snapshot -->|miss only| ClickUp[ClickUp parent + paginated descendants + duration]
@@ -41,8 +47,8 @@ flowchart TD
     Daily --> Summaries[Derive 7-day member summaries]
     Dashboards --> Totals[summarizeAdminOverview]
     Summaries --> Totals
-    Totals -->|complete and newer| Last
-    Totals --> UI[AdminDashboard React Query data]
+    Totals -->|complete, newer and lease still owned| Last
+    Last --> UI[AdminDashboard React Query data]
     Daily --> UI
     UI -->|7 / 30 hari| Slice[Local slice of dailyScans; no request]
     UI -->|tap active member| Drawer[MemberScanOverview]
@@ -50,21 +56,23 @@ flowchart TD
     API --> History[(Turso scan history)]
 ```
 
-Initial page loading performs fresh local admin authorization and reads the saved presentation payload from `ppic_admin_dashboard_snapshot`. `AdminDashboard` receives that payload as React Query initial data; reopening, reloading, reconnecting, or changing the login token does not trigger a dashboard API request or calculation. Without a saved result, the shared `AdminDashboardSkeleton` appears while the first calculation runs. **Perbarui dashboard** explicitly requests a new calculation. The endpoint calls [`src/lib/adminDashboard.ts`](../src/lib/adminDashboard.ts); the payload remains `now`, `totals`, `projectsReady`, `projectCount`, `members`, and `dailyScans`. See [the endpoint contract](ADMIN_DASHBOARD_API.md).
+Initial page loading performs fresh local admin authorization and reads the shared presentation payload from `ppic_admin_dashboard_snapshot`. Every authorized admin receives the same service-account summary. `AdminDashboard` receives it as React Query initial data and shows it immediately. If its calculation timestamp is older than five minutes, a background request checks freshness. A visible tab also checks every five minutes; hidden tabs pause, and stale focus/reconnect triggers a check. Existing data stays visible until a complete calculation succeeds. The initial timestamp participates in the query key, so a newer server snapshot replaces an older in-memory result on return navigation. Without a saved result, `AdminDashboardSkeleton` appears during the first calculation. **Perbarui dashboard** forces a summary refresh, subject to the shared active lease. A daily authenticated cron runs before the 07:00 WIB target, independently of login. The payload fields remain unchanged. See [the endpoint contract](ADMIN_DASHBOARD_API.md).
 
 ### 1. Authentication and parallel loading
 
 [`src/app/admin/(dashboard)/page.tsx`](../src/app/admin/(dashboard)/page.tsx), [`src/app/api/admin/dashboard/route.ts`](../src/app/api/admin/dashboard/route.ts), and `getAdminDashboard`:
 
 1. Await `requireSuperAdmin()`, require the ClickUp token and signed-session identity, then check the current local `SUPER_ADMIN` role before reading any saved summary. Missing credentials redirect to `/login`; revoked/non-admin access redirects to `/unauthorized`.
-2. Render the saved summary without another dashboard request. A first calculation or explicit refresh uses the endpoint, which independently checks signed-session identity, token, and fresh local admin role. Missing credentials return 401, revoked/non-admin access 403, unexpected failures 502.
+2. Render the shared saved summary immediately. First calculation, stale checks and explicit refresh use the endpoint, which independently checks signed-session identity, login token, and fresh local admin role. Missing credentials return 401, revoked/non-admin access 403, unexpected failures 502. Rebuilds use `CLICKUP_TOKEN` from the server environment and verify its owner's current local admin role. The cron instead checks `CRON_SECRET` before calling that same builder.
 3. On an aggregate cache rebuild, capture one `now = Date.now()` for the heading/history cutoff and run project and team branches with `Promise.allSettled`. A failure in one branch does not discard the other.
 4. Within the project branch, load each dashboard concurrently with another `Promise.allSettled`. Keep fulfilled dashboards, but mark project totals unavailable unless **all** listed projects loaded.
 5. Within the team branch, fetch the roster using the explicit token (no cookie read inside the cache), load local roles/permissions, exclude `SUPER_ADMIN`, and run one grouped 30-day history query. Derive every member's seven-day `today`, `total`, and `days` from those same rows. A grouped-history failure sets every member summary and `dailyScans` to null, while retaining the roster.
 
 There is no concurrency limit on the per-project fan-out. The endpoint has `maxDuration = 60`; this is not a timeout on each operation. Home no longer runs per-member lifetime queries: history SQL statements fall from `2 * memberCount + 1` to one per aggregate rebuild.
 
-The last complete presentation payload is stored in `ppic_admin_dashboard_snapshot`, scoped by a hash of signed admin user ID, Panel list, database URL, and chat workspace/channel configuration. It survives a new login token or Jakarta date and does not expire automatically. Partial calculations do not overwrite it; a conditional upsert prevents a slower older calculation from replacing a newer saved result. The header shows `Data terakhir` with the calculation date/time in WIB. Team labels such as `hari ini` refer to that saved calculation date until explicitly refreshed. A first-ever visit still needs a calculation. Client `staleTime` is infinite, with no polling, focus refetch, or reconnect refetch. Successful HTTP responses are `private, no-store`; authorization still runs on every page/API request. Ordinary endpoint reads reuse the saved result; `?refresh=1` calculates again.
+The last complete payload uses a `shared:` scope hash of server token, Panel list, database URL, and chat workspace/channel configuration in `ppic_admin_dashboard_snapshot`. All authorized admins reuse it; old per-admin rows remain untouched but are not read. No raw credentials are stored. Partial calculations return 502 and preserve saved/displayed data. The conditional upsert rejects older results and owners that lost their lease. The header shows the calculation date/time in WIB. `vercel.json` schedules `45 22 * * *` UTC (05:45 WIB), allowing Hobby scheduling delay before the 07:00 target. `CRON_SECRET` and `CLICKUP_TOKEN` must be configured in Vercel Production and the change deployed. An initial authenticated cron invocation prepopulates the shared scope. If that has not happened, its first visitor still calculates once. Client `staleTime` and visible-tab polling are five minutes. Authorization runs on every page/API request.
+
+`ppic_admin_dashboard_refresh` holds an atomic 60-second lease for the same shared scope, plus the last attempt timestamp. A fresh ordinary read returns the saved payload. A stale read can claim a rebuild only once per five minutes, including after failure. Contenders return the latest complete payload or 502 if none exists. Manual refresh and cron bypass the automatic cooldown but cannot take an active lease. Releasing/saving requires the matching owner ID; expired or superseded work cannot publish. The request awaits its work rather than starting a detached job. Each browser displays a new result on its own next successful check; no push subscription was added.
 
 ### 2. Project fetching and freshness
 
@@ -73,7 +81,7 @@ The last complete presentation payload is stored in `ppic_admin_dashboard_snapsh
 | Operation | Request/storage | Behavior |
 | --- | --- | --- |
 | Project list | `GET https://api.clickup.com/api/v2/list/{panelListId}/task?statuses[]=in progress&page=N` | Starts at page 0; stops on `last_page` or empty tasks. Keeps only `!task.parent`. Does not request subtasks. Process-local cache keyed by token/status for 60 seconds. List ID uses `CLICKUP_PPIC_PANEL_LIST_ID` or `PANEL_LIST_ID`. |
-| Project snapshot | `ppic_admin_project_snapshot` | Key is SHA-256 of `[token, panelListId(), project.task_id]`. Snapshot is isolated by access scope; stored JSON has no automatic expiry check. |
+| Ongoing project snapshot | `ppic_admin_project_snapshot` | Key is SHA-256 of `[server CLICKUP_TOKEN, panelListId(), project.task_id]`, shared by all currently authorized admins and Home/prewarm. Browser identity/token does not select the ongoing data source. Stored JSON has no automatic expiry check; completed archive scopes remain separate. |
 | Cold parent read | `GET /api/v2/task/{id}?include_subtasks=true` | Validates matching ID, no parent, and matching panel list. The embedded subtasks are not the component-count source. |
 | Cold descendants | `GET /api/v2/team/{CLICKUP_TEAM_ID}/task?parent={id}&subtasks=true&include_closed=true&page=N` | Sequential pages, stop on `last_page` or empty array, reject non-array `tasks`, deduplicate by task ID. Uses the imported team constant. |
 | Cold project duration | `GET /api/v2/task/{id}/time_in_status` | Non-OK/invalid JSON/non-in-progress status yields null duration; network rejection can still fail the build. Not displayed by the home dashboard. |
@@ -84,9 +92,11 @@ Cold builds run parent, duration, descendants, and project-history loading concu
 
 A 60-second database lease prevents simultaneous cold builds for the same scope. A contender can get `PROJECT_SYNC_IN_PROGRESS`; losing lease ownership can yield `PROJECT_SYNC_SUPERSEDED`. It does not wait for the other build. Failed refreshes retain any previously saved snapshot JSON.
 
+Ongoing project pages and `GET/POST /api/project/sync` check the signed viewer identity, login-token cookie and current local admin role before reading shared data. Cold/forced project builds additionally verify the server token owner's current local admin role. The existing status-delta endpoint now checks current local authorization too. The detail page reads `GET /api/project/sync?task_id=...` roughly every five minutes on its existing adaptive status timer (up to 60 seconds later); hidden tabs pause and returning triggers a due check. It displays the old data while waiting and on failure. These reads reuse the saved project snapshot plus current local status overlay; they do not initiate recurring ClickUp Resync. A failed snapshot check waits five minutes before another snapshot attempt while ordinary status polling continues. See [the project detail contract](PROJECT_DETAIL_API.md).
+
 **Loading can write local data:** a cold build seeds `ppic_component_status` and saves the snapshot. It performs no ClickUp mutation. Seeding only overwrites older local status timestamps, protecting updates recorded after the build started. Afterward, `applyProjectStatusChanges` overlays newer/equal status timestamps and removes `DIHAPUSKAN` components. It does not add missing components or move them between groups.
 
-**Refresh is not Resync:** the home **Perbarui dashboard** and error buttons call `GET /api/admin/dashboard?refresh=1`. This waits for a rebuilt summary while keeping existing displayed data during the request. A failed HTTP refresh preserves that data and shows an error. Partial responses still show the existing incomplete-data warnings but do not replace the complete saved summary. Rebuilding can reuse the 60-second project list, cached roster, and persistent project snapshots. The home component has no polling, Ably subscription, or midnight timer. A project-specific `POST /api/project/sync` with `{ "task_id": "..." }` forces a project rebuild through `getProjectDashboard(..., true)`; the home button does not call it.
+**Manual refresh and scheduled freshness:** Home buttons call `GET /api/admin/dashboard?refresh=1`; automatic checks use the plain endpoint. Both preserve displayed data during requests and on failure. Summary rebuilds fetch a fresh project list but reuse the cached roster and persistent project snapshots, applying newer local statuses. The scheduled job uses `getAdminDashboard("projects")`, additionally passing `refresh=true` to each project dashboard to retrieve current hierarchy/status before saving the shared aggregate. The project-specific `POST /api/project/sync` remains a separate action; the cron reuses its underlying builder without making internal HTTP calls. Home polls while visible, with no Ably subscription or midnight timer. Partial results do not replace the last complete aggregate or displayed data; failed/incomplete rebuilds return 502 and retain it.
 
 ### 3. Which components are counted
 
@@ -194,10 +204,10 @@ Drawer totals/statuses use the **selected period**. Its percentage change is `Ma
 | --- | --- |
 | No ongoing projects | Project branch succeeds: 0 projects, 0 components, 0%. Team history can still be nonzero. |
 | Ongoing project with no countable components | Included in project count; contributes zero to denominator. An all-empty inventory shows 0%, not 100%. |
-| One project dashboard fails | `projectsReady = false`; inventory percentage/count/status bar and return alert are withheld. Listed project count can still be known. |
-| Entire project-list request fails | Project count becomes null and displays a dash; team data can remain available. |
-| Grouped history query fails | `teamReady = false`; member summaries and chart become unavailable together, team KPIs and idle alert are withheld, and roster-based no-access alerts can still appear. Inventory can still render. Zero bars are not substituted for a failure. |
-| Roster/permission load fails | Members and daily chart become null; inventory can still render. |
+| One project dashboard fails | Rebuild is incomplete and returns 502; the last complete dashboard stays visible. Without previous data, the initial error/retry screen appears. |
+| Entire project-list request fails | Same incomplete-result retention; no partial inventory replaces complete data. |
+| Grouped history query fails | Same incomplete-result retention; no partial team/chart replaces complete data. |
+| Roster/permission load fails | Same incomplete-result retention. |
 | Empty roster or only admins | `members = []` is a ready team (`every` is true); team KPIs are zero, chart has zero days, and list shows no active members. |
 | No scans in selected chart period | Zero totals remain visible for every date plus an explicit empty-period message. |
 | Access disabled after earlier scans | That member's events stay in totals/chart/list; they do not count toward active/enabled/idle. A nonzero scan count with `active = 0` is possible. |
@@ -205,10 +215,10 @@ Drawer totals/statuses use the **selected period**. Its percentage change is `Ma
 | Channel member has no local permission record | No scan access by default. Initial helper can read their history, but tapping them may yield drawer 404 until a local record exists. |
 | Supporting group or deleted component has history | Inventory excludes it, but member-history reports still include its stored events; no history-side group/status deletion filter exists. |
 | New/deleted/reparented ClickUp tasks | Existing snapshot structure does not change from a status overlay. A project Resync is needed; home refresh alone does not force it. |
-| Status-only update | Refreshed home can reflect a newer local overlay; an already-open home does not receive it automatically. Unknown component IDs are ignored by the overlay. |
+| Status-only update | The next successful shared rebuild/check reflects a newer local overlay. Unknown component IDs are ignored by the overlay. |
 | Old snapshot component already removed as DIHAPUSKAN | An overlay cannot recreate it; rebuilding structure is needed to reintroduce a component omitted from the saved snapshot. |
 | Near-100% after rounding | `Math.round` may display 100% with a small unscanned remainder, e.g. 200/201. Read the exact recorded/total values. |
-| No attention rows but incomplete data | Shows waiting text when project/team summaries are incomplete. A chart-only failure has its own warning and does not alter the attention-category rules. |
+| Failed/incomplete refresh | Shows the refresh error and keeps the last complete dashboard and calculation timestamp. Automatic retries share the five-minute cooldown; manual retry bypasses it. |
 
 ## Verification and maintenance
 
@@ -228,6 +238,6 @@ git diff --check
 
 The daily-query check uses an in-memory database and blocks outbound fetches. It asserts one SQL statement for all home history data and covers WIB midnight/window boundaries, future-row exclusion, repeated events, legacy-status stacks, caller-supplied roster scope, zero days, leap day, errors, and exact agreement with existing seven-day member summaries. The overview/member-summary checks cover existing formulas and summary authorization/calendar behavior.
 
-The home browser check uses a local database and the repository's synthetic ClickUp Postman simulation. It checks totals, four stacked statuses, 7/30 switching, contained horizontal scrolling at 320/390/1440px, member detail, and empty/error states. API/browser checks cover saved-result reuse without automatic requests, login-token rotation and old calculation dates, explicit refresh after database changes, fresh page/API authorization, isolated admin accounts, incomplete-result retention, concurrent refresh ordering, and the shared skeleton during a cold load. This verifies local rendering/integration; it does not establish live ClickUp completeness, production latency, database scale, deployed behavior, or touch-device behavior.
+The home browser check uses a local database and the repository's synthetic ClickUp Postman simulation. It checks totals, four stacked statuses, 7/30 switching, contained scrolling at 320/390/1440px, member detail, and empty/error states. API/browser checks cover authenticated cron prewarm, shared summaries across admins, token rotation, fresh page/API/service-account authorization, five-minute stale checks, concurrent automatic/manual refresh leases, lost-owner fencing, failed/incomplete-result retention, failure cooldown, visible-tab polling, hidden-tab pause, stale-focus refresh and the matching cold skeleton. Browser time and visibility are simulated for interval/focus checks. This verifies local rendering/integration; it does not establish production cron execution, live ClickUp completeness, production latency, database scale, multi-instance deployment or touch-device behavior.
 
 When changing this flow, review `AdminHome`, `AdminDashboard`, `/api/admin/dashboard`, `adminDashboard`, `adminOverview`, `projectDashboard`, `projects`, `projectStatus`, `db`, `session`, `MemberScanOverview`, `ReactQueryProviders`, and `types/ppic` together. Keep current-component counts separate from event counts, and keep the home chart's roster/timezone aligned with the home team KPIs. Member drawer code is dynamically imported when opened rather than included in the initial dashboard chart bundle.

@@ -1,0 +1,7 @@
+simulation: lby-online-import
+routing: path
+mocks:
+  - routeKey: lby
+    path: ./lby-import-mock/config.yaml
+  - routeKey: clickup
+    path: ../postman/mocks/admin-dashboard/config.yaml

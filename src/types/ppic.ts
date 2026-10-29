@@ -8,14 +8,18 @@ export const PPIC_STATUSES = [
 export type PpicStatus = (typeof PPIC_STATUSES)[number];
 export type PpicStatuses = PpicStatus[];
 
-export const PPIC_ROLES = ["MEMBER", "SUPER_ADMIN"] as const;
+export const PPIC_ROLES = ["MEMBER", "SUPER_ADMIN", "ADMIN"] as const;
 
 export type PpicRole = (typeof PPIC_ROLES)[number];
+
+export const hasPpicAdminAccess = (role: unknown): role is "SUPER_ADMIN" | "ADMIN" =>
+	role === "SUPER_ADMIN" || role === "ADMIN";
 
 export type PpicPermission = {
 	clickup_user_id: string;
 	allowed_status: PpicStatuses;
 	active: 0 | 1;
+	can_import_lby: 0 | 1;
 	updated_by: string;
 	updated_at: string;
 	role: PpicRole;

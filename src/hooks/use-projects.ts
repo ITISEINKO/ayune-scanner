@@ -2,8 +2,9 @@
 
 import { queryOptions, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ClickUpTask } from "@/types/clickup";
+import type { ProjectListStatus } from "@/types/project";
 
-const loadProjects = async (status: "in progress" | "to do", refresh = false) => {
+const loadProjects = async (status: ProjectListStatus, refresh = false) => {
 	const params = new URLSearchParams({ status });
 	if (refresh) params.set("refresh", "1");
 	const response = await fetch(`/api/projects?${params}`);
@@ -12,8 +13,8 @@ const loadProjects = async (status: "in progress" | "to do", refresh = false) =>
 	return result.tasks ?? [];
 };
 
-const projectsQuery = (status: "in progress" | "to do") => queryOptions({
-	queryKey: status === "in progress" ? ["projects"] : ["projects", "to do"],
+const projectsQuery = (status: ProjectListStatus) => queryOptions({
+	queryKey: status === "in progress" ? ["projects"] : ["projects", status],
 	queryFn: () => loadProjects(status),
 	staleTime: Infinity,
 	gcTime: Infinity,
@@ -22,7 +23,7 @@ const projectsQuery = (status: "in progress" | "to do") => queryOptions({
 	refetchOnWindowFocus: false,
 });
 
-export const useProjects = (status: "in progress" | "to do" = "in progress") => {
+export const useProjects = (status: ProjectListStatus = "in progress") => {
 	const queryClient = useQueryClient();
 	const query = useQuery(projectsQuery(status));
 	return {

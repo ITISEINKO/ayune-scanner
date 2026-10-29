@@ -21,12 +21,14 @@ const loadMembers = async () => {
 		members?: PanelMember[];
 		roles?: Record<string, PpicRole>;
 		permissions?: Record<string, PpicStatuses | null>;
+		lbyImporters?: Record<string, boolean>;
 	};
 	if (!response.ok || !data.members) throw new Error("members");
 	return {
 		members: data.members,
 		roles: data.roles ?? {},
 		permissions: data.permissions ?? {},
+		lbyImporters: data.lbyImporters ?? {},
 	};
 };
 
@@ -47,6 +49,7 @@ export function usePanelMembers() {
 		mutationFn: async (
 			body:
 				| { user_id: string; role: PpicRole }
+				| { user_id: string; can_import_lby: boolean }
 				| { user_id: string; allowed_status: PpicStatuses | null },
 		) => {
 			const response = await fetch("/api/panel/members", {
@@ -62,6 +65,7 @@ export function usePanelMembers() {
 				panelMembersQuery.queryKey,
 				(data) => {
 					if (!data) return data;
+					if ("can_import_lby" in body) return { ...data, lbyImporters: { ...data.lbyImporters, [body.user_id]: body.can_import_lby } };
 					if ("role" in body)
 						return {
 							...data,
@@ -93,6 +97,8 @@ export function usePanelMembers() {
 				panelMembersQuery.queryKey,
 				(current) => {
 					if (!current) return current;
+					if ("canImportLby" in data && typeof data.canImportLby === "boolean")
+						return { ...current, lbyImporters: { ...current.lbyImporters, [userId]: data.canImportLby } };
 					if ("role" in data && isPpicRole(data.role))
 						return {
 							...current,
@@ -132,12 +138,15 @@ export function usePanelMembers() {
 		members: query.data?.members ?? null,
 		roles: query.data?.roles ?? {},
 		permissions: query.data?.permissions ?? {},
+		lbyImporters: query.data?.lbyImporters ?? {},
 		loading: query.isLoading,
 		error: query.isError,
 		updateRole: (userId: string, role: PpicRole) =>
 			update.mutateAsync({ user_id: userId, role }),
 		updatePermission: (userId: string, allowedStatus: PpicStatuses | null) =>
 			update.mutateAsync({ user_id: userId, allowed_status: allowedStatus }),
+		updateLbyPermission: (userId: string, enabled: boolean) =>
+			update.mutateAsync({ user_id: userId, can_import_lby: enabled }),
 		savingMemberId: update.isPending ? (update.variables?.user_id ?? null) : null,
 	};
 }

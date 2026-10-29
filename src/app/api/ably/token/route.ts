@@ -1,3 +1,4 @@
+import { hasPpicAdminAccess } from "@/types/ppic";
 import { NextResponse } from "next/server";
 import { getAbly } from "@/lib/ably";
 import { ppicSession } from "@/lib/session";
@@ -13,7 +14,7 @@ export async function GET() {
 				clientId: session.user_id,
 				capability: {
 					[`ppic:member:${session.user_id}`]: ["subscribe"],
-					...(session.role === "SUPER_ADMIN"
+					...(hasPpicAdminAccess(session.role)
 						? { "ppic:settings": ["subscribe"] }
 						: {}),
 				},
