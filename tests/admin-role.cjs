@@ -67,6 +67,8 @@ const json = (value) => JSON.parse(JSON.stringify(value));
 	await assert.rejects(db.execute("UPDATE ppic_permissions SET active=2 WHERE clickup_user_id='local-admin'"), /CHECK/);
 	await consolidateLbyPermissions(db, directory);
 	const types = load("src/types/ppic.ts"), access = load("src/lib/db.ts"), session = load("src/lib/session.ts");
+	assert.equal(await session.isPpicChannelMember("local-role-test", "budi"), true, "PPIC channel members pass the channel check");
+	assert.equal(await session.isPpicChannelMember("local-role-test", "outside-channel"), false, "users outside the PPIC channel fail the channel check");
 	assert.equal(types.isPpicRole("ADMIN"), true);
 	assert.equal(types.hasPpicAdminAccess("MEMBER"), false);
 	for (const role of ["SUPER_ADMIN", "ADMIN"]) {
@@ -101,6 +103,7 @@ const json = (value) => JSON.parse(JSON.stringify(value));
 	assert.equal(published, 4, "successful updates retain both realtime notifications");
 	assert.equal((await update("budi", "MEMBER")).status, 200);
 	const scanPermissionBefore = (await db.execute("SELECT role, active, allowed_status FROM ppic_permissions WHERE clickup_user_id='budi'")).rows;
+	assert.equal((await session.ppicLoginState("budi")).path, "/unauthorized", "inactive members without LBY access are denied");
 	const setImporter = (enabled, extra = {}) => route.POST(new Request("http://localhost/api/panel/members", {
 		method: "POST", body: JSON.stringify({ user_id: "budi", can_import_lby: enabled, ...extra }),
 	}));
@@ -122,7 +125,7 @@ const json = (value) => JSON.parse(JSON.stringify(value));
 	assert.equal(tokenRequest.capability["ppic:settings"], undefined, "drafter must not subscribe to settings");
 	assert.equal((await setImporter(false)).status, 200);
 	assert.equal(await access.canImportLby("budi"), false, "revocation must beat an older signed grant");
-	assert.equal((await session.ppicLoginState("budi")).path, "/projects");
+	assert.equal((await session.ppicLoginState("budi")).path, "/unauthorized");
 	await update("budi", "SUPER_ADMIN");
 	assert.equal(await access.canImportLby("budi"), false, "SUPER_ADMIN has no automatic LBY grant");
 	assert.equal((await setImporter(true)).status, 200);
