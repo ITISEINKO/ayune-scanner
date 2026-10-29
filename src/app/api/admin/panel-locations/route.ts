@@ -74,7 +74,7 @@ async function change(request: Request, activate: boolean) {
 				if (!(await canImportLby(access.actor))) return error(403, "LBY_IMPORT_REQUIRED");
 				signal.throwIfAborted();
 				progress("saving");
-				const candidate = await saveLbyImport(project, lease, access.actor, imported);
+				const candidate = await saveLbyImport(project, lease, access.actor, { ...imported, sourceUrl: body.url.trim() });
 				return NextResponse.json({ ok: true, candidate, state: await getLbyImportState(project) });
 			} catch (cause) { return failure(cause); }
 			finally { await releaseLbyImport(project, lease).catch(() => undefined); }

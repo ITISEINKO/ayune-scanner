@@ -68,6 +68,12 @@ const { chromium, expect } = require("@playwright/test");
 			await page.goto(`${base}/admin/settings`);
 			if (role === "MEMBER") {
 				await expect(page).toHaveURL(`${base}/unauthorized`);
+				await db.execute("UPDATE ppic_permissions SET can_import_lby=1 WHERE clickup_user_id='test-user'");
+				await page.goto(`${base}/admin/import-3d`);
+				await expect(page).toHaveURL(`${base}/unauthorized`);
+				await page.goto(`${base}/drafter`);
+				await expect(page.getByRole("heading", { name: "Model LBY", exact: true })).toBeVisible();
+				assert.deepEqual(await page.getByRole("navigation").getByRole("link").allTextContents(), ["Models", "Cari", "Profile"]);
 			} else {
 				await expect(page.getByRole("heading", { name: "Pengguna & aktivitas" })).toBeVisible();
 				await expect(page.getByRole("navigation").getByRole("link")).toHaveCount(5);
@@ -78,7 +84,7 @@ const { chromium, expect } = require("@playwright/test");
 				await page.getByRole("tab", { name: "Akses halaman", exact: true }).click();
 				await expect(page.getByRole("button", { name: "Admin", exact: true })).toHaveCount(role === "ADMIN" ? 1 : 0);
 				await expect(page.getByRole("button", { name: "Super Admin", exact: true })).toBeVisible();
-				await page.getByRole("checkbox", { name: "Drafter: model LBY", exact: true }).click();
+				await page.getByRole("checkbox", { name: "Drafter", exact: true }).click();
 				await page.getByRole("button", { name: "Simpan", exact: true }).click();
 				await expect(page.getByRole("dialog")).toHaveCount(0);
 				assert.deepEqual(writes, [{ user_id: "member", can_import_lby: true }], "changing LBY access must not resave unrelated status permissions");
@@ -86,8 +92,8 @@ const { chromium, expect } = require("@playwright/test");
 				await expect(page.getByText("Drafter", { exact: true })).toBeVisible();
 				await page.getByRole("button", { name: "Lihat detail Super Admin Example", exact: true }).click();
 				await page.getByRole("tab", { name: "Akses halaman", exact: true }).click();
-				await expect(page.getByRole("checkbox", { name: "Drafter: model LBY", exact: true })).toBeEnabled();
-				await page.getByRole("checkbox", { name: "Drafter: model LBY", exact: true }).click();
+				await expect(page.getByRole("checkbox", { name: "Drafter", exact: true })).toBeEnabled();
+				await page.getByRole("checkbox", { name: "Drafter", exact: true }).click();
 				await page.getByRole("button", { name: "Simpan", exact: true }).click();
 				await expect(page.getByRole("dialog")).toHaveCount(0);
 				assert.deepEqual(writes.at(-1), { user_id: "super", can_import_lby: true }, "granting LBY to SUPER_ADMIN does not rewrite its role or scan access");
@@ -95,8 +101,18 @@ const { chromium, expect } = require("@playwright/test");
 				await page.goto(`${base}/admin/profile`);
 				await expect(page.getByRole("link", { name: "Kelola model LBY", exact: true })).toBeVisible();
 				await page.getByRole("link", { name: "Kelola model LBY", exact: true }).click();
-				await expect(page).toHaveURL(`${base}/drafter`);
+				await expect(page).toHaveURL(`${base}/admin/import-3d`);
 				await expect(page.getByRole("heading", { name: "Model LBY", exact: true })).toBeVisible();
+				await expect(page.locator("header").getByText("Admin", { exact: true })).toBeVisible();
+				assert.deepEqual(await page.getByRole("navigation").getByRole("link").allTextContents(), ["Home", "Projects", "Scan", "Member", "Profile"]);
+				await page.goto(`${base}/panel-location?project=z96buhry4p&barcode=15370046376`);
+				await page.getByRole("link", { name: "Kembali ke model", exact: true }).click();
+				await expect(page).toHaveURL(`${base}/admin/import-3d`);
+				if (role === "SUPER_ADMIN") {
+					await db.execute("UPDATE ppic_permissions SET can_import_lby=0 WHERE clickup_user_id='test-user'");
+					await page.reload();
+					await expect(page).toHaveURL(`${base}/unauthorized`);
+				}
 			}
 			assert.deepEqual(errors, []);
 			await context.close();

@@ -27,8 +27,8 @@ http.createServer((req, res) => {
 	} else if (url.pathname === "/model.zip") {
 		const model = { value: { orderId: mode === "wrong-order" ? "999" : orderId, _V_: 0, docs: [{ id: "doc", models: [{
 			id: "panel", className: "BasePlankModel", position: [0,0,0], quaternion: [0,0,0,1], scale: [1,1,1],
-			...(mode === "curved" ? { genType: "02", plankThickness: 19,
-				arcPlankInfo: { arcType: "00", a: 415, b: 20, c: 196, r1: 140, r2: 100, h: 900 } } : {}),
+			...(["curved", "reverse-curved"].includes(mode) ? { genType: "02", plankThickness: 19,
+				arcPlankInfo: { arcType: mode === "reverse-curved" ? "01" : "00", a: 415, b: 20, c: 196, r1: 140, r2: 100, h: 900 } } : {}),
 			doorOpenType: "right",
 			sizeX: mode === "invalid-world" ? 1e308 : ["changed", "revoke-delay"].includes(mode) ? 30 : 10, sizeY: 20, sizeZ: 1,
 		}] }] } };

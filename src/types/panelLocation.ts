@@ -49,6 +49,7 @@ export type LbyImportVersion = LbyImportManifest & {
 
 export type LbyImportState = {
 	projectKey: string;
+	sourceUrl?: string;
 	activeRevision: string | null;
 	bundledVersion: string | null;
 	versions: LbyImportVersion[];

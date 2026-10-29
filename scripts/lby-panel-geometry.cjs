@@ -44,7 +44,7 @@ function extrude(outline, axis, thickness) {
 function panelGeometry(object) {
 	if (object.genType === "02") {
 		const arc = object.arcPlankInfo;
-		assert(["00", "02"].includes(arc?.arcType), "Unsupported bent panel arc type");
+		assert(["00", "01", "02"].includes(arc?.arcType), "Unsupported bent panel arc type");
 		const { a, b, c, r1: radius, r2, h } = arc, thickness = object.plankThickness;
 		assert([a,b,radius,h,thickness].every((value) => Number.isFinite(value) && value > 0), "Invalid bent panel parameters");
 		// Vendor GenArcPlankShapeNoFlip: tangent quarter circles, extruded along Z.
@@ -64,6 +64,8 @@ function panelGeometry(object) {
 			line(outer+b+r2,r2+thickness); quarter(outer+b,thickness,outer+b,r2+thickness);
 		} else { line(outer+b,thickness); }
 		line(outer,thickness); quarter(thickness,outer,outer,outer); line(thickness,outer+a);
+		// Vendor ARC_Y is ARC_Z mirrored across its formed width.
+		if (arc.arcType === "01") return extrude(outline.map(([x,y,z]) => [outer+b-x,y,z]), 2, h);
 		return extrude(outline, 2, h);
 	}
 	if (object.genType !== "01" || !object.lineModels?.length) return undefined;

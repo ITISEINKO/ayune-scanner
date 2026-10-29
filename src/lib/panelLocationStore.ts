@@ -24,6 +24,9 @@ const ensureSchema = () => schema ??= db.batch([
 		barcode TEXT NOT NULL, project_id TEXT NOT NULL, revision TEXT NOT NULL,
 		PRIMARY KEY (barcode, project_id, revision)
 	)`,
+	`CREATE TABLE IF NOT EXISTS ppic_lby_source_link (
+		project_id TEXT PRIMARY KEY, url TEXT NOT NULL
+	)`,
 ], "write").then(async () => {
 	if (!(await db.execute("PRAGMA table_info(ppic_panel_location_revision)")).rows.some((row) => row.name === "version_number")) {
 		try { await db.execute("ALTER TABLE ppic_panel_location_revision ADD COLUMN version_number INTEGER"); }
@@ -55,12 +58,14 @@ const ensureSchema = () => schema ??= db.batch([
 
 export const getLbyImportState = async (project: string): Promise<LbyImportState> => {
 	await ensureSchema();
-	const [active, versions] = await db.batch([
+	const [active, versions, source] = await db.batch([
 		{ sql: "SELECT active_revision FROM ppic_panel_location_project WHERE project_id = ?", args: [project] },
 		{ sql: "SELECT metadata_json, version_number FROM ppic_panel_location_revision WHERE project_id = ? ORDER BY version_number DESC", args: [project] },
+		{ sql: "SELECT url FROM ppic_lby_source_link WHERE project_id = ?", args: [project] },
 	], "read");
 	return {
 		projectKey: project,
+		...(source.rows[0] ? { sourceUrl: String(source.rows[0].url) } : {}),
 		activeRevision: active.rows[0]?.active_revision ? String(active.rows[0].active_revision) : null,
 		bundledVersion: bundled(project)?.version ?? null,
 		versions: versions.rows.map((row) => ({ ...JSON.parse(String(row.metadata_json)), versionNumber: Number(row.version_number) }) as LbyImportVersion),
@@ -107,7 +112,7 @@ export const releaseLbyImport = (project: string, id: string) => db.execute({
 });
 
 export const saveLbyImport = async (project: string, id: string, actor: string, data: {
-	manifest: LbyImportManifest; locations: string; mappingJson: string;
+	manifest: LbyImportManifest; locations: string; mappingJson: string; sourceUrl: string;
 }) => {
 	const { manifest, locations, mappingJson } = data;
 	if (manifest.projectKey !== project || sha(locations) !== manifest.revision || sha(mappingJson) !== manifest.mappingSha256) throw new Error("CHECKSUM_MISMATCH");
@@ -132,6 +137,13 @@ export const saveLbyImport = async (project: string, id: string, actor: string, 
 			SELECT json_extract(value, '$.barcode'), ?, ? FROM json_each(?, '$.panels')
 			WHERE EXISTS (SELECT 1 FROM ppic_panel_location_revision WHERE project_id = ? AND revision = ?)`,
 		args: [project, manifest.revision, locations, project, manifest.revision],
+	}, {
+		sql: `INSERT INTO ppic_lby_source_link (project_id, url)
+			SELECT project_id, ? FROM ppic_panel_location_project
+			WHERE project_id = ? AND import_id = ? AND import_until > ?
+			AND EXISTS (SELECT 1 FROM ppic_panel_location_revision WHERE project_id = ? AND revision = ?)
+			ON CONFLICT(project_id) DO UPDATE SET url = excluded.url`,
+		args: [data.sourceUrl, project, id, Date.now(), project, manifest.revision],
 	}], "write");
 	if (!result.rowsAffected) {
 		const state = await getLbyImportState(project);

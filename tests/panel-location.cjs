@@ -4,7 +4,7 @@ const { readFileSync, writeFileSync, mkdtempSync, mkdirSync } = require("node:fs
 const { tmpdir } = require("node:os");
 const { join } = require("node:path");
 const { spawn, spawnSync } = require("node:child_process");
-const { createHmac } = require("node:crypto");
+const { createHmac, createHash } = require("node:crypto");
 const { createClient } = require("@libsql/client");
 const { chromium, expect } = require("@playwright/test");
 const { transpileModule, ModuleKind } = require("typescript");
@@ -161,6 +161,8 @@ async function main() {
 		await expect(page.getByRole("button", { name: /^(Putar (kiri|kanan|atas|bawah)|Perbesar|Perkecil)$/ })).toHaveCount(0);
 		await expect(page.locator('[aria-label="Kontrol tampilan"]').getByRole("button")).toHaveCount(3);
 		await expect(page.getByRole("region", { name: "Panel terpilih" })).toContainText("Panel 9");
+		await expect(page.getByRole("region", { name: "Informasi panel", exact: true })).toContainText("Serial: 15370046376");
+		await expect(page.getByRole("link", { name: "Kembali ke model", exact: true })).toHaveAttribute("href", "/drafter");
 		assert.equal(await svg.locator('polygon[fill="#ef4444"]').count(), 6);
 		const initialPoints = await svg.locator("polygon").first().getAttribute("points");
 		await svg.focus(); await page.keyboard.press("ArrowRight");
@@ -172,8 +174,8 @@ async function main() {
 		await expect(svg.locator("polygon").first()).not.toHaveAttribute("points", initialPoints);
 		await page.getByRole("button", { name: "Reset tampilan", exact: true }).click();
 		const bounds = await svg.boundingBox();
-		await page.mouse.move(bounds.x + 50, bounds.y + 50); await page.mouse.down();
-		await page.mouse.move(bounds.x + 100, bounds.y + 70); await page.mouse.up();
+		await page.mouse.move(bounds.x + 50, bounds.y + 150); await page.mouse.down();
+		await page.mouse.move(bounds.x + 100, bounds.y + 170); await page.mouse.up();
 		await expect(svg.locator("polygon").first()).not.toHaveAttribute("points", initialPoints);
 		await page.getByRole("button", { name: "Reset tampilan", exact: true }).click();
 		const initialBox = await svg.getAttribute("viewBox");
@@ -204,7 +206,7 @@ async function main() {
 		await page.getByRole("button", { name: "Reset tampilan", exact: true }).click();
 		// Native multi-touch exercises pointer capture and the transition back to one-finger rotation.
 		const touch = await context.newCDPSession(page);
-		const touchPoints = [{ x: bounds.x + 100, y: bounds.y + 100, id: 1 }, { x: bounds.x + 200, y: bounds.y + 100, id: 2 }];
+		const touchPoints = [{ x: bounds.x + 100, y: bounds.y + 200, id: 1 }, { x: bounds.x + 200, y: bounds.y + 200, id: 2 }];
 		await touch.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints });
 		await touch.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [touchPoints[0], { ...touchPoints[1], x: bounds.x + 280 }] });
 		await expect.poll(async () => Number((await svg.getAttribute("viewBox")).split(" ")[2])).toBeLessThan(Number(initialBox.split(" ")[2]));
@@ -219,6 +221,9 @@ async function main() {
 		await page.screenshot({ path: "test-results/panel-location-desktop.png", fullPage: true });
 		await page.setViewportSize({ width: 390, height: 844 });
 		assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+		const info = await page.getByRole("region", { name: "Informasi panel", exact: true }).boundingBox();
+		assert(Math.abs(info.y + info.height - 844) <= 1, "standalone panel details meet the viewport bottom without navigation padding");
+		assert((await svg.boundingBox()).height > 500, "standalone viewer fills the available canvas");
 		await page.screenshot({ path: "test-results/panel-location-mobile.png", fullPage: true });
 		await page.goto(`${baseURL}${helper.exports.panelLocationUrl("z96buhry4p", "15370046368")}`);
 		await expect(svg).toHaveAttribute("data-selected-barcode", "15370046368");
@@ -363,6 +368,31 @@ async function main() {
 		await db.execute("UPDATE ppic_permissions SET can_import_lby=1 WHERE clickup_user_id='viewer-test'");
 		const drafterPayload = Buffer.from(JSON.stringify({ user_id: "viewer-test", role: "MEMBER", allowed_status: null, can_import_lby: true, refreshed_at: Date.now() })).toString("base64url");
 		await context.addCookies([{ name: "ppic_session", value: `${drafterPayload}.${createHmac("sha256", secret).update(drafterPayload).digest("base64url")}`, url: baseURL }]);
+		const previewSnapshot = JSON.stringify({ ...snapshot, version: "cccccccccccc" });
+		const previewMapping = '{"panels":[]}';
+		const previewRevision = createHash("sha256").update(previewSnapshot).digest("hex");
+		await db.execute({ sql: "UPDATE ppic_panel_location_revision SET revision=?, metadata_json=?, snapshot_gzip=?, mapping_gzip=? WHERE project_id='z96buhr3eu' AND revision=?",
+			args: [previewRevision, JSON.stringify({ projectKey: "z96buhr3eu", name: "Candidate preview", version: "cccccccccccc",
+				revision: previewRevision, mappingSha256: createHash("sha256").update(previewMapping).digest("hex") }),
+				gzipSync(previewSnapshot), gzipSync(previewMapping), "c".repeat(64)] });
+		await page.goto(`${baseURL}/panel-location?project=z96buhr3eu&barcode=15370046376&revision=${previewRevision}`);
+		await expect(page.getByText("Preview versi V2", { exact: true })).toBeVisible();
+		await expect(page.getByRole("heading", { level: 1 })).toContainText("Candidate preview");
+		await expect(svg).toHaveAttribute("data-selected-barcode", "15370046376");
+		await expect(page.getByRole("region", { name: "Informasi panel", exact: true })).toContainText("Serial: 15370046376");
+		for (const width of [768, 1440]) {
+			await page.setViewportSize({ width, height: 900 });
+			const canvas = await svg.boundingBox();
+			const details = await page.getByRole("region", { name: "Informasi panel", exact: true }).boundingBox();
+			const slider = await page.getByRole("slider", { name: "Jarak explode" }).boundingBox();
+			assert.equal(canvas.width, width, "desktop canvas uses the full viewport width");
+			assert.equal(canvas.height, 900, "desktop details float without shrinking the canvas");
+			assert(details.x > 0 && details.y + details.height < 900, "desktop panel details float above the viewport edges");
+			assert(details.x + details.width < slider.x, "desktop details do not overlap explode controls");
+			await expect(page.getByRole("status").filter({ hasText: "Preview versi V2" })).toBeVisible();
+			assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+		}
+		await page.screenshot({ path: "test-results/panel-location-preview.png", fullPage: true });
 		await page.goto(`${baseURL}/cari-lokasi?barcode=15370046376`);
 		assert.equal((await context.request.get(`${baseURL}/api/panel/location-version?project=z96buhry4p`)).status(), 200, "import-only users can check versions without scan permission");
 		await expect(svg).toHaveAttribute("data-selected-barcode", "15370046376");

@@ -19,7 +19,7 @@ export async function AdminProfilePage() {
 						Tambahkan link model LBY. Panel dicocokkan lewat board number /
 						serial number, tanpa memilih project ClickUp.
 					</p>
-					<Link href="/drafter" className={buttonVariants({ variant: "outline", className: "w-full" })}>Kelola model LBY</Link>
+					<Link href="/admin/import-3d" className={buttonVariants({ variant: "outline", className: "w-full" })}>Kelola model LBY</Link>
 				</section>
 			)}
 		</ProfileLayout>

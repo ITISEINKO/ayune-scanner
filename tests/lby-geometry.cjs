@@ -17,6 +17,12 @@ assert(geometry.edges.length < geometry.faces.length*3, "smooth faces must not b
 assert(geometry.faces.flat().every(index=>Number.isInteger(index)&&index>=0&&index<geometry.vertices.length));
 const u = panelGeometry({...bent, arcPlankInfo:{...bent.arcPlankInfo,arcType:"02"}});
 assert.deepEqual(bounds(u.vertices), [[0,298],[0,574],[0,900]], "U panel must retain its second bend");
+const reverseBend = panelGeometry({...bent, arcPlankInfo:{...bent.arcPlankInfo,arcType:"01"}});
+assert.deepEqual(reverseBend.vertices, geometry.vertices.map(([x,y,z]) => [179-x,y,z]), "vendor ARC_Y mirrors ARC_Z across the formed width");
+assert.deepEqual(reverseBend.faces, geometry.faces);
+const amethystBend = panelGeometry({...bent, plankThickness:32, arcPlankInfo:{arcType:"01",a:19,b:19,r1:20,h:200}});
+assert.deepEqual(bounds(amethystBend.vertices), [[0,71],[0,71],[0,200]], "AMETHYST reverse bend uses formed dimensions");
+assert(amethystBend.vertices.some(([x,y,z]) => x===0 && y===0 && z===0), "reverse bend starts with a horizontal foot at the vendor origin");
 assert.throws(()=>panelGeometry({...bent,arcPlankInfo:{...bent.arcPlankInfo,r1:NaN}}), /Invalid bent/);
 assert.throws(()=>panelGeometry({...bent,arcPlankInfo:{...bent.arcPlankInfo,arcType:"99"}}), /Unsupported bent/);
 

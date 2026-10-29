@@ -26,7 +26,7 @@ Panel names are included in the sanitized snapshot and its revision hash. A name
 
 ### Curved geometry (2026-10-28)
 
-New imports retain sanitized mesh vertices, faces and visible edges for drawn `genType: "01"` outlines (`LineModel`/`ArcModel`) and bent `genType: "02"` L/U panels (`arcType: "00"`/`"02"`). Bent panels use their formed cross-section and height, not their flattened manufacturing size. This follows the inspected vendor renderer's `GenPlankWithLineModels` origin normalization and `GenArcPlankShapeNoFlip` construction. Ordinary template panels retain their existing box representation. Parent transforms apply to both representations.
+New imports retain sanitized mesh vertices, faces and visible edges for drawn `genType: "01"` outlines (`LineModel`/`ArcModel`) and bent `genType: "02"` L/reverse-L/U panels (`arcType: "00"`/`"01"`/`"02"`). Bent panels use their formed cross-section and height, not their flattened manufacturing size. This follows the inspected vendor renderer's `GenPlankWithLineModels` origin normalization and `GenArcPlankShapeNoFlip` construction. Ordinary template panels retain their existing box representation. Parent transforms apply to both representations.
 
 Curves are sampled within 0.25 source units before world-coordinate rounding to 0.1 units. Unsupported bent types, non-planar/open/disconnected outlines and excessive geometry reject the candidate; they do not replace active data. This is still a location viewer: holes, machining details, hardware and arbitrary template-generated curved solids are not a complete CAD export.
 

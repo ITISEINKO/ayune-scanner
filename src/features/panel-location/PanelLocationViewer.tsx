@@ -20,7 +20,8 @@ export function PanelLocationViewer({
 	panels,
 	immersive = false,
 	preview = false,
-}: PanelLocationView & { immersive?: boolean; preview?: boolean }) {
+	desktopLayout = false,
+}: PanelLocationView & { immersive?: boolean; preview?: boolean; desktopLayout?: boolean }) {
 	const activeVersion = useQuery({
 		queryKey: ["panel-location-version", projectId],
 		queryFn: async ({ signal }) => {
@@ -252,8 +253,8 @@ export function PanelLocationViewer({
 					/>
 				</header>
 			)}
-			<div className={immersive ? "absolute inset-x-3 top-16 z-10 space-y-2" : "space-y-2"}>
-				{(immersive || preview) && <p className="w-fit rounded-full bg-card/95 px-3 py-1 text-[11px] text-muted-foreground">
+			<div className={immersive ? `absolute inset-x-3 top-16 z-10 space-y-2 ${desktopLayout ? "md:left-6 md:top-20 md:max-w-lg" : ""}` : "space-y-2"}>
+				{(immersive || preview) && <p role={preview ? "status" : undefined} className={`w-fit rounded-full px-3 py-1 text-[11px] ${preview ? "border border-amber-500/40 bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-200" : "bg-card/95 text-muted-foreground"}`}>
 					{preview ? "Preview versi" : "Versi tampilan"} V{versionNumber}
 				</p>}
 				{outdated && <Alert className="border border-amber-500/40 bg-card text-amber-900 dark:text-amber-200">
@@ -469,7 +470,7 @@ export function PanelLocationViewer({
 						<div
 							className={
 								immersive
-									? "absolute inset-x-3 bottom-3 space-y-2"
+									? `absolute inset-x-3 bottom-3 space-y-2 ${desktopLayout ? "md:left-auto md:right-6 md:bottom-6 md:w-96" : ""}`
 									: "border-t bg-background p-2"
 							}
 						>

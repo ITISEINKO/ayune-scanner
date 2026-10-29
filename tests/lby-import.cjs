@@ -69,6 +69,10 @@ function fixtureLink(expireTime = Date.now() + 3600000) {
 		const mesh = JSON.parse(curved.locations).panels[0].geometry;
 		assert(mesh.vertices.length > 8, "downloaded bent panels must retain curved geometry");
 		assert.equal(Math.max(...mesh.vertices.map((point) => point[1])), 574, "bent depth follows formed dimensions");
+		mode = "reverse-curved";
+		const reverseCurved = await fetchProject(fixtureLink(), "fixture");
+		assert.deepEqual(JSON.parse(reverseCurved.locations).panels[0].geometry.vertices,
+			mesh.vertices.map(([x,y,z]) => [Math.round((179-x)*10)/10,y,z]), "downloaded ARC_Y must mirror the formed L bend");
 		assert.equal(fs.readFileSync(catalogPath, "utf8"), active, "geometry upgrades stage a separate immutable revision");
 		for (const [failure, message] of [["rate-limit", /HTTP 429/], ["missing-match", /No model/],
 			["no-panel-data", /LBY_NO_PANEL_DATA/],

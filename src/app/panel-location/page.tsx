@@ -1,6 +1,6 @@
 import { hasPpicAdminAccess } from "@/types/ppic";
 import { notFound, redirect } from "next/navigation";
-import { PanelLocationViewer } from "@/features/panel-location/PanelLocationViewer";
+import { PanelLocationPageView } from "@/features/panel-location/PanelLocationPageView";
 import { canImportLby, getPpicAccess } from "@/lib/db";
 import { getPanelLocation } from "@/lib/panelLocationSnapshot";
 import { ppicSession, requireClickUpToken } from "@/lib/session";
@@ -41,8 +41,11 @@ export default async function PanelLocationPage({
 	}
 	if (!location) notFound();
 	return (
-		<main className="mx-auto min-h-dvh max-w-6xl p-4 sm:p-6">
-			<PanelLocationViewer key={`${project}:${serial}:${revision ?? location.version}`} {...location} preview={revision !== undefined} />
-		</main>
+		<PanelLocationPageView
+			key={`${project}:${serial}:${revision ?? location.version}`}
+			location={location}
+			preview={revision !== undefined}
+			modelsHref={hasPpicAdminAccess(access?.role) ? "/admin/import-3d" : "/drafter"}
+		/>
 	);
 }
