@@ -2,6 +2,8 @@ import { clickUpHeaders } from "@/lib/clickup";
 import {
 	encodePpicSession,
 	PPIC_SESSION_COOKIE,
+	PPIC_SELECTED_PROJECT_COOKIE,
+	isPpicChannelMember,
 	ppicLoginState,
 } from "@/lib/session";
 import { NextRequest, NextResponse } from "next/server";
@@ -12,6 +14,8 @@ const loginError = (request: NextRequest, error = "clickup") =>
 const unauthorized = (request: NextRequest) => {
 	const response = NextResponse.redirect(new URL("/unauthorized", request.url));
 	response.cookies.set("clickup_access_token", "", { path: "/", maxAge: 0 });
+	response.cookies.set(PPIC_SESSION_COOKIE, "", { path: "/", maxAge: 0 });
+	response.cookies.set(PPIC_SELECTED_PROJECT_COOKIE, "", { path: "/", maxAge: 0 });
 	response.cookies.set("clickup_oauth_state", "", {
 		path: "/api/auth/clickup/callback",
 		maxAge: 0,
@@ -108,11 +112,17 @@ export async function GET(request: NextRequest) {
 	if (!hasIseinko) return unauthorized(request);
 
 	let loginState: Awaited<ReturnType<typeof ppicLoginState>>;
+	let channelMember: boolean;
 	try {
-		loginState = await ppicLoginState(userId);
+		[loginState, channelMember] = await Promise.all([
+			ppicLoginState(userId),
+			isPpicChannelMember(token, userId),
+		]);
 	} catch {
 		return unauthorized(request);
 	}
+	if (!channelMember || loginState.path === "/unauthorized")
+		return unauthorized(request);
 
 	const response = NextResponse.redirect(new URL(loginState.path, request.url));
 	const session = encodePpicSession(

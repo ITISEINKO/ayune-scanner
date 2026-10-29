@@ -229,6 +229,13 @@ export const ppicLoginState = async (userId: string) => {
 			? access.allowed_status
 			: null;
 	const importer = await canImportLby(userId);
+	if (!importer && (!allowedStatus || access?.role !== "MEMBER"))
+		return {
+			role: "MEMBER" as const,
+			allowed_status: null,
+			can_import_lby: false,
+			path: "/unauthorized",
+		};
 	return {
 		role: "MEMBER" as const,
 		allowed_status: allowedStatus,
@@ -313,48 +320,54 @@ export const requireSelectedAdminProject = async () => {
 	return project;
 };
 
+const panelChannelMembersUrl = () => {
+	const workspaceId =
+		process.env.CLICKUP_CHAT_WORKSPACE_ID ||
+		process.env.CLICKUP_TEAM_ID ||
+		CLICKUP_TEAM_ID;
+	const channelId =
+		process.env.CLICKUP_CHAT_CHANNEL_ID ||
+		process.env.CLICKUP_PPIC_CHANNEL_ID ||
+		CLICKUP_PPIC_CHANNEL_ID;
+	return `https://api.clickup.com/api/v3/workspaces/${workspaceId}/chat/channels/${channelId}/members`;
+};
+
+const fetchPanelChannelMembers = async (token: string): Promise<PanelMember[]> => {
+	const response = await fetch(panelChannelMembersUrl(), {
+		headers: clickUpHeaders(token),
+		cache: "no-store",
+	});
+	if (!response.ok)
+		throw new Error(`CHANNEL_MEMBERS_UNAVAILABLE:${response.status}`);
+	const body = (await response.json()) as {
+		data?: unknown;
+		members?: unknown;
+	};
+	const rawMembers = body.data ?? body.members;
+	if (!Array.isArray(rawMembers))
+		throw new Error("INVALID_CHANNEL_MEMBERS_RESPONSE");
+	return rawMembers.flatMap((member) => {
+		if (typeof member !== "object" || member === null) return [];
+		const value = member as Record<string, unknown>;
+		const id = value.id;
+		const name = value.username ?? value.name;
+		return id !== undefined && typeof name === "string"
+			? [{ id: String(id), name }]
+			: [];
+	});
+};
+
+export const isPpicChannelMember = async (token: string, userId: string) =>
+	(await fetchPanelChannelMembers(token)).some((member) => member.id === userId);
+
 const cachedPanelChannelMembers = unstable_cache(
 	async (token: string): Promise<PanelMembersResult> => {
-		const workspaceId =
-			process.env.CLICKUP_CHAT_WORKSPACE_ID ||
-			process.env.CLICKUP_TEAM_ID ||
-			CLICKUP_TEAM_ID;
-		const channelId =
-			process.env.CLICKUP_CHAT_CHANNEL_ID ||
-			process.env.CLICKUP_PPIC_CHANNEL_ID ||
-			CLICKUP_PPIC_CHANNEL_ID;
-		const membersUrl = `https://api.clickup.com/api/v3/workspaces/${workspaceId}/chat/channels/${channelId}/members`;
-
 		try {
-			const [userId, response] = await Promise.all([
+			const [userId, members] = await Promise.all([
 				clickUpUserIdForToken(token),
-				fetch(membersUrl, {
-					headers: clickUpHeaders(token),
-					cache: "no-store",
-				}),
+				fetchPanelChannelMembers(token),
 			]);
-			if (!response.ok)
-				return {
-					ok: false,
-					status: response.status === 401 ? 401 : 502,
-				};
 			if (!userId) return { ok: false, status: 401 };
-			const body = (await response.json()) as {
-				data?: unknown;
-				members?: unknown;
-			};
-			const rawMembers = body.data ?? body.members;
-			const members = Array.isArray(rawMembers)
-				? rawMembers.flatMap((member) => {
-						if (typeof member !== "object" || member === null) return [];
-						const value = member as Record<string, unknown>;
-						const id = value.id;
-						const name = value.username ?? value.name;
-						return id !== undefined && typeof name === "string"
-							? [{ id: String(id), name }]
-							: [];
-					})
-				: [];
 			return (await isPpicSuperAdmin(userId))
 				? { ok: true, members }
 				: { ok: false, status: 403 };
