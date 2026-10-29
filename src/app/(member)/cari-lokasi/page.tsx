@@ -12,8 +12,9 @@ const CariLokasi = async ({ searchParams }: { searchParams: Promise<{ barcode?: 
 	await requireClickUpToken();
 	const session = await ppicSession();
 	if (!session) redirect("/login");
-	const access = await getPpicAccess(session.user_id);
-	const importer = await canImportLby(session.user_id);
+	const [access, importer] = await Promise.all([
+		getPpicAccess(session.user_id), canImportLby(session.user_id),
+	]);
 	if (!importer && !hasPpicAdminAccess(access?.role) && !(access?.role === "MEMBER" && Number(access.active) === 1))
 		redirect("/unauthorized");
 	const { barcode = "" } = await searchParams;

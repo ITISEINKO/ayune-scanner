@@ -25,10 +25,12 @@ export function PanelLocationViewer({
 	immersive = false,
 	preview = false,
 	desktopLayout = false,
+	embedded = false,
 }: PanelLocationView & {
 	immersive?: boolean;
 	preview?: boolean;
 	desktopLayout?: boolean;
+	embedded?: boolean;
 }) {
 	const activeVersion = useQuery({
 		queryKey: ["panel-location-version", projectId],
@@ -292,7 +294,7 @@ export function PanelLocationViewer({
 			<div
 				className={
 					immersive
-						? `absolute inset-x-3 top-16 z-10 space-y-2 ${desktopLayout ? "md:left-6 md:top-20 md:max-w-lg" : ""}`
+						? `absolute inset-x-3 ${embedded ? "top-3" : "top-16"} z-10 space-y-2 ${desktopLayout ? `md:left-6 ${embedded ? "md:top-4" : "md:top-20"} md:max-w-lg` : ""}`
 						: "space-y-2"
 				}
 			>
@@ -311,7 +313,7 @@ export function PanelLocationViewer({
 								? "Model ini belum memiliki versi aktif."
 								: `Tampilan ini memakai V${versionNumber}. Versi aktif sekarang V${activeVersion.data?.versionNumber}.`}
 						</AlertDescription>
-						{activeVersion.data !== null && (
+						{activeVersion.data !== null && !embedded && (
 							<Button
 								size="sm"
 								variant="outline"
