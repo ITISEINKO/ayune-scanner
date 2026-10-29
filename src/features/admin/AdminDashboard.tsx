@@ -67,7 +67,9 @@ export function AdminDashboard({
 		initialData,
 		initialDataUpdatedAt: initialData?.now,
 		staleTime: 5 * 60_000,
-		refetchInterval: (query) => query.state.data === null ? 5_000 : 5 * 60_000,
+		refetchInterval: (query) => query.state.data === null
+			? query.state.error ? false : 5_000
+			: 5 * 60_000,
 		refetchIntervalInBackground: false,
 		refetchOnWindowFocus: true,
 		refetchOnReconnect: true,

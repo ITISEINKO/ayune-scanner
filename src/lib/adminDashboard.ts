@@ -68,7 +68,7 @@ async function buildAdminDashboard(token: string, resyncProjects: boolean): Prom
 			),
 		})),
 		panelChannelMembers(token).then(async (result) => {
-			if (!result.ok) throw new Error("MEMBERS_UNAVAILABLE");
+			if (!result.ok) throw new Error(`MEMBERS_UNAVAILABLE:${result.status}`);
 			const { roles, permissions } = await getPpicMemberAccess(
 				result.members.map((member) => member.id),
 			);
@@ -78,7 +78,10 @@ async function buildAdminDashboard(token: string, resyncProjects: boolean): Prom
 			const scans = await getPpicTeamScanOverview(
 				members.map((member) => member.id),
 				now,
-			).catch(() => null);
+			).catch((error) => {
+				console.error("[adminDashboard] Scan summary failed", error);
+				return null;
+			});
 			return {
 				members: members.map((member) => ({
 					...member,
@@ -89,6 +92,14 @@ async function buildAdminDashboard(token: string, resyncProjects: boolean): Prom
 			};
 		}),
 	]);
+	if (projectResult.status === "rejected")
+		console.error("[adminDashboard] Project list failed", projectResult.reason);
+	else
+		for (const result of projectResult.value.dashboards)
+			if (result.status === "rejected")
+				console.error("[adminDashboard] Project dashboard failed", result.reason);
+	if (teamResult.status === "rejected")
+		console.error("[adminDashboard] Team overview failed", teamResult.reason);
 	const projects =
 		projectResult.status === "fulfilled" ? projectResult.value : null;
 	const dashboards =
@@ -116,6 +127,8 @@ export async function getAdminDashboard(refresh: false | "summary" | "projects" 
 	const previous = await getLastAdminDashboard();
 	const now = Date.now();
 	if (previous && !refresh && now - previous.now < 5 * 60_000) return previous;
+	const token = process.env.CLICKUP_TOKEN;
+	if (!token) throw new Error("DASHBOARD_TOKEN_MISSING");
 	const scope = snapshotScope();
 	const refreshId = randomUUID();
 	const claimed = await db.execute({
@@ -129,11 +142,15 @@ export async function getAdminDashboard(refresh: false | "summary" | "projects" 
 	if (!claimed.rowsAffected) {
 		const saved = await getLastAdminDashboard();
 		if (saved && refresh !== "projects") return saved;
+		const lease = await db.execute({
+			sql: "SELECT refresh_until FROM ppic_admin_dashboard_refresh WHERE scope_key = ?",
+			args: [scope],
+		});
+		if (Number(lease.rows[0]?.refresh_until ?? 0) <= Date.now())
+			throw new Error("DASHBOARD_REFRESH_COOLDOWN");
 		throw new Error("DASHBOARD_REFRESH_IN_PROGRESS");
 	}
 	try {
-		const token = process.env.CLICKUP_TOKEN;
-		if (!token) throw new Error("DASHBOARD_TOKEN_MISSING");
 		const serviceUserId = await clickUpUserIdForToken(token);
 		if (!serviceUserId || !(await isPpicSuperAdmin(serviceUserId)))
 			throw new Error("DASHBOARD_SERVICE_UNAUTHORIZED");
