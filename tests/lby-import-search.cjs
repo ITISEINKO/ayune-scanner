@@ -13,6 +13,10 @@ const values = ["", [
 let cursor, tree, debounce, cleanup, scheduled, delay;
 const jsx = (type, props, key) => ({ type, props, key });
 const component = { exports: {} };
+const colors = { exports: {} };
+runInNewContext(ts.transpileModule(readFileSync("src/lib/colorStatusConfig.ts", "utf8"), {
+	compilerOptions: { module: ts.ModuleKind.CommonJS },
+}).outputText, { module: colors, exports: colors.exports });
 runInNewContext(ts.transpileModule(readFileSync("src/features/panel-location/LbyImportPage.tsx", "utf8"), {
 	compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
 }).outputText, {
@@ -22,6 +26,7 @@ runInNewContext(ts.transpileModule(readFileSync("src/features/panel-location/Lby
 		clearTimeout: (callback) => { if (scheduled === callback) scheduled = null; },
 	},
 	require: (id) => {
+		if (id === "@/lib/colorStatusConfig") return colors.exports;
 		if (id === "react") return {
 			useState: (initial) => {
 				const index = cursor++;

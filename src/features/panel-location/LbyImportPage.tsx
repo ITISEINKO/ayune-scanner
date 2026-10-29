@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
 	Check,
 	Circle,
@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { STATUS_COLOR_CONFIG, STATUS_BADGE_CLASS_NAME } from "@/lib/colorStatusConfig";
 import { PanelLocationViewer } from "./PanelLocationViewer";
 import { loadLbyPreview } from "./loadLbyPreview";
 import { Input } from "@/components/ui/input";
@@ -30,6 +32,15 @@ import type {
 	LbyImportStage,
 	LbyImportState,
 } from "@/types/panelLocation";
+
+const activeStatusStyle = {
+ "--status-color": STATUS_COLOR_CONFIG.TERPASANG_DIGUNAKAN.color,
+ "--status-text-color": STATUS_COLOR_CONFIG.TERPASANG_DIGUNAKAN.textColor,
+} as CSSProperties;
+const previewStatusStyle = {
+ "--status-color": STATUS_COLOR_CONFIG.SEDANG_DIPACKING.color,
+ "--status-text-color": STATUS_COLOR_CONFIG.SEDANG_DIPACKING.textColor,
+} as CSSProperties;
 
 const importSteps: { stage: LbyImportStage; label: string }[] = [
 	{ stage: "downloading", label: "Mengunduh model" },
@@ -101,7 +112,10 @@ export function LbyImportPage({
 	const previewRequest = useRef(0);
 	const previewSection = useRef<HTMLElement>(null);
 	const previewTrigger = useRef<HTMLElement | null>(null);
-	const openPreview = async (state: LbyImportState, revision: string | null) => {
+	const openPreview = async (
+		state: LbyImportState,
+		revision: string | null,
+	) => {
 		const request = ++previewRequest.current;
 		previewTrigger.current = document.activeElement as HTMLElement;
 		setChecked(false);
@@ -109,11 +123,21 @@ export function LbyImportPage({
 		setPreview({ state, revision });
 		try {
 			const version = state.versions.find((item) => item.revision === revision);
-			const location = await loadLbyPreview(state.projectKey, version?.sampleBarcode ?? "", revision);
-			if (request === previewRequest.current) setPreview({ state, revision, location });
+			const location = await loadLbyPreview(
+				state.projectKey,
+				version?.sampleBarcode ?? "",
+				revision,
+			);
+			if (request === previewRequest.current)
+				setPreview({ state, revision, location });
 		} catch {
 			if (request === previewRequest.current)
-				setPreview({ state, revision, error: "Preview gagal dimuat. Coba lagi; model aktif tetap digunakan." });
+				setPreview({
+					state,
+					revision,
+					error:
+						"Preview gagal dimuat. Coba lagi; model aktif tetap digunakan.",
+				});
 		}
 	};
 	const closePreview = () => {
@@ -165,27 +189,27 @@ export function LbyImportPage({
 				...(action === "loading"
 					? {}
 					: {
-						headers: {
-							"Content-Type": "application/json",
-							...(action === "importing"
-								? { Accept: "application/x-ndjson" }
-								: {}),
-						},
-						body: JSON.stringify(
-							action === "importing"
-								? {
-									url,
-									...(importTarget
-										? { project: importTarget.projectKey }
-										: {}),
-								}
-								: {
-									project: state?.projectKey,
-									revision,
-									expectedActiveRevision: state?.activeRevision ?? null,
-								},
-						),
-					}),
+							headers: {
+								"Content-Type": "application/json",
+								...(action === "importing"
+									? { Accept: "application/x-ndjson" }
+									: {}),
+							},
+							body: JSON.stringify(
+								action === "importing"
+									? {
+											url,
+											...(importTarget
+												? { project: importTarget.projectKey }
+												: {}),
+										}
+									: {
+											project: state?.projectKey,
+											revision,
+											expectedActiveRevision: state?.activeRevision ?? null,
+										},
+							),
+						}),
 				cache: "no-store",
 				signal: controller
 					? AbortSignal.any([controller.signal, AbortSignal.timeout(290000)])
@@ -242,7 +266,7 @@ export function LbyImportPage({
 			if (!response.ok || !result.ok || (!result.state && !result.states))
 				throw new Error(
 					messages[result.error ?? ""] ??
-					"Import gagal. Model aktif tetap tersimpan; periksa link atau coba kembali.",
+						"Import gagal. Model aktif tetap tersimpan; periksa link atau coba kembali.",
 				);
 			if (result.states) setStates(result.states);
 			else if (result.state) {
@@ -311,8 +335,8 @@ export function LbyImportPage({
 	};
 
 	return (
-		<main className="mx-auto min-h-dvh max-w-lg bg-background pb-28 md:max-w-6xl">
-			<header className="relative overflow-hidden rounded-b-[2.5rem] bg-accent/30 px-6 pt-6 pb-8 text-accent-foreground">
+		<main className="mx-auto min-h-dvh max-w-lg bg-background pb-28 ">
+			<header hidden={Boolean(preview)} className="relative overflow-hidden rounded-b-[2.5rem] bg-accent/30 px-6 pt-6 pb-8 text-accent-foreground">
 				<img
 					src="/ayune-14.svg"
 					alt=""
@@ -335,7 +359,10 @@ export function LbyImportPage({
 					</ol>
 				</div>
 			</header>
-			<div hidden={Boolean(preview)} className="space-y-6 px-4 pt-5 md:mx-auto md:max-w-2xl">
+			<div
+				hidden={Boolean(preview)}
+				className="space-y-6 px-4 pt-5 md:mx-auto md:max-w-2xl"
+			>
 				{busy === "importing" ? (
 					<section
 						aria-labelledby="import-title"
@@ -406,17 +433,17 @@ export function LbyImportPage({
 							event.preventDefault();
 							void run("importing");
 						}}
-						className="space-y-4 rounded-[1.35rem] border border-border/40 bg-card p-4 shadow-sm"
+						className={`space-y-4 rounded-[1.35rem] border bg-card p-4 shadow-sm ${importTarget ? "border-primary/30" : "border-border/40"}`}
 					>
 						<h2 className="font-bold">
 							{importTarget ? "Perbarui model" : "Import model baru"}
 						</h2>
 						<div className="space-y-2">
 							{importTarget && (
-								<div className="flex items-start justify-between gap-2 text-sm">
-									<p>
-										Update model:{" "}
-										<strong>
+								<div className="flex items-start justify-between gap-3 rounded-xl border border-primary/20 bg-accent/20 p-3 text-sm">
+									<p className="min-w-0 text-foreground">
+										<span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Model yang diperbarui</span>
+										<strong className="block wrap-anywhere">
 											{importTarget.versions[0]?.name ??
 												importTarget.projectKey}
 										</strong>
@@ -425,6 +452,7 @@ export function LbyImportPage({
 										type="button"
 										variant="ghost"
 										size="sm"
+										className="shrink-0 text-xs text-muted-foreground"
 										disabled={Boolean(busy)}
 										onClick={() => {
 											setImportTarget(null);
@@ -435,10 +463,7 @@ export function LbyImportPage({
 									</Button>
 								</div>
 							)}
-							<label
-								htmlFor="lby-share-url"
-								className="text-sm font-medium"
-							>
+							<label htmlFor="lby-share-url" className="text-sm font-medium">
 								Link share LBY
 							</label>
 							<div className="relative">
@@ -472,8 +497,9 @@ export function LbyImportPage({
 							</div>
 						</div>
 						<p id="lby-import-help" className="text-xs text-muted-foreground">
-							Pastikan link berasal dari model/order LBY yang benar. Setelah import,
-							cocokkan bentuk model dengan tampilan di LBY sebelum digunakan.
+							Pastikan link berasal dari model/order LBY yang benar. Setelah
+							import, cocokkan bentuk model dengan tampilan di LBY sebelum
+							digunakan.
 						</p>
 						<Button
 							type="submit"
@@ -500,7 +526,8 @@ export function LbyImportPage({
 							<p className="text-xs text-muted-foreground">
 								{debouncedSearch
 									? `${filteredModels.length} dari ${savedModels.length}`
-									: savedModels.length} model
+									: savedModels.length}{" "}
+								model
 							</p>
 						)}
 					</div>
@@ -559,57 +586,166 @@ export function LbyImportPage({
 							<article
 								key={state.projectKey}
 								aria-label={latest.name}
-								className="overflow-hidden rounded-2xl border border-border/60 bg-card text-card-foreground"
+								style={candidate ? previewStatusStyle : activeStatusStyle}
+ className={`overflow-hidden rounded-2xl border bg-card text-card-foreground transition-colors ${importTarget?.projectKey === state.projectKey ? "border-primary/50 ring-2 ring-primary/10" : candidate ? "border-[color-mix(in_srgb,var(--status-color)_40%,transparent)]" : "border-border/60"}`}
 							>
-
 								<details className="group/model">
-									<summary className="flex cursor-pointer list-none items-center gap-3 p-4 focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
-										<span aria-label={active || state.bundledVersion ? "Sedang digunakan" : "Belum digunakan"}
-											className={"size-2 shrink-0 rounded-full " + (active || state.bundledVersion ? "bg-primary" : "bg-muted-foreground")} />
+									<summary className="flex cursor-pointer list-none items-center gap-3 p-4 transition-colors hover:bg-muted/40 group-open/model:bg-muted/30 focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
+										<span
+ style={active || state.bundledVersion ? activeStatusStyle : previewStatusStyle}
+											aria-label={
+												active || state.bundledVersion
+													? "Sedang digunakan"
+													: "Belum digunakan"
+											}
+											className="size-2 shrink-0 rounded-full bg-(--status-color) ring-4 ring-[color-mix(in_srgb,var(--status-color)_12%,transparent)]"
+										/>
 										<div className="min-w-0 flex-1">
-											<h3 className="truncate text-sm font-bold" title={latest.name}>{latest.name}</h3>
+											<h3
+												className="truncate text-sm font-bold"
+												title={latest.name}
+											>
+												{latest.name}
+											</h3>
 											<p className="mt-0.5 truncate text-xs text-muted-foreground">
-												{latest.panelCount} panel &middot; {latest.roomCount} ruang &middot; {new Date(latest.importedAt).toLocaleString("id-ID", {
-													timeZone: "Asia/Jakarta", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
-												})}{candidate && " - Perlu diperiksa"}
+												{latest.panelCount} panel &middot; {latest.roomCount}{" "}
+												ruang &middot;{" "}
+												{new Date(latest.importedAt).toLocaleString("id-ID", {
+													timeZone: "Asia/Jakarta",
+													day: "2-digit",
+													month: "2-digit",
+													hour: "2-digit",
+													minute: "2-digit",
+												})}
 											</p>
 										</div>
-										<span aria-hidden="true" className="text-xs text-muted-foreground transition-transform group-open/model:rotate-180">&#9662;</span>
+										<Badge variant="outline" style={candidate ? previewStatusStyle : activeStatusStyle}
+ className={STATUS_BADGE_CLASS_NAME + " rounded-full px-2 py-1 text-[10px] font-semibold"}>
+ {candidate ? "Perlu preview" : "Aktif"}
+ </Badge>
+										<span
+											aria-hidden="true"
+											className="text-xs text-muted-foreground transition-transform group-open/model:rotate-180"
+										>
+											&#9662;
+										</span>
 									</summary>
 									<div className="space-y-4 border-t border-border/50 p-4">
 										<div className="grid grid-cols-2 gap-2">
-											<Button type="button" variant="outline" disabled={Boolean(busy)} className="h-11 rounded-xl"
-												onClick={() => void openPreview(state, latest.revision)}>Preview 3D</Button>
-											<Button type="button" variant="outline" disabled={Boolean(busy)} className="h-11 rounded-xl"
+											<Button
+												type="button"
+												variant="default"
+												disabled={Boolean(busy)}
+												className="h-11 rounded-xl shadow-sm"
+												onClick={() => void openPreview(state, latest.revision)}
+											>
+												Preview 3D
+											</Button>
+											<Button
+												type="button"
+												variant="outline"
+												disabled={Boolean(busy)}
+												className="h-11 rounded-xl"
 												onClick={() => {
-													setImportTarget(state); setUrl(state.sourceUrl ?? "");
-													urlInput.current?.focus(); urlInput.current?.scrollIntoView({ block: "center", behavior: "smooth" });
-												}}>Update model</Button>
+													setImportTarget(state);
+													setUrl(state.sourceUrl ?? "");
+													urlInput.current?.focus();
+													urlInput.current?.scrollIntoView({
+														block: "center",
+														behavior: "smooth",
+													});
+												}}
+											>
+												Update model
+											</Button>
 										</div>
-										{state.sourceUrl && <Button type="button" variant="ghost" size="sm" className="mx-auto flex h-auto text-xs text-muted-foreground"
-											onClick={async () => {
-												try { await navigator.clipboard.writeText(state.sourceUrl!); toast.success("Link LBY disalin."); }
-												catch { toast.error("Link tidak dapat disalin. Izinkan akses clipboard lalu coba lagi."); }
-											}}>Salin link LBY</Button>}
-										<section aria-label="Riwayat versi">
-											<h4 className="mb-1 text-xs font-semibold">Riwayat versi</h4>
+										{state.sourceUrl && (
+											<Button
+												type="button"
+												variant="ghost"
+												size="sm"
+												className="mx-auto flex h-auto text-xs text-muted-foreground"
+												onClick={async () => {
+													try {
+														await navigator.clipboard.writeText(
+															state.sourceUrl!,
+														);
+														toast.success("Link LBY disalin.");
+													} catch {
+														toast.error(
+															"Link tidak dapat disalin. Izinkan akses clipboard lalu coba lagi.",
+														);
+													}
+												}}
+											>
+												Salin link LBY
+											</Button>
+										)}
+										<section aria-label="Riwayat versi" className="rounded-xl bg-muted/30 p-3">
+											<h4 className="mb-2 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+												Riwayat versi
+											</h4>
 											{state.versions.map((version) => (
-												<div key={version.revision} className="flex items-center justify-between gap-3 border-t border-dashed border-border/60 py-2 text-xs">
-													<p className="min-w-0">V{version.versionNumber} &middot; {new Date(version.importedAt).toLocaleString("id-ID", {
-														timeZone: "Asia/Jakarta", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
-													})} &middot; {version.panelCount} panel</p>
-													{version.revision === state.activeRevision
-														? <span className="shrink-0 rounded-full bg-primary/10 px-3 py-1 text-[10px] font-semibold text-primary">AKTIF</span>
-														: <Button type="button" variant="outline" size="sm" className="h-8 shrink-0 rounded-xl text-xs" disabled={Boolean(busy)}
-															onClick={() => void openPreview(state, version.revision)}>Aktifkan<span className="sr-only"> V{version.versionNumber}</span></Button>}
+												<div
+													key={version.revision}
+													className="flex items-center justify-between gap-3 border-t border-dashed border-border/60 py-2 text-xs"
+												>
+													<p className="min-w-0">
+														V{version.versionNumber} &middot;{" "}
+														{new Date(version.importedAt).toLocaleString(
+															"id-ID",
+															{
+																timeZone: "Asia/Jakarta",
+																day: "2-digit",
+																month: "2-digit",
+																hour: "2-digit",
+																minute: "2-digit",
+															},
+														)}{" "}
+														&middot; {version.panelCount} panel
+													</p>
+													{version.revision === state.activeRevision ? (
+														<Badge variant="outline" style={activeStatusStyle} className={STATUS_BADGE_CLASS_NAME + " rounded-full px-3 py-1 text-[10px] font-bold"}>AKTIF</Badge>
+													) : (
+														<Button
+															type="button"
+															variant="outline"
+															size="sm"
+															className="h-8 shrink-0 rounded-xl text-xs"
+															disabled={Boolean(busy)}
+															onClick={() =>
+																void openPreview(state, version.revision)
+															}
+														>
+															Aktifkan
+															<span className="sr-only">
+																{" "}
+																V{version.versionNumber}
+															</span>
+														</Button>
+													)}
 												</div>
 											))}
-											{state.bundledVersion && <div className="flex items-center justify-between gap-3 border-t border-dashed border-border/60 py-2 text-xs">
-												<p>V1 &middot; Model bawaan</p>
-												{!state.activeRevision ? <span className="rounded-full bg-primary/10 px-3 py-1 text-[10px] font-semibold text-primary">AKTIF</span>
-													: <Button type="button" variant="outline" size="sm" className="h-8 rounded-xl text-xs" disabled={Boolean(busy)}
-														onClick={() => void openPreview(state, null)}>Aktifkan<span className="sr-only"> model bawaan</span></Button>}
-											</div>}
+											{state.bundledVersion && (
+												<div className="flex items-center justify-between gap-3 border-t border-dashed border-border/60 py-2 text-xs">
+													<p>V1 &middot; Model bawaan</p>
+													{!state.activeRevision ? (
+														<Badge variant="outline" style={activeStatusStyle} className={STATUS_BADGE_CLASS_NAME + " rounded-full px-3 py-1 text-[10px] font-bold"}>AKTIF</Badge>
+													) : (
+														<Button
+															type="button"
+															variant="outline"
+															size="sm"
+															className="h-8 rounded-xl text-xs"
+															disabled={Boolean(busy)}
+															onClick={() => void openPreview(state, null)}
+														>
+															Aktifkan
+															<span className="sr-only"> model bawaan</span>
+														</Button>
+													)}
+												</div>
+											)}
 										</section>
 									</div>
 								</details>
@@ -619,48 +755,111 @@ export function LbyImportPage({
 				</section>
 			</div>
 			{preview && (
-				<section ref={previewSection} tabIndex={-1} aria-label="Preview model LBY"
-					className="space-y-4 px-4 pt-5 outline-none md:px-6">
-					<div className="flex items-center justify-between gap-3">
-						<h2 className="font-bold">{preview.location?.projectName ?? "Preview model"}</h2>
-						<Button variant="outline" size="sm" disabled={Boolean(busy)} onClick={closePreview}>Kembali ke daftar</Button>
+				<section
+					ref={previewSection}
+					tabIndex={-1}
+					aria-label="Preview model LBY"
+					className="space-y-4 px-4 pt-5 outline-none md:px-6"
+				>
+					<div className="space-y-3 border-b border-border/60 pb-4">
+						<div className="flex items-center justify-between gap-3">
+							<p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Pemeriksaan model</p>
+						<Button
+							variant="ghost"
+							size="sm"
+							disabled={Boolean(busy)}
+							onClick={closePreview}
+						>
+							Kembali ke daftar
+						</Button>
+						</div>
+						<h2 className="text-xl font-extrabold leading-snug tracking-tight wrap-anywhere">
+							{preview.location?.projectName ?? "Preview model"}
+						</h2>
+					</div>
+					<div>
+						<h3 className="flex items-center gap-2 text-sm font-bold">
+							<span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">1</span>
+							Periksa model 3D
+						</h3>
+						<p className="mt-1 pl-8 text-xs text-muted-foreground">Putar dan cocokkan bentuk serta ruang dengan model di LBY.</p>
 					</div>
 					{preview.error ? (
 						<div role="alert" className="space-y-3 rounded-xl border p-4">
 							<p>{preview.error}</p>
-							<Button onClick={() => void openPreview(preview.state, preview.revision)}>Coba lagi</Button>
+							<Button
+								onClick={() =>
+									void openPreview(preview.state, preview.revision)
+								}
+							>
+								Coba lagi
+							</Button>
 						</div>
 					) : preview.location ? (
 						<div className="flex h-[60dvh] min-h-96 flex-col overflow-hidden rounded-2xl border bg-card md:h-[72dvh]">
-							<PanelLocationViewer key={preview.state.projectKey + ":" + preview.revision}
-								{...preview.location} immersive preview desktopLayout embedded />
+							<PanelLocationViewer
+								key={preview.state.projectKey + ":" + preview.revision}
+								{...preview.location}
+								immersive
+								preview
+								desktopLayout
+								embedded
+							/>
 						</div>
-					) : <div role="status" className="flex h-[60dvh] min-h-96 items-center justify-center gap-2 rounded-2xl border md:h-[72dvh]">
-						<LoaderCircle aria-hidden="true" className="size-5 animate-spin" /> Memuat preview...
-					</div>}
+					) : (
+						<div
+							role="status"
+							className="flex h-[60dvh] min-h-96 items-center justify-center gap-2 rounded-2xl border md:h-[72dvh]"
+						>
+							<LoaderCircle
+								aria-hidden="true"
+								className="size-5 animate-spin"
+							/>{" "}
+							Memuat preview...
+						</div>
+					)}
 					{preview.revision !== preview.state.activeRevision && (
-						<div className="space-y-3 rounded-2xl border bg-card p-4">
-							<p className="text-sm">Cocokkan bentuk model dan ruang dengan model di LBY.</p>
+						<div className="space-y-4 rounded-2xl border border-primary/25 bg-primary/5 p-4">
+							<h3 className="flex items-center gap-2 font-bold">
+								<span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">2</span>
+								Konfirmasi kesesuaian
+							</h3>
 							<p className="text-xs text-muted-foreground">
 								{preview.state.activeRevision || preview.state.bundledVersion
-									? "Model saat ini tetap digunakan sampai Anda konfirmasi. " : "Model ini belum digunakan. "}
-								Setelah diaktifkan, pencarian lokasi panel berikutnya memakai versi ini. Versi sebelumnya tetap tersimpan untuk pemulihan.
+									? "Konfirmasi akan mengganti model yang digunakan untuk pencarian lokasi panel. Versi sebelumnya tetap tersimpan."
+									: "Model ini belum aktif. Konfirmasi agar digunakan untuk pencarian lokasi panel."}
 							</p>
-							<label className="flex items-start gap-2 text-sm">
-								<input type="checkbox" checked={checked} disabled={!preview.location || Boolean(busy)}
-									onChange={(event) => setChecked(event.target.checked)} className="mt-1 size-4 accent-primary" />
+							<label className={`flex items-start gap-3 rounded-xl border bg-background p-3 text-sm font-medium transition-colors ${checked ? "border-primary/50 ring-1 ring-primary/15" : "border-border"}`}>
+								<input
+									type="checkbox"
+									checked={checked}
+									disabled={!preview.location || Boolean(busy)}
+									onChange={(event) => setChecked(event.target.checked)}
+									className="mt-0.5 size-5 shrink-0 accent-primary"
+								/>
 								Sudah saya periksa dan sesuai dengan LBY
 							</label>
-							<Button disabled={!preview.location || !checked || Boolean(busy)}
-								onClick={() => setReview({ state: preview.state, revision: preview.revision })}>
-								{preview.revision === null ? "Gunakan model bawaan" : preview.state.activeRevision || preview.state.bundledVersion
-									? "Gunakan versi V" + (preview.location?.versionNumber ?? "...") : "Aktifkan model"}
+							<Button
+								className="w-full rounded-xl"
+								disabled={!preview.location || !checked || Boolean(busy)}
+								onClick={() =>
+									setReview({
+										state: preview.state,
+										revision: preview.revision,
+									})
+								}
+							>
+								{preview.revision === null
+									? "Gunakan model bawaan"
+									: preview.state.activeRevision || preview.state.bundledVersion
+										? "Gunakan versi V" +
+											(preview.location?.versionNumber ?? "...")
+										: "Aktifkan model"}
 							</Button>
 						</div>
 					)}
 				</section>
 			)}
-
 
 			<Dialog
 				open={Boolean(review)}

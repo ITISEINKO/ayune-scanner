@@ -52,9 +52,11 @@ export const saveLbyImportPermission = async (userId: string, enabled: boolean, 
 };
 
 export const canImportLby = async (userId: string) => {
-	const access = await getPpicAccess(userId);
-	if (access?.role === "ADMIN") return true;
-	return (await getLbyImportPermissions([userId]))[userId];
+	const result = await db.execute({
+		sql: "SELECT role, can_import_lby FROM ppic_permissions WHERE clickup_user_id = ? LIMIT 1",
+		args: [userId],
+	});
+	return result.rows[0]?.role === "ADMIN" || Number(result.rows[0]?.can_import_lby) === 1;
 };
 
 const ensureDashboardSnapshotSchema = () =>
