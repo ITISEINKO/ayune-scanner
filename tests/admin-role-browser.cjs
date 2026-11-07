@@ -77,6 +77,26 @@ const { chromium, expect } = require("@playwright/test");
 			} else {
 				await expect(page.getByRole("heading", { name: "Pengguna & aktivitas" })).toBeVisible();
 				await expect(page.getByRole("navigation").getByRole("link")).toHaveCount(5);
+				if (role === "ADMIN") {
+					let releaseProfile;
+					const profileGate = new Promise((resolve) => { releaseProfile = resolve; });
+					const holdProfile = async (route) => {
+						if (route.request().headers()["next-router-prefetch"]) return route.continue();
+						await profileGate;
+						await route.continue();
+					};
+					await page.route("**/admin/profile*", holdProfile);
+					const profileLink = page.getByRole("navigation").getByRole("link", { name: "Profile", exact: true });
+					const navigation = profileLink.click();
+					await expect(profileLink.locator("[data-navigation-pending]")).toBeVisible();
+					await expect(profileLink).not.toHaveAttribute("aria-current", "page");
+					releaseProfile();
+					await navigation;
+					await expect(page).toHaveURL(`${base}/admin/profile`);
+					await expect(profileLink.locator("[data-navigation-pending]")).toHaveCount(0);
+					await page.unroute("**/admin/profile*", holdProfile);
+					await page.goto(`${base}/admin/settings`);
+				}
 				const highest = page.getByRole("button", { name: "Lihat detail Highest Role", exact: true });
 				if (role === "SUPER_ADMIN") await expect(highest).toBeDisabled();
 				else await expect(highest).toBeEnabled();

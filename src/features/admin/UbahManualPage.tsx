@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/drawer";
 import { statusBarangScanOptions } from "@/lib/produksiPanel";
 import { PanelLocationViewer } from "@/features/panel-location/PanelLocationViewer";
+import { PanelLocationLoader } from "@/features/panel-location/PanelLocationLoader";
 import type { ManualPanelItem } from "@/types/panelLocation";
 import { panelDisplayName } from "@/lib/panelLocation";
 
@@ -173,12 +174,7 @@ export const UbahManualPage = ({ serialNumber }: { serialNumber?: string }) => {
 				</>
 			)}
 			{loading && serialNumber && (
-				<p
-					role="status"
-					className="flex flex-1 items-center justify-center p-5 text-sm text-muted-foreground"
-				>
-					Memuat lokasi dan status panel…
-				</p>
+				<PanelLocationLoader message="Memuat lokasi dan status panel…" />
 			)}
 			{errorMessage && (
 				<p
@@ -193,16 +189,25 @@ export const UbahManualPage = ({ serialNumber }: { serialNumber?: string }) => {
 					{item.location ? (
 						<PanelLocationViewer {...item.location} immersive />
 					) : (
-						<p
+						<div
 							role="status"
-							className="flex flex-1 items-center justify-center px-5 pb-8 pt-20 text-sm text-muted-foreground"
+							className="flex min-h-0 flex-1 flex-col items-center justify-center-safe overflow-y-auto px-5 pb-8 pt-20 text-center text-sm text-muted-foreground"
 						>
-							{item.location_error === "LOCATION_AMBIGUOUS"
-								? "Serial ditemukan di beberapa model aktif. Periksa model LBY di profil admin. Status barang tetap dapat diubah."
-								: item.location_error
-									? "Lokasi panel belum dapat dimuat. Status barang tetap dapat diubah."
-									: "Lokasi panel belum tersedia untuk project ini. Status barang tetap dapat diubah."}
-						</p>
+							<img
+								src="/empty-panel-location.svg"
+								alt=""
+								width="240"
+								height="180"
+								className="mb-4 w-48"
+							/>
+							<p>
+								{item.location_error === "LOCATION_AMBIGUOUS"
+									? "Serial ditemukan di beberapa model aktif. Periksa model LBY di profil admin. Status barang tetap dapat diubah."
+									: item.location_error
+										? "Lokasi panel belum dapat dimuat. Status barang tetap dapat diubah."
+										: "Lokasi panel belum tersedia untuk project ini. Status barang tetap dapat diubah."}
+							</p>
+						</div>
 					)}
 					<section
 						aria-label="Status barang"

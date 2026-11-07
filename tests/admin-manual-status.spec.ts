@@ -227,7 +227,9 @@ test.describe("Admin manual status scan", () => {
 			.getByRole("textbox", { name: "Input scan keyboard" })
 			.fill(serialNumber);
 		await expect(page).toHaveURL(/\/admin\/ubah-manual\/location\?barcode=/);
-		await page.getByRole("button", { name: "Ubah status barang", exact: true }).click();
+		await page
+			.getByRole("button", { name: "Ubah status barang", exact: true })
+			.click();
 		const dialog = page.getByRole("dialog");
 		await expect(dialog).toContainText(`Serial: ${serialNumber}`);
 		await expect(dialog).toContainText("BARANG DITERIMA");
@@ -248,7 +250,9 @@ test.describe("Admin manual status scan", () => {
 			await expect(
 				page.getByText("Status berhasil diperbarui.").first(),
 			).toBeVisible();
-			await expect(dialog.getByText(target.label, { exact: true }).first()).toBeVisible();
+			await expect(
+				dialog.getByText(target.label, { exact: true }).first(),
+			).toBeVisible();
 			await expect.poll(clickUpStatus).toBe(target.key);
 			await expect.poll(localStatus).toBe(target.key);
 		}
