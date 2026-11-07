@@ -159,8 +159,8 @@ export function PanelLocationViewer({
 			projected
 				.map((panel) => {
 					// shortcut: translucent panels share one fill path; use a depth buffer for opaque CAD rendering.
-					const faces = panel.faceIndices.map((face) => {
-						const points = face.map((corner) => panel.points[corner]);
+					const facePaths = (indices: number[][], vertices: number[][]) => indices.map((face) => {
+						const points = face.map((corner) => vertices[corner]);
 						// Matching winding keeps the combined path filled where front and back faces overlap.
 						const area = points.reduce(
 							(sum, point, index) =>
@@ -172,8 +172,13 @@ export function PanelLocationViewer({
 						if (area < 0) points.reverse();
 						return points.map((point) => `${point[0]},${point[1]}`).join(" ");
 					});
+					const faces = facePaths(panel.faceIndices, panel.points);
 					return {
 						...panel,
+						hinges: panel.hinges.map((hinge) => ({
+							...hinge,
+							path: facePaths(hinge.geometry.faces, hinge.points).map((points) => `M${points}Z`).join(" "),
+						})),
 						faces,
 						path: faces.map((points) => `M${points}Z`).join(" "),
 						edges: panel.edgeIndices
@@ -263,6 +268,19 @@ export function PanelLocationViewer({
 					) : (
 						<path d={panel.path} vectorEffect="non-scaling-stroke" />
 					)}
+					{panel.hinges.map((hinge) => (
+						<path
+							key={hinge.id}
+							data-hinge-id={hinge.id}
+							d={hinge.path}
+							fill="#64748b"
+							fillOpacity={0.9}
+							fillRule="nonzero"
+							stroke="none"
+						>
+							<title>{`${hinge.name}${hinge.code ? ` · ${hinge.code}` : ""}`}</title>
+						</path>
+					))}
 				</g>
 			));
 
@@ -346,6 +364,20 @@ export function PanelLocationViewer({
 						</Button>
 					</Alert>
 				)}
+				{selected?.hinges?.length ? (
+					<details className="max-h-48 w-fit max-w-full overflow-auto rounded-xl border bg-card/95 p-3 text-xs shadow-sm">
+						<summary className="cursor-pointer font-semibold">Engsel panel: {selected.hinges.length}</summary>
+						{selected.doorOpenType && <p className="mt-2">Bukaan: {({ left: "kiri", right: "kanan", up: "atas", bottom: "bawah" })[selected.doorOpenType]}</p>}
+						<ul className="mt-2 space-y-2">
+							{selected.hinges.map((hinge) => (
+								<li key={hinge.id}>
+									<p>{hinge.name}{hinge.code ? ` · ${hinge.code}` : ""}</p>
+									<p className="text-muted-foreground">Posisi pada panel (mm), X / Y / Z: {hinge.panelPosition.join(" / ")}</p>
+								</li>
+							))}
+						</ul>
+					</details>
+				) : null}
 			</div>
 
 			{selected ? (

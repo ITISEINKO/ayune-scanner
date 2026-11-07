@@ -102,6 +102,19 @@ const { STATUS_COLOR_CONFIG } = require("../src/lib/colorStatusConfig.ts");
 		const accountDetails = page.getByRole("region", { name: "Account details" });
 		await expect(accountDetails.getByText("Terpasang", { exact: true })).toBeVisible();
 		await expect(accountDetails.getByText("Retur", { exact: true })).toBeVisible();
+		for (const status of ["TERPASANG_DIGUNAKAN", "DALAM_PROSES_RETUR"]) {
+			const config = STATUS_COLOR_CONFIG[status];
+			const badge = accountDetails.getByText(config.shortLabel, { exact: true });
+			const expected = await badge.evaluate((element, color) => {
+				const sample = document.createElement("span");
+				sample.style.backgroundColor = `color-mix(in srgb, ${color} 18%, transparent)`;
+				element.appendChild(sample);
+				const result = getComputedStyle(sample).backgroundColor;
+				sample.remove();
+				return result;
+			}, config.color);
+			await expect(badge).toHaveCSS("background-color", expected);
+		}
 		await expect(accountDetails.getByRole("link", { name: /Logout/ })).toHaveAttribute("href", "/api/auth/logout");
 		await expect(page.locator("main > header").getByText("nickia habibi", { exact: true })).toHaveCSS("text-transform", "capitalize");
 		await expect(page.getByText("Akun Kamu", { exact: true })).toHaveCount(0);

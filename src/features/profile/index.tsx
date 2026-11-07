@@ -96,7 +96,7 @@ export function ProfileLayout({
 					<div role="alert" className="rounded-2xl border bg-card p-4 text-sm">
 						<p>Gagal memuat detail akun.</p>
 						<Button
-							variant="outline"
+														variant="outline"
 							size="sm"
 							className="mt-2"
 							onClick={() => void refetch()}
@@ -149,7 +149,7 @@ export function ProfileLayout({
 											{allowedStatuses.map((status) => (
 												<Badge
 													key={status}
-													variant="secondary"
+														variant="outline"
 													className={`${STATUS_BADGE_CLASS_NAME} h-auto px-2 py-1 text-xs`}
 													style={
 														{

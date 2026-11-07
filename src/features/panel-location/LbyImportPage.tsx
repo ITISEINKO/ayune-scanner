@@ -153,17 +153,7 @@ export function LbyImportPage({
 	const pending = useRef(false);
 	const importController = useRef<AbortController | null>(null);
 	const [importStage, setImportStage] = useState<LbyImportStage>("downloading");
-	const [elapsed, setElapsed] = useState(0);
 	const stepIndex = importSteps.findIndex((step) => step.stage === importStage);
-	useEffect(() => {
-		if (busy !== "importing") return;
-		const started = Date.now();
-		const timer = setInterval(
-			() => setElapsed(Math.floor((Date.now() - started) / 1000)),
-			1000,
-		);
-		return () => clearInterval(timer);
-	}, [busy]);
 	const run = async (
 		action: "loading" | "importing" | "activating",
 		state?: LbyImportState,
@@ -175,7 +165,6 @@ export function LbyImportPage({
 		if (controller) {
 			importController.current = controller;
 			setImportStage("downloading");
-			setElapsed(0);
 		}
 		setBusy(action);
 		try {
@@ -413,8 +402,7 @@ export function LbyImportPage({
 							max={importSteps.length}
 							className="gap-0 **:data-[slot=progress-track]:h-1.5 **:data-[slot=progress-indicator]:min-w-[15%] **:data-[slot=progress-indicator]:bg-[#22c55e]"
 						/>
-						<div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
-							<span className="tabular-nums">{elapsed} dtk</span>
+						<div className="mt-1 flex items-center justify-end text-xs text-muted-foreground">
 							<Button
 								type="button"
 								variant="ghost"

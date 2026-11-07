@@ -6,6 +6,14 @@ export type PanelLocation = {
 	doorOpenType?: "left" | "right" | "up" | "bottom";
 	corners: number[][];
 	geometry?: { vertices: number[][]; faces: number[][]; edges: number[][] };
+	hinges?: {
+		id: string;
+		name: string;
+		code?: string;
+		position: number[];
+		panelPosition: number[];
+		geometry: NonNullable<PanelLocation["geometry"]>;
+	}[];
 };
 
 export type PanelLocationSnapshot = {

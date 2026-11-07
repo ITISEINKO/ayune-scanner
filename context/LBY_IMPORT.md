@@ -32,6 +32,16 @@ Curves are sampled within 0.25 source units before world-coordinate rounding to 
 
 Existing immutable revisions keep their original box geometry. Import the same share link again in `/drafter`, open the new Preview, then activate the reviewed revision through the existing workflow. Revision-pinned links keep showing that pinned revision. Checks: `node tests/lby-geometry.cjs`, `node tests/panel-location.cjs` after building, and the existing Postman import simulation plus `node tests/lby-import.cjs`.
 
+### Hinges (2026-11-07)
+
+New share-link imports also retain `BasePlankHardwareModel` hinges identified by `funcType: "07"` or explicit hinge names. Each distinct `objFileId` is downloaded once through the public file-download endpoint. The existing bounded ZIP/CRC checks extract its sole OBJ; only finite vertices and valid faces are retained, without materials, textures or external references. The OBJ mounting origin is preserved, then the hardware and its panel/parent transforms produce world coordinates.
+
+Each panel's optional `hinges` contains instance ID, vendor name/code, mounting position in panel coordinates (`panelPosition`), world position (`position`) and mesh. The snapshot hash includes this content, so hardware-only changes stage a new revision. Existing saved revisions remain readable; reimport and review/activate to show hinges. The standalone offline mapper needs the mesh map when generating locations for a model that contains hinges; use the share-link importer to fetch those meshes automatically.
+
+The viewer renders the imported mesh and provides an expandable selected-panel list with count, names/codes, mounting coordinates in millimetres and opening direction. Hinges follow their parent door's existing opening and pull-out motion and are hidden with their parent. This is rigid door animation, not an articulated cup/arm/base mechanism or a drilling specification.
+
+Read-only conversion of the supplied FIORDINI order on 2026-11-07 found 42 KOLITY full-overlay hinge instances on 17 of 377 panels, sharing one 259-vertex OBJ. That conversion fits the existing 1 MiB snapshot limit; no active revision was changed. Checks cover OBJ validation/origin, parent transforms, metadata sanitization, mesh reuse, hinge-only revision changes and download/CRC/OBJ failures retaining the active model.
+
 ## Where data is saved
 
 ```text

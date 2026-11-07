@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const { readFileSync } = require("node:fs");
 const { runInNewContext } = require("node:vm");
 const { transpileModule, ModuleKind } = require("typescript");
-const { panelGeometry } = require("../scripts/lby-panel-geometry.cjs");
+const { panelGeometry, hingeGeometry, isHinge } = require("../scripts/lby-panel-geometry.cjs");
 const { mapLbyPanels } = require("../scripts/map-lby-panels.cjs");
 
 const bent = { id: "panel", className: "BasePlankModel", genType: "02", sizeX: 684.76, sizeY: 19, sizeZ: 900,
@@ -61,4 +61,32 @@ const moving = {...mapped.panels[0],doorOpenType:"left"};
 const opened = helper.exports.projectPanelLocations([moving],0.3,0.2,"001",1)[0];
 assert(opened.points.flat().every(Number.isFinite));
 assert.notDeepEqual(opened.points,helper.exports.projectPanelLocations([moving],0.3,0.2,"001",0)[0].points,"door motion must rotate mesh vertices too");
+const hingeMesh = hingeGeometry("v 0 0 -2\nv 1 0 2\nv 0 1 0\nf -3/1/1 -2/2/1 -1/3/1\n");
+assert.deepEqual(hingeMesh.faces, [[0,1,2]], "OBJ relative indices and texture/normal suffixes are supported");
+assert.deepEqual(hingeMesh.vertices[0], [0,0,-2], "hinge mesh must preserve its mounting origin");
+for (const invalid of ["v NaN 0 0\nf 1 2 3", "v 0 0 0\nf 1 2 3", "v 0 0 0\nf 0 1 1", "v 0 0 0"]) {
+	assert.throws(() => hingeGeometry(invalid), /hinge OBJ/);
+}
+const hinge = {id:"hinge",parentId:"panel",className:"BasePlankHardwareModel",funcType:"07",name:"Test hinge",code:"H-01",objFileId:"123",
+	position:[1,2,3],scale:[1,1,1],quaternion:[0,0,0,1],price:123,token:"secret"};
+assert(isHinge(hinge));
+assert(!isHinge({...hinge,className:"BasePlankModel"}));
+const hingeModel = {value:{orderId:"order",docs:[{id:"doc",models:[{...bent,parentId:"parent",doorOpenType:"left"},parent,hinge]}]}};
+const hingeResponse = {code:0,data:[{id:"record",laberNumber:"001",splitId:"panel",roomName:"Room",roomPlankIdx:"1"}]};
+assert.throws(() => mapLbyPanels(hingeResponse,hingeModel,true), /Missing hinge mesh/);
+const withHinges = mapLbyPanels(hingeResponse,hingeModel,true,undefined,new Map([["123",hingeMesh]]));
+const importedHinge = withHinges.snapshot.panels[0].hinges[0];
+assert.deepEqual(importedHinge.position,[78,211,333],"hinge mounting position composes hardware, panel and rotated parent transforms");
+assert.deepEqual(importedHinge.panelPosition,[1,2,3],"panel-relative mounting coordinates remain available");
+assert.deepEqual(importedHinge.geometry.vertices[0],[78,211,331]);
+assert.equal(withHinges.mapping.panels[0].hinges[0].code,"H-01");
+assert(!/token|price|secret|https/.test(JSON.stringify(withHinges)),"hinges keep only sanitized metadata and mesh");
+const hingedProjection = helper.exports.projectPanelLocations(withHinges.snapshot.panels,0.3,0.2,"001",1)[0];
+assert.deepEqual(hingedProjection.hinges[0].points,
+	helper.exports.projectPanelLocations([{...withHinges.snapshot.panels[0],geometry:{...withHinges.snapshot.panels[0].geometry,
+		vertices:[...withHinges.snapshot.panels[0].geometry.vertices,...importedHinge.geometry.vertices]}}],0.3,0.2,"001",1)[0].points.slice(-3),
+	"hinge geometry follows the same door motion and projection as its parent panel");
+assert.notEqual(withHinges.snapshot.version,mapLbyPanels(hingeResponse,{value:{...hingeModel.value,docs:[{id:"doc",models:hingeModel.value.docs[0].models.filter(o=>o!==hinge)}]}},true).snapshot.version);
+assert.throws(() => mapLbyPanels(hingeResponse,{value:{...hingeModel.value,docs:[{id:"doc",models:[...hingeModel.value.docs[0].models,hinge]}]}},true), /Duplicate hinge ID/);
+assert.throws(() => mapLbyPanels(hingeResponse,{value:{...hingeModel.value,docs:[{id:"doc",models:[bent,{...hinge,parentId:"missing"}]}]}},true), /not attached to an imported panel/);
 console.log("LBY geometry passed: formed L/U bends, sampled arcs, origin normalization, transforms, validation, sanitization and mesh door projection.");
