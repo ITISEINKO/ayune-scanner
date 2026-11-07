@@ -2,8 +2,8 @@
 const http = require("node:http");
 const { deflateRawSync, crc32 } = require("node:zlib");
 const orderId = "123456789012345678";
-function zip(raw) {
-	const name = Buffer.from(`${orderId}.json`), data = deflateRawSync(raw), crc = crc32(raw);
+function zip(raw, filename = `${orderId}.json`) {
+	const name = Buffer.from(filename), data = deflateRawSync(raw), crc = crc32(raw);
 	const local = Buffer.alloc(30); local.writeUInt32LE(0x04034b50); local.writeUInt16LE(20, 4);
 	local.writeUInt16LE(8, 8); local.writeUInt32LE(crc, 14); local.writeUInt32LE(data.length, 18);
 	local.writeUInt32LE(raw.length, 22); local.writeUInt16LE(name.length, 26);
@@ -31,7 +31,11 @@ http.createServer((req, res) => {
 				arcPlankInfo: { arcType: mode === "reverse-curved" ? "01" : "00", a: 415, b: 20, c: 196, r1: 140, r2: 100, h: 900 } } : {}),
 			doorOpenType: "right",
 			sizeX: mode === "invalid-world" ? 1e308 : ["changed", "revoke-delay"].includes(mode) ? 30 : 10, sizeY: 20, sizeZ: 1,
-		}] }] } };
+		}, ...(["hinges", "hinge-changed", "hinge-failure", "hinge-bad-obj", "hinge-bad-crc"].includes(mode) ? [0,1].map(index => ({
+			id: `hinge-${index}`, parentId: "panel", className: "BasePlankHardwareModel", name: "Test hinge", code: "H-01",
+			funcType: "07", objFileId: "123", position: [0,0,index * 10 + (mode === "hinge-changed" ? 1 : 0)],
+			quaternion: [0,0,0,1], scale: [1,1,1],
+		})) : [])] }] } };
 		const archive = zip(Buffer.from(JSON.stringify(model)));
 		if (mode === "bad-crc") archive.writeUInt32LE(0, archive.length - 22 - (46 + Buffer.byteLength(`${orderId}.json`)) + 16);
 		const send = () => { res.writeHead(200, { "content-type": "application/zip" }); res.end(archive); };
@@ -39,6 +43,12 @@ http.createServer((req, res) => {
 		else if (mode === "revoke-delay") setTimeout(send, 1500);
 		else send();
 		return;
+	} else if (url.pathname === "/api/base/file/anyTenant/download" && url.searchParams.get("ids") === "123") {
+		if (mode === "hinge-failure") { res.writeHead(503); res.end("Unavailable"); return; }
+		const raw = Buffer.from(mode === "hinge-bad-obj" ? "v NaN 0 0\nf 1 2 3" : "v 0 0 -1\nv 1 0 1\nv 0 1 0\nf 1 2 3\n");
+		const archive = zip(raw, "hinge.obj");
+		if (mode === "hinge-bad-crc") archive.writeUInt32LE(0, archive.length - 22 - (46 + Buffer.byteLength("hinge.obj")) + 16);
+		res.writeHead(200, { "content-type": "application/zip" }); res.end(archive); return;
 	} else { res.writeHead(501); res.end("Endpoint not modeled"); return; }
 	res.writeHead(200, { "content-type": "application/json" }); res.end(JSON.stringify({ code: 0, msg: "ok", data }));
 }).listen(process.env.PORT);

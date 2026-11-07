@@ -21,11 +21,12 @@ function fixtureLink(expireTime = Date.now() + 3600000) {
 	const catalogPath = path.join(root, "catalog.json"), initial = '{"existing":{"name":"Existing","snapshot":"saved.json"}}';
 	fs.writeFileSync(catalogPath, initial);
 	const nativeFetch = global.fetch;
-	let mode = "normal", requests = 0;
+	let mode = "normal", requests = 0, hingeDownloads = 0;
 	global.fetch = (url, options) => {
 		const target = new URL(url);
 		assert(["https://www.lbyerp.com", "https://ali-oss-lby.oss-cn-hangzhou.aliyuncs.com"].includes(target.origin), "unexpected remote origin");
 		requests++;
+		if (target.pathname === "/api/base/file/anyTenant/download") hingeDownloads++;
 		return nativeFetch(`http://127.0.0.1:4913/lby${target.pathname}${target.search}`, {
 			...options, headers: { ...options?.headers, "x-test-mode": mode },
 		});
@@ -74,7 +75,18 @@ function fixtureLink(expireTime = Date.now() + 3600000) {
 		assert.deepEqual(JSON.parse(reverseCurved.locations).panels[0].geometry.vertices,
 			mesh.vertices.map(([x,y,z]) => [Math.round((179-x)*10)/10,y,z]), "downloaded ARC_Y must mirror the formed L bend");
 		assert.equal(fs.readFileSync(catalogPath, "utf8"), active, "geometry upgrades stage a separate immutable revision");
+		mode = "hinges";
+		const hinged = await importProject(fixtureLink(), "fixture", root);
+		const hingeSnapshot = JSON.parse(fs.readFileSync(path.join(root,"imports","fixture",hinged.revision,"locations.json")));
+		assert.equal(hingeSnapshot.panels[0].hinges.length, 2);
+		assert.equal(hingeSnapshot.panels[0].hinges[0].code, "H-01");
+		assert.equal(hingeDownloads, 1, "one mesh download is shared by both hinge instances");
+		assert.equal((await importProject(fixtureLink(), "fixture", root)).revision, hinged.revision, "unchanged hardware reuses its revision");
+		mode = "hinge-changed";
+		assert.notEqual((await fetchProject(fixtureLink(), "fixture")).manifest.revision, hinged.revision, "hinge-only changes create a new revision");
+		assert.equal(fs.readFileSync(catalogPath, "utf8"), active, "hardware upgrades do not activate themselves");
 		for (const [failure, message] of [["rate-limit", /HTTP 429/], ["missing-match", /No model/],
+			["hinge-failure", /Hinge download: HTTP 503/], ["hinge-bad-obj", /hinge OBJ/], ["hinge-bad-crc", /checksum/],
 			["no-panel-data", /LBY_NO_PANEL_DATA/],
 			["wrong-order", /another order/], ["bad-crc", /checksum/], ["bad-host", /download host/],
 			["invalid-world", /Invalid world position/]]) {

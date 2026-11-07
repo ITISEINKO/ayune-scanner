@@ -1,6 +1,6 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
-const { panelGeometry } = require("./lby-panel-geometry.cjs");
+const { panelGeometry, isHinge } = require("./lby-panel-geometry.cjs");
 
 // Inspect downloaded responses offline; never persist signed download URLs.
 function mapLbyPanels(
@@ -8,20 +8,24 @@ function mapLbyPanels(
 	model,
 	includeLocations = false,
 	onMapped = () => {},
+	hingeMeshes = new Map(),
 ) {
 	assert.equal(response.code, 0, "Vendor panel response failed");
 	assert(Array.isArray(response.data) && response.data.length > 0, "No panels");
 	assert(Array.isArray(model.value?.docs), "Missing model documents");
 
 	const objects = new Map();
+	const hardware = [];
 	for (const doc of model.value.docs) {
 		assert(Array.isArray(doc.models), "Missing document models");
 		for (const object of doc.models) {
+			if (isHinge(object)) hardware.push(object);
 			if (object.className !== "BasePlankModel") continue;
 			assert(!objects.has(object.id), `Duplicate model ID: ${object.id}`);
 			objects.set(object.id, { doc, object });
 		}
 	}
+	assert(new Set(hardware.map((hinge) => hinge.id)).size === hardware.length, "Duplicate hinge ID");
 
 	const barcodes = new Set();
 	const splitIds = new Set();
@@ -127,9 +131,9 @@ function mapLbyPanels(
 				size.every((n) => Number.isFinite(n) && n > 0),
 				`Invalid size: ${object.id}`,
 			);
-			const transform = (local) => {
+			const transform = (local, ancestors = chain) => {
 				let point = local;
-				for (const ancestor of chain) {
+				for (const ancestor of ancestors) {
 					const position = ancestor.position ?? [0, 0, 0];
 					const scale = ancestor.scale ?? [1, 1, 1];
 					const q = ancestor.quaternion ?? [0, 0, 0, 1];
@@ -176,6 +180,22 @@ function mapLbyPanels(
 				[0, 1, 1],
 			].map((corner) => transform(corner.map((n, axis) => n * size[axis])));
 			const geometry = panelGeometry(object);
+			const hinges = doc.models.filter((entry) => isHinge(entry) && entry.parentId === object.id).map((hinge) => {
+				const mesh = hingeMeshes.get(hinge.objFileId);
+				assert(mesh, `Missing hinge mesh: ${hinge.objFileId}`);
+				assert(typeof hinge.id === "string" && typeof hinge.name === "string", "Invalid hinge identity");
+				assert(Array.isArray(hinge.position) && hinge.position.length === 3 && hinge.position.every(Number.isFinite), "Invalid hinge position");
+				const ancestors = [hinge, ...chain];
+				return {
+					id: hinge.id,
+					name: hinge.name,
+					...(typeof hinge.code === "string" ? { code: hinge.code } : {}),
+					position: transform([0, 0, 0], ancestors),
+					panelPosition: hinge.position.map((value) => Math.round(value * 10) / 10),
+					geometry: { ...mesh, vertices: mesh.vertices.map((point) => transform(point, ancestors)) },
+				};
+			});
+			if (hinges.length) panel.hinges = hinges.map(({ geometry: _geometry, ...detail }) => detail);
 			return {
 				barcode: panel.barcode,
 				roomName: panel.roomName,
@@ -185,16 +205,18 @@ function mapLbyPanels(
 					: {}),
 				...(panel.doorOpenType ? { doorOpenType: panel.doorOpenType } : {}),
 				corners,
+				...(hinges.length ? { hinges } : {}),
 				...(geometry
 					? {
 							geometry: {
 								...geometry,
-								vertices: geometry.vertices.map(transform),
+								vertices: geometry.vertices.map((point) => transform(point)),
 							},
 						}
 					: {}),
 			};
 		});
+		assert(locationPanels.reduce((count, panel) => count + (panel.hinges?.length ?? 0), 0) === hardware.length, "Hinge is not attached to an imported panel");
 		const { createHash } = require("node:crypto");
 		snapshot = {
 			version: createHash("sha256")

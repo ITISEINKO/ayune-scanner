@@ -99,4 +99,30 @@ function panelGeometry(object) {
 	return extrude(outline.map((point) => subtract(point, min)), axis, object.plankThickness);
 }
 
-module.exports = { panelGeometry };
+const isHinge = (object) => object.className === "BasePlankHardwareModel" &&
+	(object.funcType === "07" || /hinge|铰链|合页/i.test(object.name ?? ""));
+
+function hingeGeometry(source) {
+	const vertices = [], faces = [];
+	for (const line of source.split(/\r?\n/)) {
+		const [kind, ...values] = line.trim().split(/\s+/);
+		if (kind === "v") {
+			const point = values.map(Number);
+			assert(finitePoint(point) && vertices.length < 4096, "Invalid or excessive hinge OBJ vertices");
+			vertices.push(point);
+		} else if (kind === "f") {
+			const face = values.map((value) => {
+				const index = Number(value.split("/")[0]);
+				assert(Number.isInteger(index) && index !== 0, "Invalid hinge OBJ index");
+				return index < 0 ? vertices.length + index : index - 1;
+			});
+			assert(face.length >= 3 && face.length <= 64 && faces.length < 8192, "Invalid or excessive hinge OBJ faces");
+			faces.push(face);
+		}
+	}
+	assert(vertices.length >= 3 && faces.length && faces.every((face) => face.every((index) => index >= 0 && index < vertices.length)), "Invalid hinge OBJ mesh");
+	// Preserve the OBJ origin: hinge Z coordinates straddle the mounting centre.
+	return { vertices, faces, edges: [] };
+}
+
+module.exports = { panelGeometry, hingeGeometry, isHinge };

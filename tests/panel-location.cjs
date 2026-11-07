@@ -368,7 +368,9 @@ async function main() {
 		await db.execute("UPDATE ppic_permissions SET can_import_lby=1 WHERE clickup_user_id='viewer-test'");
 		const drafterPayload = Buffer.from(JSON.stringify({ user_id: "viewer-test", role: "MEMBER", allowed_status: null, can_import_lby: true, refreshed_at: Date.now() })).toString("base64url");
 		await context.addCookies([{ name: "ppic_session", value: `${drafterPayload}.${createHmac("sha256", secret).update(drafterPayload).digest("base64url")}`, url: baseURL }]);
-		const previewSnapshot = JSON.stringify({ ...snapshot, version: "cccccccccccc" });
+		const previewSnapshot = JSON.stringify({ ...snapshot, version: "cccccccccccc", panels: snapshot.panels.map((panel) =>
+			panel.barcode === "15370046376" ? { ...panel, doorOpenType: "right", hinges: [{ id: "preview-hinge", name: "Test hinge", code: "H-01",
+				position: panel.corners[0], panelPosition: [0,0,0], geometry: { vertices: panel.corners, faces: [[0,1,2],[0,2,3]], edges: [] } }] } : panel) });
 		const previewMapping = '{"panels":[]}';
 		const previewRevision = createHash("sha256").update(previewSnapshot).digest("hex");
 		await db.execute({ sql: "UPDATE ppic_panel_location_revision SET revision=?, metadata_json=?, snapshot_gzip=?, mapping_gzip=? WHERE project_id='z96buhr3eu' AND revision=?",
@@ -380,6 +382,18 @@ async function main() {
 		await expect(page.getByRole("heading", { level: 1 })).toContainText("Candidate preview");
 		await expect(svg).toHaveAttribute("data-selected-barcode", "15370046376");
 		await expect(page.getByRole("region", { name: "Informasi panel", exact: true })).toContainText("Serial: 15370046376");
+		const hingeShape = svg.locator('[data-hinge-id="preview-hinge"]');
+		await expect(hingeShape).toBeVisible();
+		await page.getByText("Engsel panel: 1", { exact: true }).click();
+		await expect(page.getByRole("listitem").getByText("Test hinge · H-01", { exact: true })).toBeVisible();
+		await expect(page.getByText("Bukaan: kanan", { exact: true })).toBeVisible();
+		await expect(page.getByText("Posisi pada panel (mm), X / Y / Z: 0 / 0 / 0", { exact: true })).toBeVisible();
+		const hingeClosed = await hingeShape.getAttribute("d");
+		await page.getByRole("button", { name: "Buka/tutup pintu" }).click();
+		await expect(hingeShape).not.toHaveAttribute("d", hingeClosed);
+		await page.getByRole("button", { name: "Reset tampilan" }).click();
+		await expect(hingeShape).toHaveAttribute("d", hingeClosed);
+		await page.getByText("Engsel panel: 1", { exact: true }).click();
 		for (const width of [768, 1440]) {
 			await page.setViewportSize({ width, height: 900 });
 			const canvas = await svg.boundingBox();

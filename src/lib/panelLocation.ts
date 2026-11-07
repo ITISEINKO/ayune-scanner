@@ -172,6 +172,7 @@ export const projectPanelLocations = (
 	};
 	return panels.map((panel) => {
 		const vertices = panel.geometry?.vertices ?? panel.corners;
+		const allVertices = [...vertices, ...(panel.hinges ?? []).flatMap((hinge) => hinge.geometry.vertices)];
 		const offset = [0, 0, 0];
 		if (panel.barcode === barcode && panels.length > 1) {
 			// shortcut: the shortest box edge approximates the panel normal; use assembly axes for joinery-accurate extraction.
@@ -205,7 +206,7 @@ export const projectPanelLocations = (
 		const motion = panelDoorMotion(panel);
 		// Fit the full hinge circle so opening a door never reframes or clips its swing.
 		const fitPoints = motion
-			? vertices.flatMap((point) => {
+			? allVertices.flatMap((point) => {
 					const relative = point.map(
 						(value, axis) => value - motion.pivot[axis],
 					);
@@ -227,12 +228,17 @@ export const projectPanelLocations = (
 						circleCenter.map((value, axis) => value + sign * extent[axis]),
 					);
 				})
-			: vertices.map(project);
+			: allVertices.map(project);
 		return {
 			...panel,
 			explodeOffset: rotate(offset),
 			fitPoints,
 			points: panelDoorCorners(panel, doorProgress, vertices).map(project),
+			// shortcut: hinges move rigidly with the door; articulated motion needs separate cup/arm/base meshes.
+			hinges: (panel.hinges ?? []).map((hinge) => ({
+				...hinge,
+				points: panelDoorCorners(panel, doorProgress, hinge.geometry.vertices).map(project),
+			})),
 			faceIndices: panel.geometry?.faces ?? BOX_FACES,
 			edgeIndices: panel.geometry?.edges ?? BOX_EDGES,
 		};

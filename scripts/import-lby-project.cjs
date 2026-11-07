@@ -4,6 +4,7 @@ const path = require("node:path");
 const { createHash } = require("node:crypto");
 const { inflateRawSync, crc32 } = require("node:zlib");
 const { mapLbyPanels } = require("./map-lby-panels.cjs");
+const { hingeGeometry, isHinge } = require("./lby-panel-geometry.cjs");
 
 const ORIGIN = "https://www.lbyerp.com";
 const ROOT = path.resolve(__dirname, "../src/data/panel-locations");
@@ -54,7 +55,7 @@ async function apiData(apiPath, label, signal) {
 	return envelope.data;
 }
 
-function unzipModel(bytes, orderId) {
+function unzipEntry(bytes, extension, expectedName) {
 	let eocd = -1;
 	for (let at = bytes.length - 22; at >= Math.max(0, bytes.length - 65557); at--) {
 		if (bytes.readUInt32LE(at) === 0x06054b50 && at + 22 + bytes.readUInt16LE(at + 20) === bytes.length) { eocd = at; break; }
@@ -68,11 +69,11 @@ function unzipModel(bytes, orderId) {
 		const nameLength = bytes.readUInt16LE(at + 28), extra = bytes.readUInt16LE(at + 30), comment = bytes.readUInt16LE(at + 32);
 		assert(at + 46 + nameLength + extra + comment <= eocd, "Truncated ZIP entry");
 		const name = bytes.toString("utf8", at + 46, at + 46 + nameLength);
-		if (name.endsWith(".json")) candidates.push({ name, flags: bytes.readUInt16LE(at + 8), method: bytes.readUInt16LE(at + 10),
+		if (name.toLowerCase().endsWith(extension)) candidates.push({ name, flags: bytes.readUInt16LE(at + 8), method: bytes.readUInt16LE(at + 10),
 			crc: bytes.readUInt32LE(at + 16), compressed: bytes.readUInt32LE(at + 20), size: bytes.readUInt32LE(at + 24), local: bytes.readUInt32LE(at + 42) });
 		at += 46 + nameLength + extra + comment;
 	}
-	assert(candidates.length === 1 && candidates[0].name === `${orderId}.json`, "Expected one order JSON in ZIP");
+	assert(candidates.length === 1 && (!expectedName || candidates[0].name === expectedName), "Expected one matching file in ZIP");
 	const entry = candidates[0];
 	assert(!(entry.flags & 1) && [0, 8].includes(entry.method) && entry.size <= LIMIT, "Unsupported or oversized ZIP entry");
 	assert(entry.local + 30 <= start && bytes.readUInt32LE(entry.local) === 0x04034b50, "Invalid ZIP local entry");
@@ -82,6 +83,10 @@ function unzipModel(bytes, orderId) {
 	const raw = entry.method === 8 ? inflateRawSync(compressed, { maxOutputLength: LIMIT }) : compressed;
 	assert(raw.length === entry.size && crc32(raw) === entry.crc, "ZIP size/checksum mismatch");
 	return raw;
+}
+
+function unzipModel(bytes, orderId) {
+	return unzipEntry(bytes, ".json", `${orderId}.json`);
 }
 
 async function fetchProject(link, key, signal = AbortSignal.timeout(240000), onProgress = (_stage) => {}) {
@@ -109,7 +114,14 @@ async function fetchProject(link, key, signal = AbortSignal.timeout(240000), onP
 	assert(String(model.value?.orderId) === source.orderId, "Model belongs to another order");
 	assert(!model.value._V_, "Compressed CAD schema is not supported by this importer");
 	assert(panels.every((panel) => String(panel.orderId) === source.orderId), "Panel belongs to another order");
-	const { mapping, snapshot } = mapLbyPanels({ code: 0, data: panels }, model, true, () => onProgress("rooms"));
+	const hingeMeshes = new Map();
+	const hinges = model.value.docs.flatMap((doc) => doc.models.filter(isHinge));
+	for (const id of new Set(hinges.map((hinge) => hinge.objFileId))) {
+		assert(typeof id === "string" && /^\d{1,30}$/.test(id), "Invalid hinge OBJ file ID");
+		const archive = await readRemote(`${ORIGIN}/api/base/file/anyTenant/download?ids=${id}`, "Hinge download", signal);
+		hingeMeshes.set(id, hingeGeometry(unzipEntry(archive, ".obj").toString("utf8")));
+	}
+	const { mapping, snapshot } = mapLbyPanels({ code: 0, data: panels }, model, true, () => onProgress("rooms"), hingeMeshes);
 	const locations = `${JSON.stringify(snapshot)}\n`, mappingJson = `${JSON.stringify(mapping, null, 2)}\n`;
 	const revision = sha(locations);
 	const manifest = { projectKey: key, name: source.name, orderId: source.orderId, revision, version: snapshot.version,

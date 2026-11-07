@@ -14,6 +14,7 @@ import type {
 } from "@/types/panelLocation";
 
 const sha = (value: string) => createHash("sha256").update(value).digest("hex");
+const SNAPSHOT_LIMIT = 2 * 1024 * 1024;
 const bundled = (project: string) =>
 	Object.hasOwn(catalog, project)
 		? catalog[project as keyof typeof catalog]
@@ -88,7 +89,7 @@ const ensureSchema = () =>
 			for (const row of active.rows) {
 				const locations = gunzipSync(
 					Buffer.from(row.snapshot_gzip as ArrayBuffer),
-					{ maxOutputLength: 1024 * 1024 },
+					{ maxOutputLength: SNAPSHOT_LIMIT },
 				).toString("utf8");
 				if (sha(locations) !== row.revision)
 					throw new Error("CHECKSUM_MISMATCH");
@@ -258,7 +259,7 @@ export const saveLbyImport = async (
 	)
 		throw new Error("CHECKSUM_MISMATCH");
 	if (
-		Buffer.byteLength(locations) > 1024 * 1024 ||
+		Buffer.byteLength(locations) > SNAPSHOT_LIMIT ||
 		Buffer.byteLength(mappingJson) > 8 * 1024 * 1024
 	)
 		throw new Error("MODEL_TOO_LARGE");
@@ -353,7 +354,7 @@ const readRevision = unstable_cache(
 		} as LbyImportVersion;
 		const locations = gunzipSync(
 			Buffer.from(row.snapshot_gzip as ArrayBuffer),
-			{ maxOutputLength: 2 * 1024 * 1024 },
+			{ maxOutputLength: SNAPSHOT_LIMIT },
 		).toString("utf8");
 		const mapping = gunzipSync(Buffer.from(row.mapping_gzip as ArrayBuffer), {
 			maxOutputLength: 8 * 1024 * 1024,

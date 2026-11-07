@@ -336,7 +336,7 @@ async function main() {
 		await expect(
 			progress.getByRole("button", { name: "Batalkan", exact: true }),
 		).toBeEnabled();
-		await expect(progress.getByText(/^[1-9]\d* dtk$/)).toBeVisible();
+		await expect(progress.getByText(/^\d+ dtk$/)).toHaveCount(0);
 		await expect(
 			toasts.filter({ hasText: "Link terlalu panjang" }),
 		).toHaveCount(0);
