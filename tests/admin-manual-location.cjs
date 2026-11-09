@@ -301,6 +301,10 @@ async function main() {
 			path: "test-results/admin-manual-location-exploded-mobile.png",
 			fullPage: true,
 		});
+		await page.getByRole("button", { name: "Semua panel", exact: true }).click();
+		await expect(svg).toHaveAttribute("data-explode-mode", "all");
+		assert(await svg.locator("g[data-barcode]").evaluateAll(groups => groups.filter(group => getComputedStyle(group).transform !== "matrix(1, 0, 0, 1, 0, 0)").length) > 1, "admin whole explode must move surrounding panels too");
+		await page.screenshot({ path: "test-results/admin-manual-location-all-exploded-mobile.png", fullPage: true });
 		await page
 			.getByRole("button", { name: "Reset tampilan", exact: true })
 			.click();

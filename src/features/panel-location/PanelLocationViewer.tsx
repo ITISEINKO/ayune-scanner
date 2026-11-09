@@ -67,7 +67,9 @@ export function PanelLocationViewer({
 	const [yaw, setYaw] = useState(INITIAL_YAW);
 	const [pitch, setPitch] = useState(INITIAL_PITCH);
 	const [zoom, setZoom] = useState(1);
+	const [pan, setPan] = useState({ x: 0, y: 0 });
 	const [explode, setExplode] = useState(0);
+	const [explodeAll, setExplodeAll] = useState(false);
 	const [animateExplode, setAnimateExplode] = useState(false);
 	const [hideDoors, setHideDoors] = useState(false);
 	const [doorsOpen, setDoorsOpen] = useState(false);
@@ -76,7 +78,7 @@ export function PanelLocationViewer({
 	const doorFrame = useRef<number | null>(null);
 	const [aspect, setAspect] = useState(1);
 	const viewport = useRef<SVGSVGElement>(null);
-	const pointers = useRef(new Map<number, { x: number; y: number }>());
+	const pointers = useRef(new Map<number, { x: number; y: number; button: number }>());
 	const changeZoom = (factor: number) =>
 		setZoom((value) => Math.max(0.25, Math.min(3, value * factor)));
 	useEffect(() => {
@@ -126,15 +128,15 @@ export function PanelLocationViewer({
 		: "Panel";
 	const fitted = useMemo(
 		() =>
-			panels.length ? projectPanelLocations(panels, yaw, pitch, barcode) : [],
-		[panels, yaw, pitch, barcode],
+			panels.length ? projectPanelLocations(panels, yaw, pitch, barcode, 0, explodeAll) : [],
+		[panels, yaw, pitch, barcode, explodeAll],
 	);
 	const projected = useMemo(
 		() =>
 			doorProgress === 0
 				? fitted
-				: projectPanelLocations(panels, yaw, pitch, barcode, doorProgress),
-		[fitted, panels, yaw, pitch, barcode, doorProgress],
+				: projectPanelLocations(panels, yaw, pitch, barcode, doorProgress, explodeAll),
+		[fitted, panels, yaw, pitch, barcode, doorProgress, explodeAll],
 	);
 	// Fit both endpoints so changing explode progress does not move the camera.
 	const points = useMemo(
@@ -214,7 +216,9 @@ export function PanelLocationViewer({
 		setYaw(INITIAL_YAW);
 		setPitch(INITIAL_PITCH);
 		setZoom(1);
+		setPan({ x: 0, y: 0 });
 		setExplode(0);
+		setExplodeAll(false);
 		setHideDoors(false);
 		setDoorsOpen(false);
 		if (doorFrame.current !== null) cancelAnimationFrame(doorFrame.current);
@@ -412,24 +416,26 @@ export function PanelLocationViewer({
 					>
 						<svg
 							ref={viewport}
-							viewBox={`${(minX + maxX - width) / 2} ${(minY + maxY - height) / 2} ${width} ${height}`}
+							viewBox={`${(minX + maxX - width) / 2 - pan.x} ${(minY + maxY - height) / 2 - pan.y} ${width} ${height}`}
 							className={`${immersive ? "h-full" : "h-[min(62dvh,640px)] min-h-80"} w-full cursor-grab select-none text-foreground active:cursor-grabbing`}
 							style={{ touchAction: "none" }}
 							role="img"
 							tabIndex={0}
-							aria-label={`Posisi ${panelLabel.toLowerCase()}, barcode ${barcode}, ruang ${selected.roomName}. Geser atau tombol panah untuk memutar. Scroll, pinch, atau tombol plus dan minus untuk zoom.`}
+							aria-label={`Posisi ${panelLabel.toLowerCase()}, barcode ${barcode}, ruang ${selected.roomName}. Geser atau tombol panah untuk memutar. Klik kanan dan geser, atau Shift dan tombol panah untuk menggeser. Scroll, pinch, atau tombol plus dan minus untuk zoom.`}
 							data-selected-barcode={barcode}
 							data-panel-count={panels.length}
 							data-explode={Math.round(explode * 100)}
+							data-explode-mode={explodeAll ? "all" : "selected"}
 							data-doors-hidden={hideDoors}
 							data-doors-open={doorsOpen}
 							data-door-progress={Math.round(doorProgress * 100)}
 							onPointerDown={(event) => {
-								if (event.button !== 0) return;
+								if (event.button !== 0 && event.button !== 2) return;
 								setAnimateExplode(false);
 								pointers.current.set(event.pointerId, {
 									x: event.clientX,
 									y: event.clientY,
+									button: event.button,
 								});
 								event.currentTarget.setPointerCapture(event.pointerId);
 							}}
@@ -449,6 +455,13 @@ export function PanelLocationViewer({
 										event.clientY - other.y,
 									);
 									if (before > 0 && after > 0) changeZoom(before / after);
+								} else if (pointers.current.size === 1 && previous.button === 2) {
+									const bounds = event.currentTarget.getBoundingClientRect();
+									if (bounds.width > 0 && bounds.height > 0)
+										setPan((value) => ({
+											x: value.x + (event.clientX - previous.x) * width / bounds.width,
+											y: value.y + (event.clientY - previous.y) * height / bounds.height,
+										}));
 								} else if (pointers.current.size === 1) {
 									setYaw(
 										(value) => value + (event.clientX - previous.x) * 0.008,
@@ -458,6 +471,7 @@ export function PanelLocationViewer({
 								pointers.current.set(event.pointerId, {
 									x: event.clientX,
 									y: event.clientY,
+									button: previous.button,
 								});
 							}}
 							onPointerUp={(event) => {
@@ -469,6 +483,7 @@ export function PanelLocationViewer({
 							onLostPointerCapture={(event) => {
 								pointers.current.delete(event.pointerId);
 							}}
+							onContextMenu={(event) => event.preventDefault()}
 							onKeyDown={(event) => {
 								if (
 									![
@@ -484,6 +499,13 @@ export function PanelLocationViewer({
 									return;
 								event.preventDefault();
 								setAnimateExplode(false);
+								if (event.shiftKey && event.key.startsWith("Arrow")) {
+									setPan((value) => ({
+										x: value.x + (event.key === "ArrowLeft" ? -width : event.key === "ArrowRight" ? width : 0) * 0.05,
+										y: value.y + (event.key === "ArrowUp" ? -height : event.key === "ArrowDown" ? height : 0) * 0.05,
+									}));
+									return;
+								}
 								if (event.key === "+" || event.key === "=") changeZoom(0.8);
 								if (event.key === "-") changeZoom(1 / 0.8);
 								if (event.key === "ArrowLeft") setYaw((value) => value - 0.2);
@@ -594,7 +616,33 @@ export function PanelLocationViewer({
 									Panel yang dicari
 								</p>
 							)}
-							<div className="flex items-center gap-3 rounded-2xl border border-border/50 bg-card/95 p-2 shadow-sm">
+							<div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl border border-border/50 bg-card/95 p-2 shadow-sm">
+								<div role="group" aria-label="Mode explode" className="flex basis-full gap-1">
+									<Button
+										variant={explodeAll ? "ghost" : "default"}
+										size="sm"
+										className="min-h-10 flex-1"
+										aria-pressed={!explodeAll}
+										onClick={() => {
+											setAnimateExplode(false);
+											setExplodeAll(false);
+										}}
+									>
+										Panel dicari
+									</Button>
+									<Button
+											variant={explodeAll ? "default" : "ghost"}
+										size="sm"
+										className="min-h-10 flex-1"
+										aria-pressed={explodeAll}
+										onClick={() => {
+											setAnimateExplode(false);
+											setExplodeAll(true);
+										}}
+									>
+										Semua panel
+									</Button>
+								</div>
 								<Button
 									variant="ghost"
 									size="sm"
@@ -607,7 +655,7 @@ export function PanelLocationViewer({
 									}}
 								>
 									<Expand aria-hidden="true" />
-									{explode > 0 ? "Pasang" : "Tarik"}
+									{explode > 0 ? "Pasang" : explodeAll ? "Pisah" : "Tarik"}
 								</Button>
 								<label className="sr-only" htmlFor={`explode-${barcode}`}>
 									Jarak explode
@@ -633,7 +681,7 @@ export function PanelLocationViewer({
 								</output>
 							</div>
 							<p className="text-center text-[11px] text-muted-foreground">
-								Tarik panel merah dari posisinya · Scroll / pinch untuk zoom
+								{explodeAll ? "Pisahkan semua panel di ruang ini" : "Tarik panel merah dari posisinya"} · Scroll / pinch untuk zoom · Klik kanan + geser untuk pan
 							</p>
 						</div>
 					</div>

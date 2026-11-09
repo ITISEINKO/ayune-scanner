@@ -139,6 +139,7 @@ export const projectPanelLocations = (
 	pitch: number,
 	barcode: string,
 	doorProgress = 0,
+	explodeAll = false,
 ) => {
 	const points = panels.flatMap(
 		(panel) => panel.geometry?.vertices ?? panel.corners,
@@ -172,17 +173,12 @@ export const projectPanelLocations = (
 	};
 	return panels.map((panel) => {
 		const vertices = panel.geometry?.vertices ?? panel.corners;
-		const allVertices = [...vertices, ...(panel.hinges ?? []).flatMap((hinge) => hinge.geometry.vertices)];
+		// shortcut: the shortest box edge approximates the panel normal; use assembly axes for joinery-accurate extraction.
+		const normal = [1, 3, 4]
+			.map((corner) => panel.corners[corner].map((value, axis) => value - panel.corners[0][axis]))
+			.sort((a, b) => Math.hypot(...a) - Math.hypot(...b))[0];
 		const offset = [0, 0, 0];
-		if (panel.barcode === barcode && panels.length > 1) {
-			// shortcut: the shortest box edge approximates the panel normal; use assembly axes for joinery-accurate extraction.
-			const normal = [1, 3, 4]
-				.map((corner) =>
-					panel.corners[corner].map(
-						(value, axis) => value - panel.corners[0][axis],
-					),
-				)
-				.sort((a, b) => Math.hypot(...a) - Math.hypot(...b))[0];
+		if ((explodeAll || panel.barcode === barcode) && panels.length > 1) {
 			const length = Math.hypot(...normal);
 			const outward =
 				normal.reduce(
@@ -200,13 +196,33 @@ export const projectPanelLocations = (
 				normal.forEach((value, axis) => {
 					offset[axis] = (value / length) * spread * outward;
 				});
+			// Spread panel centres too so parallel shelves do not move as one stack.
+			if (explodeAll) center.forEach((value, axis) => {
+				offset[axis] += (panel.corners.reduce((sum, point) => sum + point[axis], 0) / panel.corners.length - value) * 0.8;
+			});
 		}
 		const project = (point: number[]) =>
 			rotate(point.map((value, axis) => value - center[axis]));
+		const hinges = (panel.hinges ?? []).map((hinge) => {
+			const source = hinge.geometry.vertices;
+			const rotated = panelDoorCorners(panel, doorProgress, source);
+			if (rotated === source) return { ...hinge, points: source.map(project) };
+			// shortcut: blend by depth from the door to keep both mounts connected; exact motion needs part/joint data.
+			const depths = source.map((point) => Math.abs(point.reduce(
+				(sum, value, axis) => sum + (value - hinge.position[axis]) * normal[axis], 0,
+			)));
+			const near = Math.min(...depths), far = Math.max(...depths);
+			return {
+				...hinge,
+				points: source.map((point, index) => project(point.map((value, axis) =>
+					value + (rotated[index][axis] - value) * (far > near ? (far - depths[index]) / (far - near) : 0),
+				))),
+			};
+		});
 		const motion = panelDoorMotion(panel);
 		// Fit the full hinge circle so opening a door never reframes or clips its swing.
 		const fitPoints = motion
-			? allVertices.flatMap((point) => {
+			? [...vertices, ...(panel.hinges ?? []).flatMap((hinge) => hinge.geometry.vertices)].flatMap((point) => {
 					const relative = point.map(
 						(value, axis) => value - motion.pivot[axis],
 					);
@@ -228,17 +244,14 @@ export const projectPanelLocations = (
 						circleCenter.map((value, axis) => value + sign * extent[axis]),
 					);
 				})
-			: allVertices.map(project);
+			: vertices.map(project);
+		fitPoints.push(...(panel.hinges ?? []).flatMap((hinge) => hinge.geometry.vertices.map(project)));
 		return {
 			...panel,
 			explodeOffset: rotate(offset),
 			fitPoints,
 			points: panelDoorCorners(panel, doorProgress, vertices).map(project),
-			// shortcut: hinges move rigidly with the door; articulated motion needs separate cup/arm/base meshes.
-			hinges: (panel.hinges ?? []).map((hinge) => ({
-				...hinge,
-				points: panelDoorCorners(panel, doorProgress, hinge.geometry.vertices).map(project),
-			})),
+			hinges,
 			faceIndices: panel.geometry?.faces ?? BOX_FACES,
 			edgeIndices: panel.geometry?.edges ?? BOX_EDGES,
 		};

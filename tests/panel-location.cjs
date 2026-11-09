@@ -179,6 +179,18 @@ async function main() {
 		await expect(svg.locator("polygon").first()).not.toHaveAttribute("points", initialPoints);
 		await page.getByRole("button", { name: "Reset tampilan", exact: true }).click();
 		const initialBox = await svg.getAttribute("viewBox");
+		const beforePan = await svg.locator("polygon").first().boundingBox();
+		await page.mouse.move(bounds.x + 50, bounds.y + 150); await page.mouse.down({ button: "right" });
+		await page.mouse.move(bounds.x + 90, bounds.y + 180); await page.mouse.up({ button: "right" });
+		await expect(svg).not.toHaveAttribute("viewBox", initialBox);
+		await expect(svg.locator("polygon").first()).toHaveAttribute("points", initialPoints);
+		const afterPan = await svg.locator("polygon").first().boundingBox();
+		assert(Math.abs(afterPan.x - beforePan.x - 40) < 1 && Math.abs(afterPan.y - beforePan.y - 30) < 1, "right drag must pan by the mouse distance without rotating or zooming");
+		assert.equal(await svg.evaluate(element => element.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }))), false, "right drag must suppress the canvas context menu");
+		await svg.focus(); await page.keyboard.press("Shift+ArrowUp");
+		assert((await svg.locator("polygon").first().boundingBox()).y < afterPan.y, "keyboard users must be able to pan upwards");
+		await page.getByRole("button", { name: "Reset tampilan", exact: true }).click();
+		await expect(svg).toHaveAttribute("viewBox", initialBox);
 		const initialTransform = await svg.locator("polygon").first().evaluate((node) => getComputedStyle(node.parentElement).transform);
 		const explodeSlider = page.getByRole("slider", { name: "Jarak explode" });
 		await explodeSlider.focus(); await explodeSlider.press("Home"); await explodeSlider.press("ArrowRight");
@@ -192,8 +204,30 @@ async function main() {
 		await expect(svg).toHaveAttribute("viewBox", initialBox, { timeout: 1000 });
 		await expect(svg.locator("line")).toHaveCount(1);
 		assert.equal(await svg.locator("g[data-barcode]").evaluateAll((groups) => groups.filter((group) => getComputedStyle(group).transform !== "matrix(1, 0, 0, 1, 0, 0)").length), 1, "only the selected panel moves");
+		const panelMode = page.getByRole("button", { name: "Panel dicari", exact: true });
+		const allMode = page.getByRole("button", { name: "Semua panel", exact: true });
+		await allMode.click();
+		await expect(svg).toHaveAttribute("data-explode-mode", "all");
+		await expect(allMode).toHaveAttribute("aria-pressed", "true");
+		await expect(panelMode).toHaveAttribute("aria-pressed", "false");
+		assert(await svg.locator("g[data-barcode]").evaluateAll((groups) => groups.filter((group) => getComputedStyle(group).transform !== "matrix(1, 0, 0, 1, 0, 0)").length) > 1, "whole mode must separate surrounding panels too");
+		const allBox = await svg.getAttribute("viewBox");
+		const panelPaths = await svg.locator("g[data-barcode]").evaluateAll(groups => groups.map(group => group.innerHTML));
+		await explodeSlider.focus(); await explodeSlider.press("Home");
+		await expect(svg).toHaveAttribute("data-explode", "0");
+		await explodeSlider.press("End");
+		await expect(svg).toHaveAttribute("data-explode", "100");
+		await expect(svg).toHaveAttribute("viewBox", allBox);
+		assert.deepEqual(await svg.locator("g[data-barcode]").evaluateAll(groups => groups.map(group => group.innerHTML)), panelPaths, "sliding must reuse the same SVG geometry");
+		await panelMode.click();
+		await expect(svg).toHaveAttribute("data-explode-mode", "selected");
+		await expect(svg).toHaveAttribute("viewBox", initialBox);
+		assert.equal(await svg.locator("g[data-barcode]").evaluateAll((groups) => groups.filter((group) => getComputedStyle(group).transform !== "matrix(1, 0, 0, 1, 0, 0)").length), 1);
+		await allMode.click();
 		await page.getByRole("button", { name: "Reset tampilan", exact: true }).click();
 		await expect(svg).toHaveAttribute("data-explode", "0");
+		await expect(svg).toHaveAttribute("data-explode-mode", "selected");
+		await expect(panelMode).toHaveAttribute("aria-pressed", "true");
 		await svg.focus(); await page.keyboard.press("+");
 		await expect(svg).not.toHaveAttribute("viewBox", initialBox);
 		await page.getByRole("button", { name: "Reset tampilan", exact: true }).click();
@@ -225,6 +259,16 @@ async function main() {
 		assert(Math.abs(info.y + info.height - 844) <= 1, "standalone panel details meet the viewport bottom without navigation padding");
 		assert((await svg.boundingBox()).height > 500, "standalone viewer fills the available canvas");
 		await page.screenshot({ path: "test-results/panel-location-mobile.png", fullPage: true });
+		await allMode.click();
+		await page.getByRole("button", { name: "Explode panel", exact: true }).click();
+		await expect(svg).toHaveAttribute("data-explode", "100");
+		await expect(svg).toHaveAttribute("data-explode-mode", "all");
+		await page.waitForTimeout(350);
+		await page.screenshot({ path: "test-results/panel-location-all-exploded-mobile.png", fullPage: true });
+		await svg.focus();
+		for (let turn = 0; turn < 11; turn++) await page.keyboard.press("ArrowRight");
+		await page.screenshot({ path: "test-results/panel-location-all-exploded-side.png", fullPage: true });
+		await page.getByRole("button", { name: "Reset tampilan", exact: true }).click();
 		await page.goto(`${baseURL}${helper.exports.panelLocationUrl("z96buhry4p", "15370046368")}`);
 		await expect(svg).toHaveAttribute("data-selected-barcode", "15370046368");
 		const kitchen = snapshot.panels.find((p) => p.roomName === "KITCHEN SET");
@@ -312,7 +356,10 @@ async function main() {
 		await expect(page.getByRole("status")).toContainText("Barcode tidak ditemukan");
 		assert.equal(await svg.count(), 0);
 		assert.equal((await context.request.get(`${baseURL}/panel-location?project=unknown&barcode=15370046376`)).status(), 200, "serial lookup does not depend on the ClickUp project");
-		assert.equal((await context.request.get(`${baseURL}/panel-location?project=z96buhry4p&barcode=a&barcode=b`)).status(), 404);
+		// Streamed notFound pages may return HTTP 200; verify the rendered rejection instead.
+		await page.goto(`${baseURL}/panel-location?project=z96buhry4p&barcode=a&barcode=b`);
+		await expect(page.getByRole("heading", { name: "404", exact: true })).toBeVisible();
+		await expect(svg).toHaveCount(0);
 		const memberRequests = [];
 		const tracedFiles = JSON.parse(readFileSync(".next/server/app/(member)/cari-lokasi/page.js.nft.json", "utf8")).files;
 		assert(tracedFiles.some((file) => file.endsWith("src/data/panel-locations/z96buhry4p.json")), "member search deployment must include bundled models");
@@ -344,6 +391,14 @@ async function main() {
 			assert(!/\p{Script=Han}/u.test(await page.getByRole("region", { name: "Informasi panel", exact: true }).innerText()), "panel names display without Chinese characters");
 			assert((await svg.boundingBox()).height > 400, "read-only viewer fills the available canvas");
 			await page.screenshot({ path: `test-results/member-panel-location-${width}.png`, fullPage: true });
+			await allMode.click();
+			await explodeSlider.focus(); await explodeSlider.press("End");
+			await expect(svg).toHaveAttribute("data-explode-mode", "all");
+			await expect(svg).toHaveAttribute("data-explode", "100");
+			await expect(allMode).toHaveAttribute("aria-pressed", "true");
+			assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `whole explode fits ${width}px`);
+			await page.screenshot({ path: `test-results/member-panel-location-all-${width}.png`, fullPage: true });
+			await page.getByRole("button", { name: "Reset tampilan", exact: true }).click();
 		}
 		await page.getByRole("link", { name: "Scan panel lain", exact: true }).click();
 		await expect(page).toHaveURL(`${baseURL}/cari-lokasi`);
@@ -358,8 +413,11 @@ async function main() {
 		await page.getByRole("textbox", { name: "Input scan keyboard" }).fill("x".repeat(101));
 		await expect(page.locator("[data-sonner-toast]").filter({ hasText: "Serial number terlalu panjang." })).toBeVisible();
 		await expect(page).toHaveURL(`${baseURL}/cari-lokasi`);
-		assert.equal((await context.request.get(`${baseURL}/cari-lokasi?barcode=${"x".repeat(101)}`)).status(), 404);
-		assert.equal((await context.request.get(`${baseURL}/cari-lokasi?barcode=a&barcode=b`)).status(), 404);
+		for (const query of [`barcode=${"x".repeat(101)}`, "barcode=a&barcode=b"]) {
+			await page.goto(`${baseURL}/cari-lokasi?${query}`);
+			await expect(page.getByRole("heading", { name: "404", exact: true })).toBeVisible();
+			await expect(svg).toHaveCount(0);
+		}
 		assert.deepEqual(memberRequests.filter(({ method, path }) => !["GET", "HEAD"].includes(method) || /^\/api\/(project|projects|panel\/manual)/.test(path)), [], "member location lookup must not select a project or call status APIs");
 		await db.execute("UPDATE ppic_permissions SET active=0 WHERE clickup_user_id='viewer-test'");
 		assert.equal((await context.request.get(`${baseURL}/api/panel/location-version?project=z96buhry4p`)).status(), 403);
@@ -389,7 +447,10 @@ async function main() {
 		await expect(page.getByText("Bukaan: kanan", { exact: true })).toBeVisible();
 		await expect(page.getByText("Posisi pada panel (mm), X / Y / Z: 0 / 0 / 0", { exact: true })).toBeVisible();
 		const hingeClosed = await hingeShape.getAttribute("d");
+		const doorClosed = await svg.locator('g[data-barcode="15370046376"] polygon').first().getAttribute("points");
 		await page.getByRole("button", { name: "Buka/tutup pintu" }).click();
+		await expect(svg).toHaveAttribute("data-door-progress", "100");
+		await expect(svg.locator('g[data-barcode="15370046376"] polygon').first()).not.toHaveAttribute("points", doorClosed);
 		await expect(hingeShape).not.toHaveAttribute("d", hingeClosed);
 		await page.getByRole("button", { name: "Reset tampilan" }).click();
 		await expect(hingeShape).toHaveAttribute("d", hingeClosed);
