@@ -15,7 +15,7 @@ const { Vector3 } = require('three');
 		});
 		let visibleNumber = false;
 		await page.route('**/api/public-models/**', route => route.fulfill({ json: [panel(-0.2, '88'), panel(0.2, visibleNumber ? '88' : '')] }));
-		async function bluePixels() {
+		async function labelPixels() {
 			await page.goto('http://localhost:3000/panel-viewer/814606578513608858');
 			await page.locator('canvas').waitFor();
 			const slider = page.getByRole('slider', { name: 'Explode' });
@@ -35,13 +35,13 @@ const { Vector3 } = require('three');
 				const canvas = document.createElement('canvas'); canvas.width = image.width; canvas.height = image.height;
 				const context = canvas.getContext('2d'); context.drawImage(image, 0, 0);
 				const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
-				let count = 0; for (let y = canvas.height * 0.3; y < canvas.height * 0.7; y++) for (let x = canvas.width * 0.3; x < canvas.width * 0.7; x++) { const i = (y * canvas.width + x) * 4; if (pixels[i + 2] > 150 && pixels[i + 2] > pixels[i] * 1.5 && pixels[i + 2] > pixels[i + 1] * 1.5) count++; }
+				let count = 0; for (let y = canvas.height * 0.3; y < canvas.height * 0.7; y++) for (let x = canvas.width * 0.3; x < canvas.width * 0.7; x++) { const i = (y * canvas.width + x) * 4; if (pixels[i] < 150 && pixels[i + 1] < 150 && pixels[i + 2] < 150) count++; }
 				return count;
 			}, screenshot.toString('base64'));
 		}
-		assert.equal(await bluePixels(), 0, 'a number behind an opaque panel must be hidden');
+		assert.equal(await labelPixels(), 0, 'a number behind an opaque panel must be hidden');
 		visibleNumber = true;
-		assert(await bluePixels() > 0, 'a number on the visible panel must appear');
+		assert(await labelPixels() > 0, 'a number on the visible panel must appear');
 		console.log('Panel number occlusion passed');
 	} finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

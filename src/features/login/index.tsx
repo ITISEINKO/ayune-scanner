@@ -37,7 +37,7 @@ export default function LoginPage({ error }: { error?: string }) {
 					alt=""
 					className="absolute -top-32 right-4 z-20 h-32 w-auto object-contain brightness-0 invert"
 				/>
-				<div className="mx-auto w-full max-w-sm">
+				<div className="mx-auto h-full w-full max-w-sm overflow-y-auto">
 					<LoginForm error={error} />
 				</div>
 			</section>

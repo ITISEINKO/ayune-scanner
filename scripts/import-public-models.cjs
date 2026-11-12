@@ -5,30 +5,45 @@ const { gzipSync } = require('node:zlib');
 const { DatabaseSync } = require('node:sqlite');
 const { parseShareLink, unzipModel } = require('./import-lby-project.cjs');
 const { isHinge } = require('./lby-panel-geometry.cjs');
-const { Matrix4, Vector3, Quaternion } = require('three');
+const { Matrix3, Matrix4, Vector3, Quaternion } = require('three');
 
 const folder = path.resolve('.local-backups');
 
-function doorMotion(model, models, opening) {
+function doorMotion(model, models, opening, hinges = []) {
 	if (!model || !opening) return null;
 	const world = new Matrix4();
 	const seen = new Set();
 	let item = model;
 	while (item) {
-		if (seen.has(item.id) || !['position', 'quaternion', 'scale'].every((key) => Array.isArray(item[key]) && item[key].length === (key === 'quaternion' ? 4 : 3) && item[key].every(Number.isFinite)) || item.scale.some((value) => value <= 0) || Math.hypot(...item.quaternion) < 1e-8) return null;
+		if (seen.has(item.id) || !['position', 'quaternion', 'scale'].every((key) => Array.isArray(item[key]) && item[key].length === (key === 'quaternion' ? 4 : 3) && item[key].every(Number.isFinite)) || item.scale.some((value) => value === 0) || Math.hypot(...item.quaternion) < 1e-8) return null;
 		seen.add(item.id);
 		world.premultiply(new Matrix4().compose(new Vector3().fromArray(item.position), new Quaternion().fromArray(item.quaternion).normalize(), new Vector3().fromArray(item.scale)));
 		if (item.parentId && !models.has(item.parentId)) return null;
 		item = item.parentId ? models.get(item.parentId) : null;
 	}
-	const pivot = new Vector3(), rotation = new Quaternion(), scale = new Vector3();
-	world.decompose(pivot, rotation, scale);
-	const dimension = opening === 'right' ? model.sizeX : opening === 'up' ? model.sizeZ : 0;
+	const horizontal = opening === 'left' || opening === 'right';
+	const width = horizontal ? model.sizeX : model.sizeZ;
+	let mountDepth = 0;
+	if (hinges.length) {
+		const inverse = world.clone().invert();
+		const mounts = hinges.map((hinge) => new Vector3().setFromMatrixPosition(new Matrix4().fromArray(hinge.matrix)).applyMatrix4(inverse));
+		const coordinate = horizontal ? 'x' : 'z';
+		if (Number.isFinite(width) && width > 0) {
+			const atStart = mounts.every((mount) => Math.abs(mount[coordinate]) <= width * 0.25);
+			const atEnd = mounts.every((mount) => Math.abs(mount[coordinate] - width) <= width * 0.25);
+			if (atStart || atEnd) {
+				opening = horizontal ? (atStart ? 'left' : 'right') : (atStart ? 'bottom' : 'up');
+				// shortcut: mounting origins approximate the hinge plane; use joint data when available.
+				mountDepth = mounts.reduce((sum, mount) => sum + mount.y, 0) / mounts.length;
+			}
+		}
+	}
+	const dimension = opening === 'right' || opening === 'up' ? width : 0;
 	if (!Number.isFinite(dimension) || dimension < 0) return null;
-	if (opening === 'right') pivot.add(new Vector3(dimension, 0, 0).applyQuaternion(rotation));
-	if (opening === 'up') pivot.add(new Vector3(0, 0, dimension).applyQuaternion(rotation));
-	const axis = new Vector3(opening === 'up' || opening === 'bottom' ? 1 : 0, 0, opening === 'left' || opening === 'right' ? 1 : 0).applyQuaternion(rotation).normalize();
-	return { pivot: pivot.toArray(), axis: axis.toArray() };
+	const localPivot = new Vector3(opening === 'right' ? dimension : 0, mountDepth, opening === 'up' ? dimension : 0);
+	const pivot = localPivot.applyMatrix4(world);
+	const axis = new Vector3(opening === 'up' || opening === 'bottom' ? 1 : 0, 0, opening === 'left' || opening === 'right' ? 1 : 0).applyMatrix3(new Matrix3().getNormalMatrix(world)).multiplyScalar(Math.sign(world.determinant())).normalize();
+	return { pivot: pivot.toArray(), axis: axis.toArray(), opening };
 }
 
 async function read(url, signal) {
@@ -57,7 +72,7 @@ function prepare(model, orderId, panels = []) {
 			assert(index.length % 3 === 0 && index.every((n) => Number.isInteger(n) && n >= 0 && n < g.position.length / 3), 'Invalid indices');
 			const model = models.get(modelId);
 			if (typeof modelId === 'string') matches.push({ id: modelId, serial: serials.get(modelId) || '', number: String(model?.roomPlankIdx || '') });
-			const doorOpenType = ['left', 'right', 'up', 'bottom'].includes(model?.doorOpenType) ? model.doorOpenType : null;
+			let doorOpenType = ['left', 'right', 'up', 'bottom'].includes(model?.doorOpenType) ? model.doorOpenType : null;
 			const hinges = (doc.models || []).filter((item) => item.parentId === modelId && isHinge(item)).flatMap((item) => {
 				const mesh = hingeMeshes.get(item.objFileId);
 				if (!Array.isArray(mesh?.position) || !mesh.position.length || mesh.position.length % 3 || !mesh.position.every(Number.isFinite) || !Array.isArray(item.instanceMatrix) || item.instanceMatrix.length !== 16 || !item.instanceMatrix.every(Number.isFinite)) return [];
@@ -66,9 +81,11 @@ function prepare(model, orderId, panels = []) {
 				return [{ position: mesh.position, index: indices, matrix: item.instanceMatrix }];
 			});
 			const uv = Array.isArray(g.uv) && g.uv.length === g.position.length / 3 * 2 && g.uv.every(Number.isFinite) ? g.uv : [];
+			const motion = doorMotion(model, models, doorOpenType, hinges);
+			if (motion) doorOpenType = motion.opening;
 			const texture = uv.length && typeof model?.textureImage === 'string' && /^\d{1,30}$/.test(model.textureImage) ? model.textureImage : null;
 			const color = Number.isInteger(model?.color) && model.color >= 0 && model.color <= 0xffffff ? model.color : null;
-			return { id: modelId, position: g.position, index, uv, texture, color, number: String(model?.roomPlankIdx || ''), doorOpenType, doorMotion: doorMotion(model, models, doorOpenType), isDoor: Boolean(doorOpenType || /门板|門板|\bdoor\b|\bpintu\b/i.test(model?.name || '')), hinges };
+			return { id: modelId, position: g.position, index, uv, texture, color, number: String(model?.roomPlankIdx || ''), doorOpenType, doorMotion: motion && { pivot: motion.pivot, axis: motion.axis }, isDoor: Boolean(doorOpenType || /门板|門板|\bdoor\b|\bpintu\b/i.test(model?.name || '')), hinges };
 		});
 		return { id: doc.houseId, name: String(doc.houseName || doc.houseId), data: gzipSync(JSON.stringify(geometry)), matches };
 	});

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { DoorOpen, EyeOff, ScanEye, Hash } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
+import { PanelLocationLoader } from "@/features/panel-location/PanelLocationLoader";
 import {
 	Select,
 	SelectContent,
@@ -25,8 +26,9 @@ export function PanelViewerDetailPage({
 	selectedPanel?: string;
 }) {
 	const [room, setRoom] = useState(rooms.some((item) => item.id === initialRoom) ? initialRoom! : rooms[0]?.id ?? "");
-	const [status, setStatus] = useState("");
+	const [status, setStatus] = useState("Memuat model…");
 	const [unresolvedDoors, setUnresolvedDoors] = useState(0);
+	const [hasDoors, setHasDoors] = useState(false);
 	const [doorsOpen, setDoorsOpen] = useState(false);
 	const [hideDoors, setHideDoors] = useState(false);
 	const [xray, setXray] = useState(false);
@@ -68,6 +70,7 @@ export function PanelViewerDetailPage({
 		let dispose = () => {};
 		setStatus("Memuat model…");
 		setUnresolvedDoors(0);
+		setHasDoors(false);
 		(async () => {
 			const [response, THREE, { OrbitControls }] = await Promise.all([
 				fetch(
@@ -80,6 +83,9 @@ export function PanelViewerDetailPage({
 			if (!response.ok) throw new Error("Model unavailable");
 			const parts = (await response.json()) as PublicRoomGeometry;
 			if (abort.signal.aborted) return;
+			const doorsExist = parts.some((part) => part.isDoor || part.doorOpenType);
+			setHasDoors(doorsExist);
+			if (!doorsExist) { setDoorsOpen(false); setHideDoors(false); }
 			setUnresolvedDoors(parts.filter((part) => part.doorOpenType && !part.doorMotion).length);
 			if (!parts.length) {
 				setStatus("Tidak ada panel pada ruangan ini.");
@@ -128,8 +134,7 @@ export function PanelViewerDetailPage({
 				const group = new THREE.Group();
 				group.position.copy(pivot).sub(center);
 				const axis = part.doorMotion ? new THREE.Vector3().fromArray(part.doorMotion.axis) : null;
-				const normal = axis ? new THREE.Vector3().subVectors(middle, pivot).cross(axis).normalize() : null;
-				const hinges: { geometry: InstanceType<typeof THREE.BufferGeometry>; source: Float32Array; weights: number[] }[] = [];
+				const hinges: InstanceType<typeof THREE.Mesh>[] = [];
 				const selected = room === initialRoom && part.id === selectedPanel && Boolean(selectedPanel);
 				const materialKey = selected ? 'selected-panel' : `${part.texture || ''}:${part.color ?? ''}`;
 				let material = materials.get(materialKey);
@@ -153,20 +158,12 @@ export function PanelViewerDetailPage({
 					hingeGeometry.applyMatrix4(
 						new THREE.Matrix4().fromArray(hinge.matrix),
 					);
-					hingeGeometry.translate(-pivot.x, -pivot.y, -pivot.z);
-					if (normal && normal.lengthSq() > 0) {
-						const source = new Float32Array(hingeGeometry.getAttribute("position").array);
-						const origin = new THREE.Vector3().setFromMatrixPosition(new THREE.Matrix4().fromArray(hinge.matrix)).sub(pivot);
-						const depths = Array.from({ length: source.length / 3 }, (_, i) => Math.abs(new THREE.Vector3().fromArray(source, i * 3).sub(origin).dot(normal)));
-						const near = Math.min(...depths), far = Math.max(...depths);
-						// shortcut: blend hinge depth between mounts; exact articulation needs hinge joint data.
-						hinges.push({ geometry: hingeGeometry, source, weights: depths.map((depth) => far > near ? (depth - near) / (far - near) : 1) });
-					}
+					hingeGeometry.translate(-center.x, -center.y, -center.z);
 					hingeGeometry.computeVertexNormals();
 					geometries.push(hingeGeometry);
 					const mesh = new THREE.Mesh(hingeGeometry, hingeMaterial);
-					mesh.frustumCulled = false;
-					group.add(mesh);
+					hinges.push(mesh);
+					scene.add(mesh);
 				}
 				let label: InstanceType<typeof THREE.Sprite> | null = null;
 				if (part.number) {
@@ -175,12 +172,17 @@ export function PanelViewerDetailPage({
 					canvas.height = 128;
 					const context = canvas.getContext("2d");
 					if (context) {
-						context.fillStyle = "#0000ff";
+						context.fillStyle = "#111827";
+						context.strokeStyle = "#ffffff";
+						context.lineWidth = 8;
+						context.lineJoin = "round";
 						context.textAlign = "center";
 						context.textBaseline = "middle";
 						context.font = "bold 80px sans-serif";
+						context.strokeText(part.number, 64, 64, 100);
 						context.fillText(part.number, 64, 64, 100);
 						const texture = new THREE.CanvasTexture(canvas);
+						texture.colorSpace = THREE.SRGBColorSpace;
 						const spriteMaterial = new THREE.SpriteMaterial({
 							map: texture,
 							depthTest: false,
@@ -188,7 +190,7 @@ export function PanelViewerDetailPage({
 						});
 						label = new THREE.Sprite(spriteMaterial);
 						label.position.copy(middle).sub(pivot);
-						label.scale.setScalar(extent * 0.05);
+						label.scale.setScalar(extent * 0.035);
 						label.renderOrder = 2;
 						group.add(label);
 						sprites.push(label);
@@ -211,7 +213,7 @@ export function PanelViewerDetailPage({
 			const camera = new THREE.PerspectiveCamera(
 				45,
 				1,
-				extent / 10000,
+				extent / 100,
 				extent * 100,
 			);
 			camera.up.set(0, 0, 1);
@@ -237,24 +239,26 @@ export function PanelViewerDetailPage({
 				}
 				renderer.render(scene, camera);
 			};
-			for (const id of new Set(parts.map((part) => part.texture).filter((id): id is string => Boolean(id)))) {
+			const textureLoads = [...new Set(parts.map((part) => part.texture).filter((id): id is string => Boolean(id)))].map((id) => new Promise<void>((resolve) => {
 				const texture = new THREE.TextureLoader().load(`/api/public-textures/${encodeURIComponent(id)}`, (loaded) => {
-					if (abort.signal.aborted) { loaded.dispose(); return; }
-					loaded.colorSpace = THREE.SRGBColorSpace; loaded.wrapS = loaded.wrapT = THREE.RepeatWrapping; loaded.repeat.set(2, 2);
-					for (const [key, material] of materials) if (key.startsWith(`${id}:`)) { material.map = loaded; material.color.set(0xffffff); material.needsUpdate = true; }
-					render();
-				});
+					if (!abort.signal.aborted) {
+						loaded.colorSpace = THREE.SRGBColorSpace; loaded.wrapS = loaded.wrapT = THREE.RepeatWrapping; loaded.repeat.set(2, 2);
+						for (const [key, material] of materials) if (key.startsWith(`${id}:`)) { material.map = loaded; material.color.set(0xffffff); material.needsUpdate = true; }
+					} else loaded.dispose();
+					resolve();
+				}, undefined, () => resolve());
 				textures.set(id, texture);
-			}
+			}));
 			update.current = () => {
 				const s = settings.current;
 				renderer.domElement.dataset.doorProgress = String(
 					Math.round(doorProgress.current * 100),
 				);
-				for (const material of materials.values()) {
-					if (material.transparent !== s.xray) { material.transparent = s.xray; material.needsUpdate = true; }
-					material.opacity = s.xray ? 0.28 : 1;
-					material.depthWrite = !s.xray;
+				for (const [key, material] of materials) {
+					const transparent = s.xray && key !== 'selected-panel';
+					if (material.transparent !== transparent) { material.transparent = transparent; material.needsUpdate = true; }
+					material.opacity = transparent ? 0.28 : 1;
+					material.depthWrite = !transparent;
 				}
 				for (const panel of panels) {
 					panel.group.visible = !(s.hideDoors && panel.part.isDoor);
@@ -270,16 +274,9 @@ export function PanelViewerDetailPage({
 							doorProgress.current;
 						panel.group.quaternion.setFromAxisAngle(panel.axis, angle);
 					}
-					const inverse = panel.group.quaternion.clone().invert();
 					for (const hinge of panel.hinges) {
-						const position = hinge.geometry.getAttribute("position") as InstanceType<typeof THREE.BufferAttribute>;
-						for (let i = 0; i < position.count; i++) {
-							const point = new THREE.Vector3().fromArray(hinge.source, i * 3);
-							point.lerp(point.clone().applyQuaternion(inverse), hinge.weights[i]);
-							position.setXYZ(i, point.x, point.y, point.z);
-						}
-						position.needsUpdate = true;
-						hinge.geometry.computeVertexNormals();
+						hinge.visible = panel.group.visible;
+						hinge.position.copy(panel.middle).multiplyScalar((s.explode / 100) * 0.6);
 					}
 					if (panel.label) panel.label.visible = s.numbers;
 				}
@@ -297,7 +294,6 @@ export function PanelViewerDetailPage({
 			resize.observe(target);
 			controls.update();
 			update.current();
-			setStatus("");
 			dispose = () => {
 				update.current = () => {};
 				resize.disconnect();
@@ -314,6 +310,11 @@ export function PanelViewerDetailPage({
 				renderer.dispose();
 				renderer.domElement.remove();
 			};
+			await Promise.all(textureLoads);
+			if (!abort.signal.aborted) {
+				update.current();
+				setStatus("");
+			}
 		})().catch(() => {
 			if (!abort.signal.aborted)
 				setStatus("Model tidak dapat dimuat. Coba pilih ruangan lagi.");
@@ -331,12 +332,9 @@ export function PanelViewerDetailPage({
 				aria-label="Model 3D interaktif"
 			/>
 			{status && (
-				<p
-					role="status"
-					className="pointer-events-none absolute inset-0 grid place-items-center bg-background/80 p-4 text-center"
-				>
-					{status}
-				</p>
+				<div className="absolute inset-0 flex bg-background">
+					{status === "Memuat model…" ? <PanelLocationLoader message={status} /> : <p role="status" className="m-auto p-4 text-center">{status}</p>}
+				</div>
 			)}
 			<div className="absolute left-3 top-16 sm:left-5 sm:top-20">
 				<Select
@@ -373,12 +371,14 @@ export function PanelViewerDetailPage({
 						toggle: setDoorsOpen,
 						label: "Buka pintu",
 						Icon: DoorOpen,
+						disabled: !hasDoors,
 					},
 					{
 						active: hideDoors,
 						toggle: setHideDoors,
 						label: "Sembunyikan pintu",
 						Icon: EyeOff,
+						disabled: !hasDoors,
 					},
 					{ active: xray, toggle: setXray, label: "X-ray", Icon: ScanEye },
 					{
@@ -387,7 +387,7 @@ export function PanelViewerDetailPage({
 						label: "Nomor panel",
 						Icon: Hash,
 					},
-				].map(({ active, toggle, label, Icon }) => (
+				].map(({ active, toggle, label, Icon, disabled }) => (
 					<Button
 						key={label}
 						type="button"
@@ -396,6 +396,7 @@ export function PanelViewerDetailPage({
 						aria-label={label}
 						title={label}
 						aria-pressed={active}
+						disabled={disabled}
 						onClick={() => toggle((value) => !value)}
 					>
 						<Icon aria-hidden="true" />

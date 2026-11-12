@@ -20,6 +20,21 @@ for (const [direction, pivot, axis] of [['left',[10,22,30],[0,0,1]], ['right',[1
 	}
 }
 assert.equal(doorMotion({ ...door, parentId: 'missing' }, byId, 'left'), null);
+const mirrored = { ...parent, scale: [-1, 1, 1] };
+const mirrorMotion = doorMotion(door, new Map([[mirrored.id, mirrored], [door.id, door]]), 'right');
+near(mirrorMotion.pivot, [10, -82, 30]);
+near(mirrorMotion.axis, [0, 0, -1]);
+const mirroredEdge = new Vector3(0, 1, 0).applyQuaternion(new Quaternion().setFromAxisAngle(new Vector3().fromArray(mirrorMotion.axis), Math.PI / 2));
+near(mirroredEdge.toArray(), [1, 0, 0]);
+assert.equal(doorMotion({ ...door, scale: [0, 1, 1] }, byId, 'right'), null);
+const mount = (x, y, z) => ({ matrix: [1,0,0,0,0,1,0,0,0,0,1,0,x,y,z,1] });
+near(doorMotion(door, byId, 'left', [mount(7, 27, 40), mount(7, 27, 200)]).pivot, [7,22,30]);
+near(doorMotion(door, byId, 'left', [mount(7, 72, 40)]).pivot, [10,22,30]);
+const anchored = doorMotion(door, new Map([[mirrored.id, mirrored], [door.id, door]]), 'right', [mount(7, 17, 40), mount(7, 17, 200)]);
+assert.equal(anchored.opening, 'left');
+near(anchored.pivot, [7, 18, 30]);
+const anchoredEdge = new Vector3(0, -1, 0).applyQuaternion(new Quaternion().setFromAxisAngle(new Vector3().fromArray(anchored.axis), -Math.PI / 2));
+near(anchoredEdge.toArray(), [1, 0, 0]);
 model.value.docs[0].models[0].textureImage = '12345'; model.value.docs[0].models[0].color = 0x123456;
 model.value.docs[0].renderModels[0].geometry.uv = [0,0, 1,0, 0,1];
 const textured = JSON.parse(gunzipSync(prepare(model, '123')[0].data))[0];

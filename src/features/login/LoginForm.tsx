@@ -1,6 +1,7 @@
 import { cn } from "cn";
+import Link from "next/link";
 
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
 	Card,
 	CardContent,
@@ -44,6 +45,10 @@ export function LoginForm({
 					<p className="mt-5 text-center text-xs text-muted-foreground">
 						Use your account to access the Panel Production.
 					</p>
+					<Link href="/panel-viewer" className={cn(buttonVariants({ variant: "outline" }), "mt-5 h-12 w-full rounded-xl")}>
+						View 3D Models
+					</Link>
+					<p className="mt-2 text-center text-xs text-muted-foreground">No login required.</p>
 				</CardContent>
 			</Card>
 		</div>
