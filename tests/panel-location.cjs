@@ -150,6 +150,25 @@ async function main() {
 		await context.addCookies([{ name: "clickup_access_token", value: "local-viewer-test", url: baseURL },
 			{ name: "ppic_session", value: `${payload}.${signature}`, url: baseURL }]);
 		await page.goto(url);
+		const fallbackPage = await context.newPage();
+		await fallbackPage.addInitScript(() => {
+			const getContext = HTMLCanvasElement.prototype.getContext;
+			HTMLCanvasElement.prototype.getContext = function (kind, ...args) {
+				return kind === "webgl2" || kind === "webgl" ? null : getContext.call(this, kind, ...args);
+			};
+		});
+		await fallbackPage.goto(url);
+		await expect(fallbackPage.locator('svg[data-selected-barcode] polygon').first()).toBeVisible();
+		await expect(fallbackPage.locator('svg[data-selected-barcode]').locator('..').locator('canvas')).toHaveCount(0);
+		await fallbackPage.close();
+		const lossPage = await context.newPage();
+		await lossPage.goto(url);
+		const lossCanvas = lossPage.locator('svg[data-selected-barcode]').locator('..').locator('canvas');
+		await expect(lossCanvas).toBeVisible();
+		await lossCanvas.evaluate((canvas) => canvas.dispatchEvent(new Event("webglcontextlost", { cancelable: true })));
+		await expect(lossCanvas).toHaveCount(0);
+		await expect(lossPage.locator('svg[data-selected-barcode] polygon').first()).toBeVisible();
+		await lossPage.close();
 		const activeVersionResponse = await context.request.get(`${baseURL}/api/panel/location-version?project=z96buhry4p`);
 		assert.deepEqual(await activeVersionResponse.json(), { active: { version: snapshot.version, versionNumber: 1 } }, "bundled snapshots are V1");
 		assert.deepEqual((await db.execute("SELECT version_number FROM ppic_panel_location_revision ORDER BY project_id, revision")).rows.map((row) => row.version_number), [1, 2, 2], "existing histories get per-model numbers, reserving V1 for bundled snapshots");
@@ -157,9 +176,11 @@ async function main() {
 		await assert.rejects(db.execute("UPDATE ppic_panel_location_revision SET version_number=1 WHERE project_id='legacy-numbering' AND version_number=2"), /UNIQUE/, "two revisions in one model cannot share a version number");
 		const svg = page.locator("svg[data-selected-barcode]");
 		await expect(svg).toHaveAttribute("data-selected-barcode", "15370046376");
+		await expect(svg.locator("[data-panel-number]")).toHaveCount(0);
+		await expect(page.getByText(/Nomor komponen yang belum dicocokkan/)).toBeVisible();
 		await expect(svg).toHaveAttribute("data-panel-count", "15");
 		await expect(page.getByRole("button", { name: /^(Putar (kiri|kanan|atas|bawah)|Perbesar|Perkecil)$/ })).toHaveCount(0);
-		await expect(page.locator('[aria-label="Kontrol tampilan"]').getByRole("button")).toHaveCount(3);
+		await expect(page.locator('[aria-label="Kontrol tampilan"]').getByRole("button")).toHaveCount(4);
 		await expect(page.getByRole("region", { name: "Panel terpilih" })).toContainText("Panel 9");
 		await expect(page.getByRole("region", { name: "Informasi panel", exact: true })).toContainText("Serial: 15370046376");
 		await expect(page.getByRole("link", { name: "Kembali ke model", exact: true })).toHaveAttribute("href", "/drafter");
@@ -191,43 +212,17 @@ async function main() {
 		assert((await svg.locator("polygon").first().boundingBox()).y < afterPan.y, "keyboard users must be able to pan upwards");
 		await page.getByRole("button", { name: "Reset tampilan", exact: true }).click();
 		await expect(svg).toHaveAttribute("viewBox", initialBox);
-		const initialTransform = await svg.locator("polygon").first().evaluate((node) => getComputedStyle(node.parentElement).transform);
 		const explodeSlider = page.getByRole("slider", { name: "Jarak explode" });
-		await explodeSlider.focus(); await explodeSlider.press("Home"); await explodeSlider.press("ArrowRight");
-		await expect(svg).toHaveAttribute("data-explode", "1");
-		await page.getByRole("button", { name: "Explode panel", exact: true }).click();
-		await expect(svg).toHaveAttribute("data-explode", "0");
-		await page.getByRole("button", { name: "Explode panel", exact: true }).click();
+		await explodeSlider.fill("100");
 		await expect(svg).toHaveAttribute("data-explode", "100");
-		await expect(page.getByRole("button", { name: "Explode panel", exact: true })).toHaveAttribute("aria-pressed", "true");
-		await expect.poll(() => svg.locator("polygon").first().evaluate((node) => getComputedStyle(node.parentElement).transform)).not.toBe(initialTransform);
-		await expect(svg).toHaveAttribute("viewBox", initialBox, { timeout: 1000 });
-		await expect(svg.locator("line")).toHaveCount(1);
-		assert.equal(await svg.locator("g[data-barcode]").evaluateAll((groups) => groups.filter((group) => getComputedStyle(group).transform !== "matrix(1, 0, 0, 1, 0, 0)").length), 1, "only the selected panel moves");
-		const panelMode = page.getByRole("button", { name: "Panel dicari", exact: true });
-		const allMode = page.getByRole("button", { name: "Semua panel", exact: true });
-		await allMode.click();
-		await expect(svg).toHaveAttribute("data-explode-mode", "all");
-		await expect(allMode).toHaveAttribute("aria-pressed", "true");
-		await expect(panelMode).toHaveAttribute("aria-pressed", "false");
-		assert(await svg.locator("g[data-barcode]").evaluateAll((groups) => groups.filter((group) => getComputedStyle(group).transform !== "matrix(1, 0, 0, 1, 0, 0)").length) > 1, "whole mode must separate surrounding panels too");
-		const allBox = await svg.getAttribute("viewBox");
-		const panelPaths = await svg.locator("g[data-barcode]").evaluateAll(groups => groups.map(group => group.innerHTML));
-		await explodeSlider.focus(); await explodeSlider.press("Home");
-		await expect(svg).toHaveAttribute("data-explode", "0");
-		await explodeSlider.press("End");
-		await expect(svg).toHaveAttribute("data-explode", "100");
-		await expect(svg).toHaveAttribute("viewBox", allBox);
-		assert.deepEqual(await svg.locator("g[data-barcode]").evaluateAll(groups => groups.map(group => group.innerHTML)), panelPaths, "sliding must reuse the same SVG geometry");
-		await panelMode.click();
-		await expect(svg).toHaveAttribute("data-explode-mode", "selected");
 		await expect(svg).toHaveAttribute("viewBox", initialBox);
-		assert.equal(await svg.locator("g[data-barcode]").evaluateAll((groups) => groups.filter((group) => getComputedStyle(group).transform !== "matrix(1, 0, 0, 1, 0, 0)").length), 1);
-		await allMode.click();
-		await page.getByRole("button", { name: "Reset tampilan", exact: true }).click();
+		await expect.poll(() => svg.locator("g[data-barcode]").evaluateAll(groups => groups.filter(group => getComputedStyle(group).transform !== "matrix(1, 0, 0, 1, 0, 0)").length)).toBeGreaterThan(1);
+		await explodeSlider.fill("0");
 		await expect(svg).toHaveAttribute("data-explode", "0");
-		await expect(svg).toHaveAttribute("data-explode-mode", "selected");
-		await expect(panelMode).toHaveAttribute("aria-pressed", "true");
+		await explodeSlider.fill("50");
+		await expect(svg).toHaveAttribute("data-explode", "50");
+		await explodeSlider.fill("0");
+		await expect(svg).toHaveAttribute("data-explode", "0");
 		await svg.focus(); await page.keyboard.press("+");
 		await expect(svg).not.toHaveAttribute("viewBox", initialBox);
 		await page.getByRole("button", { name: "Reset tampilan", exact: true }).click();
@@ -259,8 +254,7 @@ async function main() {
 		assert(Math.abs(info.y + info.height - 844) <= 1, "standalone panel details meet the viewport bottom without navigation padding");
 		assert((await svg.boundingBox()).height > 500, "standalone viewer fills the available canvas");
 		await page.screenshot({ path: "test-results/panel-location-mobile.png", fullPage: true });
-		await allMode.click();
-		await page.getByRole("button", { name: "Explode panel", exact: true }).click();
+		await explodeSlider.fill("100");
 		await expect(svg).toHaveAttribute("data-explode", "100");
 		await expect(svg).toHaveAttribute("data-explode-mode", "all");
 		await page.waitForTimeout(350);
@@ -320,17 +314,14 @@ async function main() {
 				const points = face.replace("Z", "").trim().split(/\s+/).map((point) => point.split(",").map(Number));
 				return points.reduce((sum, point, index) => sum + point[0] * points[(index + 1) % points.length][1] - point[1] * points[(index + 1) % points.length][0], 0) >= -1e-6;
 			}))), "combined paths must keep consistent winding so context fills do not cancel");
-		await page.getByRole("button", { name: "Explode panel", exact: true }).click();
+		await explodeSlider.fill("100");
 		await expect(svg).toHaveAttribute("data-explode", "100");
 		await svg.focus(); await page.keyboard.press("ArrowRight");
 		await expect.poll(() => svg.evaluate((element) => element.getAnimations({ subtree: true }).length)).toBe(0);
 		await expect(svg.locator("g").first()).toHaveCSS("transition-duration", "0s");
-		await explodeSlider.focus(); await explodeSlider.press("ArrowLeft");
-		await expect(svg).toHaveAttribute("data-explode", "99");
-		await expect(svg.locator("g").first()).toHaveCSS("transition-duration", "0s");
 		await page.getByRole("button", { name: "Reset tampilan", exact: true }).click();
 		await page.emulateMedia({ reducedMotion: "reduce" });
-		await page.getByRole("button", { name: "Explode panel", exact: true }).click();
+		await explodeSlider.fill("100");
 		await expect(svg).toHaveAttribute("data-explode", "100");
 		await expect(svg.locator("g").first()).toHaveCSS("transition-duration", "0s");
 		await page.getByRole("button", { name: "Reset tampilan", exact: true }).click();
@@ -391,12 +382,10 @@ async function main() {
 			assert(!/\p{Script=Han}/u.test(await page.getByRole("region", { name: "Informasi panel", exact: true }).innerText()), "panel names display without Chinese characters");
 			assert((await svg.boundingBox()).height > 400, "read-only viewer fills the available canvas");
 			await page.screenshot({ path: `test-results/member-panel-location-${width}.png`, fullPage: true });
-			await allMode.click();
-			await explodeSlider.focus(); await explodeSlider.press("End");
+			await explodeSlider.fill("100");
 			await expect(svg).toHaveAttribute("data-explode-mode", "all");
 			await expect(svg).toHaveAttribute("data-explode", "100");
-			await expect(allMode).toHaveAttribute("aria-pressed", "true");
-			assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `whole explode fits ${width}px`);
+				assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `whole explode fits ${width}px`);
 			await page.screenshot({ path: `test-results/member-panel-location-all-${width}.png`, fullPage: true });
 			await page.getByRole("button", { name: "Reset tampilan", exact: true }).click();
 		}
@@ -406,6 +395,7 @@ async function main() {
 		await page.getByRole("textbox", { name: "Input scan keyboard" }).fill("000123");
 		await expect(page).toHaveURL(`${baseURL}/cari-lokasi?barcode=000123`);
 		await expect(page.getByRole("main").getByRole("alert")).toContainText("Lokasi panel untuk serial ini belum tersedia");
+		await expect(page.getByRole("main").getByRole("alert")).toContainText("hubungi drafter untuk mengunggah model LBY");
 		await expect(svg).toHaveCount(0);
 		await page.getByRole("link", { name: "Scan panel lain", exact: true }).click();
 		await expect(page.getByRole("heading", { name: "Cari lokasi panel", exact: true })).toBeVisible();
@@ -427,8 +417,8 @@ async function main() {
 		const drafterPayload = Buffer.from(JSON.stringify({ user_id: "viewer-test", role: "MEMBER", allowed_status: null, can_import_lby: true, refreshed_at: Date.now() })).toString("base64url");
 		await context.addCookies([{ name: "ppic_session", value: `${drafterPayload}.${createHmac("sha256", secret).update(drafterPayload).digest("base64url")}`, url: baseURL }]);
 		const previewSnapshot = JSON.stringify({ ...snapshot, version: "cccccccccccc", panels: snapshot.panels.map((panel) =>
-			panel.barcode === "15370046376" ? { ...panel, doorOpenType: "right", hinges: [{ id: "preview-hinge", name: "Test hinge", code: "H-01",
-				position: panel.corners[0], panelPosition: [0,0,0], geometry: { vertices: panel.corners, faces: [[0,1,2],[0,2,3]], edges: [] } }] } : panel) });
+			panel.barcode === "15370046376" ? { ...panel, panelNumberVerified: true, doorOpenType: "right", hinges: [{ id: "preview-hinge", name: "Test hinge", code: "H-01",
+				position: panel.corners[0], panelPosition: [0,0,0], geometry: { vertices: panel.corners, faces: [[0,1,2],[0,2,3]], edges: [] } }] } : { ...panel, panelNumberVerified: true }) });
 		const previewMapping = '{"panels":[]}';
 		const previewRevision = createHash("sha256").update(previewSnapshot).digest("hex");
 		await db.execute({ sql: "UPDATE ppic_panel_location_revision SET revision=?, metadata_json=?, snapshot_gzip=?, mapping_gzip=? WHERE project_id='z96buhr3eu' AND revision=?",
@@ -440,8 +430,32 @@ async function main() {
 		await expect(page.getByRole("heading", { level: 1 })).toContainText("Candidate preview");
 		await expect(svg).toHaveAttribute("data-selected-barcode", "15370046376");
 		await expect(page.getByRole("region", { name: "Informasi panel", exact: true })).toContainText("Serial: 15370046376");
+		const previewFallback = await context.newPage();
+		await previewFallback.addInitScript(() => {
+			const getContext = HTMLCanvasElement.prototype.getContext;
+			HTMLCanvasElement.prototype.getContext = function (kind, ...args) { return kind === "webgl2" || kind === "webgl" ? null : getContext.call(this, kind, ...args); };
+		});
+		await previewFallback.goto(`${baseURL}/panel-location?project=z96buhr3eu&barcode=15370046376&revision=${previewRevision}`);
+		await previewFallback.getByRole("button", { name: "Tampilkan nomor panel" }).click();
+		await expect(previewFallback.locator("[data-panel-number]").first()).toBeVisible();
+		await expect(previewFallback.locator("g:has(> text[data-panel-number]) > line")).toHaveCount(0);
+		await previewFallback.close();
+		const numbersToggle = page.getByRole("button", { name: "Tampilkan nomor panel" });
+		const canvas3d = svg.locator("..").locator("canvas");
+		await expect(numbersToggle).toHaveAttribute("aria-pressed", "false");
+		await expect(canvas3d).toHaveAttribute("data-show-numbers", "false");
+		const canvasBeforeNumbers = await canvas3d.screenshot();
+		await numbersToggle.click();
+		await expect(canvas3d).toHaveAttribute("data-show-numbers", "true");
+		assert.notDeepEqual(await canvas3d.screenshot(), canvasBeforeNumbers, "enabling verified panel numbers must change the 3D canvas");
+		await expect(svg.locator("[data-panel-number]")).toHaveCount(0);
+		await explodeSlider.fill("100");
+		await expect(svg).toHaveAttribute("data-explode", "100");
+		await explodeSlider.fill("0");
+		await expect(svg).toHaveAttribute("data-explode", "0");
 		const hingeShape = svg.locator('[data-hinge-id="preview-hinge"]');
-		await expect(hingeShape).toBeVisible();
+		await expect(hingeShape).toHaveCount(1);
+		await expect(svg.locator("..").locator("canvas")).toBeVisible();
 		await page.getByText("Engsel panel: 1", { exact: true }).click();
 		await expect(page.getByRole("listitem").getByText("Test hinge · H-01", { exact: true })).toBeVisible();
 		await expect(page.getByText("Bukaan: kanan", { exact: true })).toBeVisible();
@@ -459,14 +473,15 @@ async function main() {
 			await page.setViewportSize({ width, height: 900 });
 			const canvas = await svg.boundingBox();
 			const details = await page.getByRole("region", { name: "Informasi panel", exact: true }).boundingBox();
-			const slider = await page.getByRole("slider", { name: "Jarak explode" }).boundingBox();
+			const explodeControl = await explodeSlider.boundingBox();
 			assert.equal(canvas.width, width, "desktop canvas uses the full viewport width");
 			assert.equal(canvas.height, 900, "desktop details float without shrinking the canvas");
 			assert(details.x > 0 && details.y + details.height < 900, "desktop panel details float above the viewport edges");
-			assert(details.x + details.width < slider.x, "desktop details do not overlap explode controls");
+			assert(details.x + details.width < explodeControl.x, "desktop details do not overlap explode controls");
 			await expect(page.getByRole("status").filter({ hasText: "Preview versi V2" })).toBeVisible();
 			assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
 		}
+		await numbersToggle.click();
 		await page.screenshot({ path: "test-results/panel-location-preview.png", fullPage: true });
 		await page.goto(`${baseURL}/cari-lokasi?barcode=15370046376`);
 		assert.equal((await context.request.get(`${baseURL}/api/panel/location-version?project=z96buhry4p`)).status(), 200, "import-only users can check versions without scan permission");

@@ -193,19 +193,12 @@ export const UbahManualPage = ({ serialNumber }: { serialNumber?: string }) => {
 							role="status"
 							className="flex min-h-0 flex-1 flex-col items-center justify-center-safe overflow-y-auto px-5 pb-8 pt-20 text-center text-sm text-muted-foreground"
 						>
-							<img
-								src="/empty-panel-location.svg"
-								alt=""
-								width="240"
-								height="180"
-								className="mb-4 w-48"
-							/>
 							<p>
 								{item.location_error === "LOCATION_AMBIGUOUS"
 									? "Serial ditemukan di beberapa model aktif. Periksa model LBY di profil admin. Status barang tetap dapat diubah."
 									: item.location_error
 										? "Lokasi panel belum dapat dimuat. Status barang tetap dapat diubah."
-										: "Lokasi panel belum tersedia untuk project ini. Status barang tetap dapat diubah."}
+										: "Lokasi panel belum tersedia. Hubungi drafter untuk mengunggah model LBY. Status barang tetap dapat diubah."}
 							</p>
 						</div>
 					)}

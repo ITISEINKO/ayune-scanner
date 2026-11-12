@@ -262,9 +262,7 @@ async function main() {
 		await page
 			.getByRole("button", { name: "Reset tampilan", exact: true })
 			.click();
-		await page
-			.getByRole("button", { name: "Explode panel", exact: true })
-			.click();
+		await page.getByRole("slider", { name: "Jarak explode" }).fill("100");
 		await expect(svg).toHaveAttribute("data-explode", "100");
 		await svg.focus();
 		await page.keyboard.press("-");
@@ -301,7 +299,6 @@ async function main() {
 			path: "test-results/admin-manual-location-exploded-mobile.png",
 			fullPage: true,
 		});
-		await page.getByRole("button", { name: "Semua panel", exact: true }).click();
 		await expect(svg).toHaveAttribute("data-explode-mode", "all");
 		assert(await svg.locator("g[data-barcode]").evaluateAll(groups => groups.filter(group => getComputedStyle(group).transform !== "matrix(1, 0, 0, 1, 0, 0)").length) > 1, "admin whole explode must move surrounding panels too");
 		await page.screenshot({ path: "test-results/admin-manual-location-all-exploded-mobile.png", fullPage: true });
@@ -456,13 +453,8 @@ async function main() {
 		await expect(page.getByRole("status")).toContainText(
 			"Lokasi panel belum tersedia",
 		);
-		await expect
-			.poll(() =>
-				page
-					.locator('img[src="/empty-panel-location.svg"]')
-					.evaluate((image) => image.complete && image.naturalWidth > 0),
-			)
-			.toBe(true);
+		await expect(page.getByRole("status")).toContainText("Hubungi drafter untuk mengunggah model LBY");
+		await expect(page.locator('img[src="/empty-panel-location.svg"]')).toHaveCount(0);
 		await page.screenshot({
 			path: "test-results/admin-manual-location-empty.png",
 			fullPage: true,

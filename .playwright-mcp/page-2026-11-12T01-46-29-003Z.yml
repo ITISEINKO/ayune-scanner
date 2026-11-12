@@ -1,0 +1,20 @@
+- generic [ref=e1]:
+  - generic [ref=e23]:
+    - generic [ref=e24]: 2602-00000022-FIORDINI FIB NO.66 LANTAI 3-2602-00000022
+    - generic [ref=e29]:
+      - generic [ref=e31] [cursor=pointer]:
+        - combobox [ref=e33]
+        - generic "KABINET TINGGI/全部" [ref=e34]
+      - button "尺寸显示" [ref=e35] [cursor=pointer]
+      - button "物料明细" [ref=e37] [cursor=pointer]
+      - button "隐藏门板" [ref=e39] [cursor=pointer]
+      - button "透视模式" [ref=e41] [cursor=pointer]
+      - button "显示板号" [ref=e43] [cursor=pointer]
+      - button "爆炸模式" [active] [ref=e45] [cursor=pointer]
+      - button "动画开关" [ref=e47] [cursor=pointer]
+      - button "隐藏选中" [ref=e49] [cursor=pointer]
+      - button "显示全部" [ref=e51] [cursor=pointer]
+      - button "还原复位" [ref=e53] [cursor=pointer]
+    - text:    /   
+  - img:
+    - generic: "%"

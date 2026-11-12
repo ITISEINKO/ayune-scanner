@@ -2,6 +2,7 @@ export type PanelLocation = {
 	barcode: string;
 	roomName: string;
 	panelNumber: string;
+	panelNumberVerified?: boolean;
 	panelName?: string;
 	doorOpenType?: "left" | "right" | "up" | "bottom";
 	corners: number[][];

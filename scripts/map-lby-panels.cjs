@@ -75,6 +75,7 @@ function mapLbyPanels(
 			cabinetName: panel.cabinetName,
 			panelName: panel.plankName,
 			panelNumber: panel.roomPlankIdx,
+			panelNumberVerified: typeof object.roomPlankIdx === "string" && object.roomPlankIdx.trim() !== "" && object.roomPlankIdx === panel.roomPlankIdx,
 			...(doorOpenType ? { doorOpenType } : {}),
 			finishedSize: [panel.endLength, panel.endWidth, panel.endThickness],
 			model: {
@@ -200,6 +201,7 @@ function mapLbyPanels(
 				barcode: panel.barcode,
 				roomName: panel.roomName,
 				panelNumber: panel.panelNumber,
+				...(panel.panelNumberVerified ? { panelNumberVerified: true } : {}),
 				...(typeof panel.panelName === "string"
 					? { panelName: panel.panelName }
 					: {}),

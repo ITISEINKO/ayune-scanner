@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { MapPin, RotateCcw, Eye, EyeOff, DoorOpen, Expand } from "lucide-react";
+import { MapPin, RotateCcw, Eye, EyeOff, DoorOpen, Hash } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
@@ -11,6 +11,8 @@ import {
 	projectPanelLocations,
 } from "@/lib/panelLocation";
 import type { PanelLocationView } from "@/types/panelLocation";
+import { PanelLocation3D } from "./PanelLocation3D";
+import { layoutPanelNumbers } from "@/lib/panelNumberLabels";
 
 const INITIAL_YAW = -0.65;
 const INITIAL_PITCH = -0.25;
@@ -69,14 +71,16 @@ export function PanelLocationViewer({
 	const [zoom, setZoom] = useState(1);
 	const [pan, setPan] = useState({ x: 0, y: 0 });
 	const [explode, setExplode] = useState(0);
-	const [explodeAll, setExplodeAll] = useState(false);
-	const [animateExplode, setAnimateExplode] = useState(false);
 	const [hideDoors, setHideDoors] = useState(false);
+	const [showNumbers, setShowNumbers] = useState(false);
 	const [doorsOpen, setDoorsOpen] = useState(false);
 	const [doorProgress, setDoorProgress] = useState(0);
 	const currentDoorProgress = useRef(0);
 	const doorFrame = useRef<number | null>(null);
 	const [aspect, setAspect] = useState(1);
+	const [viewportWidth, setViewportWidth] = useState(0);
+	const [webglFailed, setWebglFailed] = useState(false);
+	const handleWebglFailure = useCallback(() => setWebglFailed(true), []);
 	const viewport = useRef<SVGSVGElement>(null);
 	const pointers = useRef(new Map<number, { x: number; y: number; button: number }>());
 	const changeZoom = (factor: number) =>
@@ -108,8 +112,10 @@ export function PanelLocationViewer({
 		const element = viewport.current;
 		if (!element) return;
 		const observer = new ResizeObserver(([entry]) => {
-			if (entry.contentRect.height > 0)
+			if (entry.contentRect.height > 0) {
 				setAspect(entry.contentRect.width / entry.contentRect.height);
+				setViewportWidth(entry.contentRect.width);
+			}
 		});
 		observer.observe(element);
 		const wheel = (event: WheelEvent) => {
@@ -128,34 +134,31 @@ export function PanelLocationViewer({
 		: "Panel";
 	const fitted = useMemo(
 		() =>
-			panels.length ? projectPanelLocations(panels, yaw, pitch, barcode, 0, explodeAll) : [],
-		[panels, yaw, pitch, barcode, explodeAll],
+			panels.length ? projectPanelLocations(panels, yaw, pitch, barcode, 0, true) : [],
+		[panels, yaw, pitch, barcode],
 	);
 	const projected = useMemo(
 		() =>
 			doorProgress === 0
 				? fitted
-				: projectPanelLocations(panels, yaw, pitch, barcode, doorProgress, explodeAll),
-		[fitted, panels, yaw, pitch, barcode, doorProgress, explodeAll],
+				: projectPanelLocations(panels, yaw, pitch, barcode, doorProgress, true),
+		[fitted, panels, yaw, pitch, barcode, doorProgress],
 	);
-	// Fit both endpoints so changing explode progress does not move the camera.
-	const points = useMemo(
-		() =>
-			fitted.flatMap((panel) =>
-				panel.fitPoints.flatMap((point) => [
-					point,
-					point.map((value, axis) => value + panel.explodeOffset[axis]),
-				]),
-			),
-		[fitted],
-	);
-	const [minX, maxX, minY, maxY] = useMemo(() => {
-		const xs = points.map((point) => point[0]),
-			ys = points.map((point) => point[1]);
-		return [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
-	}, [points]);
-	const width = Math.max(maxX - minX, (maxY - minY) * aspect, 1) * 1.15 * zoom;
+	const sceneRadius = useMemo(() => {
+		const vertices = panels.flatMap((panel) => [...(panel.geometry?.vertices ?? panel.corners), ...(panel.hinges ?? []).flatMap((hinge) => hinge.geometry.vertices)]);
+		if (!vertices.length) return 1;
+		const center = [0, 1, 2].map((axis) => (Math.min(...panels.flatMap((panel) => (panel.geometry?.vertices ?? panel.corners).map((point) => point[axis]))) + Math.max(...panels.flatMap((panel) => (panel.geometry?.vertices ?? panel.corners).map((point) => point[axis])))) / 2);
+		return Math.max(1, ...vertices.map((point) => Math.hypot(...point.map((value, axis) => value - center[axis]))));
+	}, [panels]);
+	const width = Math.max(sceneRadius * 4, sceneRadius * 4 * aspect, 1) * zoom;
 	const height = width / aspect;
+	const numberScale = width / (viewportWidth || 320);
+	const numberLabels = useMemo(() => showNumbers && webglFailed ? layoutPanelNumbers(
+		projected.filter((panel) => panel.panelNumberVerified && panel.panelNumber && (panel.barcode === barcode || !hideDoors || !isDoorPanel(panel)))
+			.map((panel) => ({ barcode: panel.barcode, number: panel.panelNumber, x: panel.points.reduce((sum, point) => sum + point[0], 0) / panel.points.length + panel.explodeOffset[0] * explode, y: panel.points.reduce((sum, point) => sum + point[1], 0) / panel.points.length + panel.explodeOffset[1] * explode }))
+			.sort((a, b) => Number(b.barcode === barcode) - Number(a.barcode === barcode)),
+		numberScale, { left: -width / 2 - pan.x, right: width / 2 - pan.x, top: -height / 2 - pan.y, bottom: height / 2 - pan.y },
+	) : [], [showNumbers, webglFailed, projected, barcode, hideDoors, explode, numberScale, width, height, pan]);
 	const shapes = useMemo(
 		() =>
 			projected
@@ -212,14 +215,13 @@ export function PanelLocationViewer({
 	const rotateUp = (delta: number) =>
 		setPitch((value) => Math.max(-1.2, Math.min(1.2, value + delta)));
 	const reset = () => {
-		setAnimateExplode(false);
 		setYaw(INITIAL_YAW);
 		setPitch(INITIAL_PITCH);
 		setZoom(1);
 		setPan({ x: 0, y: 0 });
 		setExplode(0);
-		setExplodeAll(false);
 		setHideDoors(false);
+		setShowNumbers(false);
 		setDoorsOpen(false);
 		if (doorFrame.current !== null) cancelAnimationFrame(doorFrame.current);
 		doorFrame.current = null;
@@ -240,11 +242,6 @@ export function PanelLocationViewer({
 					style={{
 						transform: `translate(${panel.explodeOffset[0] * explode}px, ${panel.explodeOffset[1] * explode}px)`,
 					}}
-					className={
-						animateExplode
-							? "motion-safe:transition-transform motion-safe:duration-300 motion-safe:ease-out"
-							: undefined
-					}
 					fill={active ? "#ef4444" : "#a1a1aa"}
 					fillOpacity={active ? 0.78 : 0.14}
 					stroke={active ? "#be123c" : "#52525b"}
@@ -316,7 +313,7 @@ export function PanelLocationViewer({
 			<div
 				className={
 					immersive
-						? `absolute inset-x-3 ${embedded ? "top-3" : "top-16"} z-10 space-y-2 ${desktopLayout ? `md:left-6 ${embedded ? "md:top-4" : "md:top-20"} md:max-w-lg` : ""}`
+						? `pointer-events-none absolute inset-x-3 ${embedded ? "top-3" : "top-16"} z-10 space-y-2 ${desktopLayout ? `md:left-6 ${embedded ? "md:top-4" : "md:top-20"} md:max-w-lg` : ""}`
 						: "space-y-2"
 				}
 			>
@@ -329,7 +326,7 @@ export function PanelLocationViewer({
 					</p>
 				)}
 				{outdated && (
-					<Alert className="border border-amber-500/40 bg-card text-amber-900 dark:text-amber-200">
+					<Alert className="pointer-events-auto border border-amber-500/40 bg-card text-amber-900 dark:text-amber-200">
 						<AlertDescription className="text-inherit">
 							{activeVersion.data === null
 								? "Model ini belum memiliki versi aktif."
@@ -354,7 +351,7 @@ export function PanelLocationViewer({
 					</Alert>
 				)}
 				{(activeVersion.isError || activeVersion.fetchStatus === "paused") && (
-					<Alert className="border border-amber-500/40 bg-card text-amber-900 dark:text-amber-200">
+					<Alert className="pointer-events-auto border border-amber-500/40 bg-card text-amber-900 dark:text-amber-200">
 						<AlertDescription className="text-inherit">
 							Versi aktif belum dapat diperiksa.
 						</AlertDescription>
@@ -368,8 +365,13 @@ export function PanelLocationViewer({
 						</Button>
 					</Alert>
 				)}
+				{panels.some((panel) => !panel.panelNumberVerified) && (
+					<Alert className="pointer-events-none border border-amber-500/40 bg-card text-amber-900 dark:text-amber-200">
+						<AlertDescription>Nomor komponen yang belum dicocokkan dengan model LBY tidak ditampilkan. Impor dan periksa ulang model untuk memverifikasi nomor.</AlertDescription>
+					</Alert>
+				)}
 				{selected?.hinges?.length ? (
-					<details className="max-h-48 w-fit max-w-full overflow-auto rounded-xl border bg-card/95 p-3 text-xs shadow-sm">
+					<details className="pointer-events-auto max-h-48 w-fit max-w-full overflow-auto rounded-xl border bg-card/95 p-3 text-xs shadow-sm">
 						<summary className="cursor-pointer font-semibold">Engsel panel: {selected.hinges.length}</summary>
 						{selected.doorOpenType && <p className="mt-2">Bukaan: {({ left: "kiri", right: "kanan", up: "atas", bottom: "bawah" })[selected.doorOpenType]}</p>}
 						<ul className="mt-2 space-y-2">
@@ -414,10 +416,12 @@ export function PanelLocationViewer({
 								: "overflow-hidden rounded-2xl border bg-slate-50"
 						}
 					>
+						<div className={`relative ${immersive ? "h-full" : "h-[min(62dvh,640px)] min-h-80"}`}>
+						{!webglFailed && <PanelLocation3D panels={projected} barcode={barcode} hideDoors={hideDoors} showNumbers={showNumbers} explode={explode} width={width} height={height} centerX={-pan.x} centerY={-pan.y} onFailure={handleWebglFailure} />}
 						<svg
 							ref={viewport}
-							viewBox={`${(minX + maxX - width) / 2 - pan.x} ${(minY + maxY - height) / 2 - pan.y} ${width} ${height}`}
-							className={`${immersive ? "h-full" : "h-[min(62dvh,640px)] min-h-80"} w-full cursor-grab select-none text-foreground active:cursor-grabbing`}
+							viewBox={`${-width / 2 - pan.x} ${-height / 2 - pan.y} ${width} ${height}`}
+							className="relative h-full w-full cursor-grab select-none text-foreground active:cursor-grabbing"
 							style={{ touchAction: "none" }}
 							role="img"
 							tabIndex={0}
@@ -425,13 +429,12 @@ export function PanelLocationViewer({
 							data-selected-barcode={barcode}
 							data-panel-count={panels.length}
 							data-explode={Math.round(explode * 100)}
-							data-explode-mode={explodeAll ? "all" : "selected"}
+							data-explode-mode="all"
 							data-doors-hidden={hideDoors}
 							data-doors-open={doorsOpen}
 							data-door-progress={Math.round(doorProgress * 100)}
 							onPointerDown={(event) => {
 								if (event.button !== 0 && event.button !== 2) return;
-								setAnimateExplode(false);
 								pointers.current.set(event.pointerId, {
 									x: event.clientX,
 									y: event.clientY,
@@ -498,7 +501,6 @@ export function PanelLocationViewer({
 								)
 									return;
 								event.preventDefault();
-								setAnimateExplode(false);
 								if (event.shiftKey && event.key.startsWith("Arrow")) {
 									setPan((value) => ({
 										x: value.x + (event.key === "ArrowLeft" ? -width : event.key === "ArrowRight" ? width : 0) * 0.05,
@@ -515,6 +517,7 @@ export function PanelLocationViewer({
 							}}
 						>
 							<title>{`${panelLabel} di ruang ${selected.roomName}`}</title>
+							<g visibility={webglFailed ? "visible" : "hidden"}>
 							{drawPanels(false)}
 							{explode > 0 && target && targetCenter && (
 								<g
@@ -539,7 +542,14 @@ export function PanelLocationViewer({
 							)}
 							{/* Keep the target visible through surrounding panels, including panels at the back. */}
 							{drawPanels(true)}
+							</g>
+							{showNumbers && numberLabels.map((label) => (
+								<g key={label.barcode} pointerEvents="none">
+									<text data-panel-number={label.number} x={label.x} y={label.y} textAnchor="middle" dominantBaseline="central" fontSize={numberScale * 14} fontWeight="bold" fill="#1d4ed8" stroke="white" strokeWidth={numberScale * 2} paintOrder="stroke">{label.number}</text>
+								</g>
+							))}
 						</svg>
+						</div>
 						<div
 							className={
 								immersive
@@ -548,6 +558,9 @@ export function PanelLocationViewer({
 							}
 							aria-label="Kontrol tampilan"
 						>
+							<Button variant="ghost" size="icon" className={showNumbers ? "bg-muted text-foreground" : "text-muted-foreground"} aria-label="Tampilkan nomor panel" aria-pressed={showNumbers} title={showNumbers ? "Sembunyikan nomor panel" : "Tampilkan nomor panel"} onClick={() => setShowNumbers((value) => !value)}>
+								<Hash aria-hidden="true" />
+							</Button>
 							<Button
 								variant="ghost"
 								size="icon"
@@ -562,7 +575,6 @@ export function PanelLocationViewer({
 											: "Buka pintu"
 								}
 								onClick={() => {
-									setAnimateExplode(false);
 									setHideDoors(false);
 									setDoorsOpen((value) => !value);
 								}}
@@ -616,73 +628,14 @@ export function PanelLocationViewer({
 									Panel yang dicari
 								</p>
 							)}
-							<div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl border border-border/50 bg-card/95 p-2 shadow-sm">
-								<div role="group" aria-label="Mode explode" className="flex basis-full gap-1">
-									<Button
-										variant={explodeAll ? "ghost" : "default"}
-										size="sm"
-										className="min-h-10 flex-1"
-										aria-pressed={!explodeAll}
-										onClick={() => {
-											setAnimateExplode(false);
-											setExplodeAll(false);
-										}}
-									>
-										Panel dicari
-									</Button>
-									<Button
-											variant={explodeAll ? "default" : "ghost"}
-										size="sm"
-										className="min-h-10 flex-1"
-										aria-pressed={explodeAll}
-										onClick={() => {
-											setAnimateExplode(false);
-											setExplodeAll(true);
-										}}
-									>
-										Semua panel
-									</Button>
-								</div>
-								<Button
-									variant="ghost"
-									size="sm"
-									className="min-h-10 w-24 shrink-0"
-									aria-label="Explode panel"
-									aria-pressed={explode > 0}
-									onClick={() => {
-										setAnimateExplode(true);
-										setExplode(explode > 0 ? 0 : 1);
-									}}
-								>
-									<Expand aria-hidden="true" />
-									{explode > 0 ? "Pasang" : explodeAll ? "Pisah" : "Tarik"}
-								</Button>
-								<label className="sr-only" htmlFor={`explode-${barcode}`}>
-									Jarak explode
-								</label>
-								<input
-									id={`explode-${barcode}`}
-									type="range"
-									min={0}
-									max={100}
-									step={1}
-									value={Math.round(explode * 100)}
-									onChange={(event) => {
-										setAnimateExplode(false);
-										setExplode(Number(event.target.value) / 100);
-									}}
-									className="h-10 min-w-0 flex-1 cursor-pointer accent-primary"
-								/>
-								<output
-									htmlFor={`explode-${barcode}`}
-									className="w-10 text-right text-xs font-semibold tabular-nums"
-								>
-									{Math.round(explode * 100)}%
-								</output>
-							</div>
-							<p className="text-center text-[11px] text-muted-foreground">
-								{explodeAll ? "Pisahkan semua panel di ruang ini" : "Tarik panel merah dari posisinya"} · Scroll / pinch untuk zoom · Klik kanan + geser untuk pan
-							</p>
+						<div className="flex w-full items-center gap-2 rounded-full border border-border/50 bg-card/95 px-4 py-1 shadow-sm">
+							<label htmlFor={`explode-${barcode}`} className="text-xs font-medium">Jarak</label>
+							<input id={`explode-${barcode}`} aria-label="Jarak explode" type="range" min={0} max={100} value={Math.round(explode * 100)} onChange={(event) => setExplode(Number(event.target.value) / 100)} className="h-10 min-w-0 flex-1 cursor-pointer accent-primary" />
+							<output htmlFor={`explode-${barcode}`} className="w-10 text-right text-xs tabular-nums">{Math.round(explode * 100)}%</output>
+						</div>
+						{showNumbers && webglFailed && numberLabels.length < projected.filter((panel) => panel.panelNumberVerified && panel.panelNumber && (panel.barcode === barcode || !hideDoors || !isDoorPanel(panel))).length && (
+							<p role="status" className="w-fit rounded-lg bg-card/95 px-3 py-1 text-xs shadow-sm">Sebagian nomor tersembunyi. Putar atau zoom untuk memperjelas.</p>
+						)}
 						</div>
 					</div>
 					{!immersive && (

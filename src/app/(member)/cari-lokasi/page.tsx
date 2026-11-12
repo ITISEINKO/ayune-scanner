@@ -25,7 +25,7 @@ const CariLokasi = async ({ searchParams }: { searchParams: Promise<{ barcode?: 
 	if (serialNumber) {
 		try {
 			location = await getPanelLocation("", serialNumber);
-			if (!location) errorMessage = "Lokasi panel untuk serial ini belum tersedia. Periksa serial atau hubungi admin.";
+			if (!location) errorMessage = "Lokasi panel untuk serial ini belum tersedia. Periksa serial atau hubungi drafter untuk mengunggah model LBY.";
 		} catch (cause) {
 			errorMessage = cause instanceof Error && cause.message === "LOCATION_AMBIGUOUS"
 				? "Serial ditemukan di beberapa model aktif. Hubungi admin untuk memeriksa model LBY."
