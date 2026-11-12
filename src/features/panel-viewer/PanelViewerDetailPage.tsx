@@ -1,7 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { DoorOpen, EyeOff, ScanEye, Hash } from "lucide-react";
+import {
+	DoorOpen,
+	EyeOff,
+	ScanEye,
+	Hash,
+	Bone,
+	DoorClosed,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { PanelLocationLoader } from "@/features/panel-location/PanelLocationLoader";
@@ -19,14 +26,23 @@ export function PanelViewerDetailPage({
 	rooms,
 	initialRoom,
 	selectedPanel,
+	trialRevision,
+	onReady,
 }: {
 	id: string;
 	rooms: { id: string; name: string }[];
 	initialRoom?: string;
 	selectedPanel?: string;
+	trialRevision?: string;
+	onReady?: (ready: boolean) => void;
 }) {
-	const [room, setRoom] = useState(rooms.some((item) => item.id === initialRoom) ? initialRoom! : rooms[0]?.id ?? "");
+	const [room, setRoom] = useState(
+		rooms.some((item) => item.id === initialRoom)
+			? initialRoom!
+			: (rooms[0]?.id ?? ""),
+	);
 	const [status, setStatus] = useState("Memuat model…");
+	useEffect(() => { onReady?.(!status); }, [status, onReady]);
 	const [unresolvedDoors, setUnresolvedDoors] = useState(0);
 	const [hasDoors, setHasDoors] = useState(false);
 	const [doorsOpen, setDoorsOpen] = useState(false);
@@ -65,6 +81,7 @@ export function PanelViewerDetailPage({
 	}, [doorsOpen]);
 	useEffect(() => {
 		const target = container.current;
+		const modelId = id;
 		if (!target || !room) return;
 		const abort = new AbortController();
 		let dispose = () => {};
@@ -74,7 +91,9 @@ export function PanelViewerDetailPage({
 		(async () => {
 			const [response, THREE, { OrbitControls }] = await Promise.all([
 				fetch(
-					`/api/public-models/${encodeURIComponent(id)}/${encodeURIComponent(room)}`,
+					trialRevision
+						? `/api/admin/trial-3d-import?${new URLSearchParams({ id, revision: trialRevision, room })}`
+						: `/api/public-models/${encodeURIComponent(id)}/${encodeURIComponent(room)}`,
 					{ signal: abort.signal },
 				),
 				import("three"),
@@ -85,8 +104,13 @@ export function PanelViewerDetailPage({
 			if (abort.signal.aborted) return;
 			const doorsExist = parts.some((part) => part.isDoor || part.doorOpenType);
 			setHasDoors(doorsExist);
-			if (!doorsExist) { setDoorsOpen(false); setHideDoors(false); }
-			setUnresolvedDoors(parts.filter((part) => part.doorOpenType && !part.doorMotion).length);
+			if (!doorsExist) {
+				setDoorsOpen(false);
+				setHideDoors(false);
+			}
+			setUnresolvedDoors(
+				parts.filter((part) => part.doorOpenType && !part.doorMotion).length,
+			);
 			if (!parts.length) {
 				setStatus("Tidak ada panel pada ruangan ini.");
 				return;
@@ -106,13 +130,20 @@ export function PanelViewerDetailPage({
 			const extent = Math.max(size.x, size.y, size.z, 1);
 			const scene = new THREE.Scene();
 			scene.background = new THREE.Color(0xf5f5f4);
-			const materials = new Map<string, InstanceType<typeof THREE.MeshLambertMaterial>>();
+			const materials = new Map<
+				string,
+				InstanceType<typeof THREE.MeshLambertMaterial>
+			>();
 			const textures = new Map<string, InstanceType<typeof THREE.Texture>>();
 			const hingeMaterial = new THREE.MeshLambertMaterial({
 				color: 0x737b85,
 				side: THREE.DoubleSide,
 			});
-			const outlineMaterial = new THREE.LineBasicMaterial({ color: 0x403b35, transparent: true, opacity: 0.55 });
+			const outlineMaterial = new THREE.LineBasicMaterial({
+				color: 0x403b35,
+				transparent: true,
+				opacity: 0.55,
+			});
 			scene.add(new THREE.AmbientLight(0xffffff, 1.7));
 			const geometries: InstanceType<typeof THREE.BufferGeometry>[] = [];
 			const sprites: InstanceType<typeof THREE.Sprite>[] = [];
@@ -123,23 +154,39 @@ export function PanelViewerDetailPage({
 					new THREE.Float32BufferAttribute(part.position, 3),
 				);
 				geometry.setIndex(part.index);
-				if (part.uv?.length === part.position.length / 3 * 2) geometry.setAttribute('uv', new THREE.Float32BufferAttribute(part.uv, 2));
+				if (part.uv?.length === (part.position.length / 3) * 2)
+					geometry.setAttribute(
+						"uv",
+						new THREE.Float32BufferAttribute(part.uv, 2),
+					);
 				geometry.computeVertexNormals();
 				geometry.computeBoundingBox();
 				const bounds = geometry.boundingBox!,
 					middle = bounds.getCenter(new THREE.Vector3());
-				const pivot = part.doorMotion ? new THREE.Vector3().fromArray(part.doorMotion.pivot) : middle.clone();
+				const pivot = part.doorMotion
+					? new THREE.Vector3().fromArray(part.doorMotion.pivot)
+					: middle.clone();
 				geometry.translate(-pivot.x, -pivot.y, -pivot.z);
 				geometries.push(geometry);
 				const group = new THREE.Group();
 				group.position.copy(pivot).sub(center);
-				const axis = part.doorMotion ? new THREE.Vector3().fromArray(part.doorMotion.axis) : null;
+				const axis = part.doorMotion
+					? new THREE.Vector3().fromArray(part.doorMotion.axis)
+					: null;
 				const hinges: InstanceType<typeof THREE.Mesh>[] = [];
-				const selected = room === initialRoom && part.id === selectedPanel && Boolean(selectedPanel);
-				const materialKey = selected ? 'selected-panel' : `${part.texture || ''}:${part.color ?? ''}`;
+				const selected =
+					room === initialRoom &&
+					part.id === selectedPanel &&
+					Boolean(selectedPanel);
+				const materialKey = selected
+					? "selected-panel"
+					: `${part.texture || ""}:${part.color ?? ""}`;
 				let material = materials.get(materialKey);
 				if (!material) {
-					material = new THREE.MeshLambertMaterial({ color: selected ? 0xef4444 : part.color ?? 0xd4c3a5, side: THREE.DoubleSide });
+					material = new THREE.MeshLambertMaterial({
+						color: selected ? 0xef4444 : (part.color ?? 0xd4c3a5),
+						side: THREE.DoubleSide,
+					});
 					materials.set(materialKey, material);
 				}
 				const mesh = new THREE.Mesh(geometry, material);
@@ -226,37 +273,71 @@ export function PanelViewerDetailPage({
 			const render = () => {
 				if (settings.current.numbers) {
 					scene.updateMatrixWorld(true);
-					const visibleMeshes = panels.filter((panel) => panel.group.visible).map((panel) => panel.mesh);
+					const visibleMeshes = panels
+						.filter((panel) => panel.group.visible)
+						.map((panel) => panel.mesh);
 					for (const panel of panels) {
 						if (!panel.label || !panel.group.visible) continue;
-						const center = panel.group.localToWorld(panel.middle.clone().sub(panel.pivot));
-						raycaster.set(camera.position, center.sub(camera.position).normalize());
+						const center = panel.group.localToWorld(
+							panel.middle.clone().sub(panel.pivot),
+						);
+						raycaster.set(
+							camera.position,
+							center.sub(camera.position).normalize(),
+						);
 						// shortcut: one ray per label scans visible panels; use a spatial index if large models make orbiting slow.
 						const hit = raycaster.intersectObjects(visibleMeshes)[0];
 						panel.label.visible = hit?.object === panel.mesh;
-						if (panel.label.visible && hit) panel.label.position.copy(panel.group.worldToLocal(hit.point));
+						if (panel.label.visible && hit)
+							panel.label.position.copy(panel.group.worldToLocal(hit.point));
 					}
 				}
 				renderer.render(scene, camera);
 			};
-			const textureLoads = [...new Set(parts.map((part) => part.texture).filter((id): id is string => Boolean(id)))].map((id) => new Promise<void>((resolve) => {
-				const texture = new THREE.TextureLoader().load(`/api/public-textures/${encodeURIComponent(id)}`, (loaded) => {
-					if (!abort.signal.aborted) {
-						loaded.colorSpace = THREE.SRGBColorSpace; loaded.wrapS = loaded.wrapT = THREE.RepeatWrapping; loaded.repeat.set(2, 2);
-						for (const [key, material] of materials) if (key.startsWith(`${id}:`)) { material.map = loaded; material.color.set(0xffffff); material.needsUpdate = true; }
-					} else loaded.dispose();
-					resolve();
-				}, undefined, () => resolve());
-				textures.set(id, texture);
-			}));
+			const textureLoads = [
+				...new Set(
+					parts
+						.map((part) => part.texture)
+						.filter((id): id is string => Boolean(id)),
+				),
+			].map(
+				(id) =>
+					new Promise<void>((resolve) => {
+						const texture = new THREE.TextureLoader().load(
+							trialRevision
+								? `/api/admin/trial-3d-import?${new URLSearchParams({ id: modelId, revision: trialRevision, texture: id })}`
+								: `/api/public-textures/${encodeURIComponent(id)}`,
+							(loaded) => {
+								if (!abort.signal.aborted) {
+									loaded.colorSpace = THREE.SRGBColorSpace;
+									loaded.wrapS = loaded.wrapT = THREE.RepeatWrapping;
+									loaded.repeat.set(2, 2);
+									for (const [key, material] of materials)
+										if (key.startsWith(`${id}:`)) {
+											material.map = loaded;
+											material.color.set(0xffffff);
+											material.needsUpdate = true;
+										}
+								} else loaded.dispose();
+								resolve();
+							},
+							undefined,
+							() => resolve(),
+						);
+						textures.set(id, texture);
+					}),
+			);
 			update.current = () => {
 				const s = settings.current;
 				renderer.domElement.dataset.doorProgress = String(
 					Math.round(doorProgress.current * 100),
 				);
 				for (const [key, material] of materials) {
-					const transparent = s.xray && key !== 'selected-panel';
-					if (material.transparent !== transparent) { material.transparent = transparent; material.needsUpdate = true; }
+					const transparent = s.xray && key !== "selected-panel";
+					if (material.transparent !== transparent) {
+						material.transparent = transparent;
+						material.needsUpdate = true;
+					}
 					material.opacity = transparent ? 0.28 : 1;
 					material.depthWrite = !transparent;
 				}
@@ -276,7 +357,9 @@ export function PanelViewerDetailPage({
 					}
 					for (const hinge of panel.hinges) {
 						hinge.visible = panel.group.visible;
-						hinge.position.copy(panel.middle).multiplyScalar((s.explode / 100) * 0.6);
+						hinge.position
+							.copy(panel.middle)
+							.multiplyScalar((s.explode / 100) * 0.6);
 					}
 					if (panel.label) panel.label.visible = s.numbers;
 				}
@@ -323,7 +406,7 @@ export function PanelViewerDetailPage({
 			abort.abort();
 			dispose();
 		};
-	}, [id, room, initialRoom, selectedPanel]);
+	}, [id, room, initialRoom, selectedPanel, trialRevision]);
 	return (
 		<section className="absolute inset-0" aria-label="Viewer model 3D">
 			<div
@@ -333,7 +416,13 @@ export function PanelViewerDetailPage({
 			/>
 			{status && (
 				<div className="absolute inset-0 flex bg-background">
-					{status === "Memuat model…" ? <PanelLocationLoader message={status} /> : <p role="status" className="m-auto p-4 text-center">{status}</p>}
+					{status === "Memuat model…" ? (
+						<PanelLocationLoader message={status} />
+					) : (
+						<p role="status" className="m-auto p-4 text-center">
+							{status}
+						</p>
+					)}
 				</div>
 			)}
 			<div className="absolute left-3 top-16 sm:left-5 sm:top-20">
@@ -351,9 +440,9 @@ export function PanelViewerDetailPage({
 							{rooms.find((item) => item.id === room)?.name}
 						</SelectValue>
 					</SelectTrigger>
-					<SelectContent align="start" alignItemWithTrigger={false}>
+					<SelectContent align="start" alignItemWithTrigger={false} className="w-max min-w-(--anchor-width) max-w-[calc(100vw-1.5rem)]">
 						{rooms.map((item) => (
-							<SelectItem key={item.id} value={item.id}>
+							<SelectItem key={item.id} value={item.id} className="[&>span:first-child]:min-w-0 [&>span:first-child]:shrink [&>span:first-child]:whitespace-normal [&>span:first-child]:break-words">
 								{item.name}
 							</SelectItem>
 						))}
@@ -377,10 +466,10 @@ export function PanelViewerDetailPage({
 						active: hideDoors,
 						toggle: setHideDoors,
 						label: "Sembunyikan pintu",
-						Icon: EyeOff,
+						Icon: DoorClosed,
 						disabled: !hasDoors,
 					},
-					{ active: xray, toggle: setXray, label: "X-ray", Icon: ScanEye },
+					{ active: xray, toggle: setXray, label: "X-ray", Icon: EyeOff },
 					{
 						active: numbers,
 						toggle: setNumbers,
@@ -404,20 +493,21 @@ export function PanelViewerDetailPage({
 				))}
 			</div>
 			<div className="absolute inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] rounded-xl border bg-card/95 p-3 shadow-sm sm:left-5 sm:right-auto sm:w-96">
-				{unresolvedDoors > 0 && <p role="status" className="mb-2 text-xs text-amber-700">{unresolvedDoors} pintu tidak dianimasikan karena arah bukanya belum dapat dipastikan.</p>}
+				{unresolvedDoors > 0 && (
+					<p role="status" className="mb-2 text-xs text-amber-700">
+						{unresolvedDoors} pintu tidak dianimasikan karena arah bukanya belum
+						dapat dipastikan.
+					</p>
+				)}
 				<div className="flex items-center gap-3">
-					<span className="text-sm font-semibold">
-						Explode
-					</span>
+					<span className="text-sm font-semibold">Explode</span>
 					<Slider
 						aria-label="Explode"
 						value={explode}
 						onValueChange={setExplode}
 						className="min-w-0 flex-1"
 					/>
-					<output className="text-sm">
-						{explode}%
-					</output>
+					<output className="text-sm">{explode}%</output>
 				</div>
 			</div>
 		</section>

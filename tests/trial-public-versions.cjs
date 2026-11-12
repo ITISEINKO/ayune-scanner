@@ -1,0 +1,48 @@
+const assert = require('node:assert/strict');
+const { readFileSync } = require('node:fs');
+const { runInNewContext } = require('node:vm');
+const { gzipSync } = require('node:zlib');
+const { randomBytes } = require('node:crypto');
+const { createClient } = require('@libsql/client');
+const ts = require('typescript');
+
+(async () => {
+	const db = createClient({ url: 'file::memory:' });
+	try {
+		const module = { exports: {} };
+		runInNewContext(ts.transpileModule(readFileSync('src/lib/trialPublicModels.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { module, exports: module.exports, Buffer, Date, JSON, Map, require: (id) => id === 'server-only' ? {} : id === '@/lib/db' ? { db } : require(id) });
+		const store = module.exports;
+		const rooms = [{ id: 'r', name: 'Room', data: gzipSync('[{"id":"p"}]'), matches: [{ id: 'p', serial: '001', number: '1' }] }];
+		const textures = [{ id: '1', mime: 'image/png', image: Buffer.from('first') }];
+		const one = await store.saveTrialModel('123', 'Model', rooms, textures);
+		assert.equal(one.created, true);
+		assert.equal((await store.saveTrialModel('123', 'Model', rooms, textures)).created, false);
+		assert.equal(await store.activateTrialModel('123', one.revision, null), true);
+		assert.equal((await store.searchTrialPanels('001')).length, 1);
+		const two = await store.saveTrialModel('123', 'Model', rooms, [{ ...textures[0], image: Buffer.from('changed') }]);
+		assert.notEqual(two.revision, one.revision);
+		assert.equal(await store.activateTrialModel('123', two.revision, null), false);
+		assert.equal(await store.activateTrialModel('123', two.revision, one.revision), true);
+		assert.equal(await store.activateTrialModel('123', one.revision, two.revision), true);
+		const renamed = await store.saveTrialModel('123', 'Model', [{ ...rooms[0], matches: [{ ...rooms[0].matches[0], serial: '002' }] }], textures);
+		assert.equal(await store.activateTrialModel('123', renamed.revision, one.revision), true);
+		assert.equal((await store.searchTrialPanels('001')).length, 0);
+		assert.equal((await store.searchTrialPanels('002')).length, 1);
+		assert.equal(await store.activateTrialModel('123', one.revision, renamed.revision), true);
+		const models = await store.listTrialModels();
+		assert.equal(models[0].activeRevision, one.revision);
+		assert.equal(models[0].versions.length, 3);
+		assert.equal((await store.searchTrialPanels('001')).length, 1);
+		assert.equal(Buffer.from((await store.readTrialModel('123', one.revision)).textures[0].image, 'base64').toString(), 'first');
+		const largeTexture = randomBytes(2 * 1024 * 1024);
+		const large = await store.saveTrialModel('123', 'Model', rooms, [{ id: '1', mime: 'image/png', image: largeTexture }]);
+		assert.equal(large.created, true);
+		assert((await db.execute({ sql: 'SELECT count(*) AS n FROM ppic_trial_revision_chunk WHERE model_id = ? AND revision = ?', args: ['123', large.revision] })).rows[0].n > 1);
+		assert.deepEqual(Buffer.from((await store.readTrialModel('123', large.revision)).textures[0].image, 'base64'), largeTexture);
+		assert.equal((await store.saveTrialModel('123', 'Model', rooms, [{ id: '1', mime: 'image/png', image: largeTexture }])).created, false);
+		await db.execute({ sql: 'DELETE FROM ppic_trial_revision_chunk WHERE model_id = ? AND revision = ? AND chunk_number = 0', args: ['123', large.revision] });
+		await assert.rejects(store.readTrialModel('123', large.revision), /MISSING_CHUNK/);
+		assert.equal((await db.execute("SELECT name FROM sqlite_master WHERE name LIKE 'ppic_public_%'")).rows.length, 0);
+		console.log('Trial versions: duplicate, texture change, activation conflict, rollback and table isolation passed');
+	} finally { db.close(); }
+})().catch((error) => { console.error(error); process.exitCode = 1; });

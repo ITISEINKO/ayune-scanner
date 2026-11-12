@@ -1,1 +1,2 @@
 export type PublicRoomGeometry = { id?: string; position: number[]; index: number[]; uv?: number[]; texture?: string | null; color?: number | null; number: string; doorOpenType: 'left' | 'right' | 'up' | 'bottom' | null; doorMotion?: { pivot: number[]; axis: number[] } | null; isDoor: boolean; hinges: { position: number[]; index: number[]; matrix: number[] }[] }[];
+export type TrialPublicModel = { id: string; name: string; activeRevision: string | null; versions: { revision: string; number: number; importedAt: string }[] };

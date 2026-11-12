@@ -16,6 +16,8 @@ function doorMotion(model, models, opening, hinges = []) {
 		if (item.parentId && !models.has(item.parentId)) return null;
 		item = item.parentId ? models.get(item.parentId) : null;
 	}
+	// shortcut: only correct axis-aligned X mirrors without hinge anchors; use verified hinge data for rotated mirrors.
+	if (!hinges.length && world.determinant() < 0 && new Vector3(1, 0, 0).transformDirection(world).x < -0.999999 && (opening === 'left' || opening === 'right')) opening = opening === 'left' ? 'right' : 'left';
 	const horizontal = opening === 'left' || opening === 'right';
 	const width = horizontal ? model.sizeX : model.sizeZ;
 	let mountDepth = 0;
@@ -86,21 +88,25 @@ function prepare(model, orderId, panels = []) {
 	});
 }
 
-async function fetchPublicModel(source, signal, hasTexture = () => false) {
+async function fetchPublicModel(source, signal, hasTexture = () => false, onProgress = (_stage = '') => {}) {
 	const id = source.orderId;
+	onProgress('downloading');
 	const result = JSON.parse(await read(`https://www.lbyerp.com/api/cd/anyTenant/app/getByOrderId/${id}`, signal));
 	assert(result.code === 0 && result.data && Object.keys(result.data).length === 1, 'Invalid model response');
 	const value = Object.values(result.data)[0]; assert(typeof value === 'string', 'Invalid model value');
 	let raw;
 	if (value.trimStart().startsWith('{')) raw = value;
 	else { const url = new URL(value); assert(url.protocol === 'https:' && !url.username && !url.password && ['www.lbyerp.com', 'ali-oss-lby.oss-cn-hangzhou.aliyuncs.com'].includes(url.hostname), 'Unexpected download host'); raw = unzipModel(await read(url, signal), id); }
+	onProgress('panels');
 	const panelResponse = JSON.parse(await read(`https://www.lbyerp.com/api/erp/anyTenant/app/getPlankByOrderId/${id}`, signal));
 	assert(panelResponse.code === 0 && Array.isArray(panelResponse.data) && panelResponse.data.length, 'Invalid panel response');
+	onProgress('rooms');
 	const rooms = prepare(JSON.parse(raw), id, panelResponse.data);
 	assert(rooms.length && rooms.some((room) => JSON.parse(require('node:zlib').gunzipSync(room.data)).length), 'No panel geometry');
 	const ids = [...new Set(rooms.flatMap((room) => JSON.parse(require('node:zlib').gunzipSync(room.data)).map((part) => part.texture).filter(Boolean)))];
 	const missing = ids.filter((texture) => !hasTexture(texture));
 	const textures = [];
+	onProgress('textures');
 	if (missing.length) {
 		const response = await fetch('https://www.lbyerp.com/api/base/file/anyTenant/findUrlById', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(missing), signal, redirect: 'error' });
 		assert(response.ok, `Texture lookup: HTTP ${response.status}`);

@@ -21,6 +21,12 @@ for (const [direction, pivot, axis] of [['left',[10,22,30],[0,0,1]], ['right',[1
 }
 assert.equal(doorMotion({ ...door, parentId: 'missing' }, byId, 'left'), null);
 const mirrored = { ...parent, scale: [-1, 1, 1] };
+const straightMirror = { ...parent, quaternion: [0,0,0,1], scale: [-1,1,1] };
+const straightMotion = doorMotion(door, new Map([[straightMirror.id, straightMirror], [door.id, door]]), 'right');
+assert.equal(straightMotion.opening, 'left');
+near(straightMotion.pivot, [8,20,30]);
+const straightEdge = new Vector3(-1,0,0).applyQuaternion(new Quaternion().setFromAxisAngle(new Vector3().fromArray(straightMotion.axis), -Math.PI / 2));
+near(straightEdge.toArray(), [0,-1,0]);
 const mirrorMotion = doorMotion(door, new Map([[mirrored.id, mirrored], [door.id, door]]), 'right');
 near(mirrorMotion.pivot, [10, -82, 30]);
 near(mirrorMotion.axis, [0, 0, -1]);
@@ -28,6 +34,9 @@ const mirroredEdge = new Vector3(0, 1, 0).applyQuaternion(new Quaternion().setFr
 near(mirroredEdge.toArray(), [1, 0, 0]);
 assert.equal(doorMotion({ ...door, scale: [0, 1, 1] }, byId, 'right'), null);
 const mount = (x, y, z) => ({ matrix: [1,0,0,0,0,1,0,0,0,0,1,0,x,y,z,1] });
+const straightAnchored = doorMotion(door, new Map([[straightMirror.id, straightMirror], [door.id, door]]), 'right', [mount(-92,20,40)]);
+assert.equal(straightAnchored.opening, 'right');
+near(straightAnchored.pivot, [-92,20,30]);
 near(doorMotion(door, byId, 'left', [mount(7, 27, 40), mount(7, 27, 200)]).pivot, [7,22,30]);
 near(doorMotion(door, byId, 'left', [mount(7, 72, 40)]).pivot, [10,22,30]);
 const anchored = doorMotion(door, new Map([[mirrored.id, mirrored], [door.id, door]]), 'right', [mount(7, 17, 40), mount(7, 17, 200)]);
