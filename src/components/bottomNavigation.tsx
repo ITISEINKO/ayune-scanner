@@ -25,13 +25,13 @@ const superAdminItems = [
 ];
 const memberItems = [
 	{ href: "/projects", label: "Projects", icon: FolderKanban },
-	{ href: "/cari-lokasi", label: "Cari", icon: Search },
+	{ href: "/panel-viewer", label: "Cari", icon: Search },
 	{ href: "/history", label: "History", icon: History },
 	{ href: "/profile", label: "Profile", icon: User },
 ];
 const drafterItems = [
 	{ href: "/drafter", label: "Models", icon: FolderKanban },
-	{ href: "/cari-lokasi", label: "Cari", icon: Search },
+	{ href: "/panel-viewer", label: "Cari", icon: Search },
 	{ href: "/drafter/profile", label: "Profile", icon: User },
 ];
 
@@ -110,7 +110,11 @@ export function BottomNavigation({
 							aria-current={active ? "page" : undefined}
 							className={className}
 						>
-							<NavigationItemContent active={active} icon={Icon} label={label} />
+							<NavigationItemContent
+								active={active}
+								icon={Icon}
+								label={label}
+							/>
 						</Link>
 					</Fragment>
 				);

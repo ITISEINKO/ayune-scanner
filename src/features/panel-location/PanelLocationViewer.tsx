@@ -313,7 +313,7 @@ export function PanelLocationViewer({
 			<div
 				className={
 					immersive
-						? `pointer-events-none absolute inset-x-3 ${embedded ? "top-3" : "top-16"} z-10 space-y-2 ${desktopLayout ? `md:left-6 ${embedded ? "md:top-4" : "md:top-20"} md:max-w-lg` : ""}`
+						? `pointer-events-none absolute inset-x-3 ${embedded && preview ? "top-28" : embedded ? "top-3" : "top-16"} z-10 space-y-2 ${desktopLayout ? `md:left-6 ${embedded && preview ? "md:top-28" : embedded ? "md:top-4" : "md:top-20"} md:max-w-lg` : ""}`
 						: "space-y-2"
 				}
 			>

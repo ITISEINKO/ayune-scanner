@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
 	Check,
+	ChevronLeft,
 	Circle,
 	ClipboardPaste,
 	Clock3,
@@ -19,6 +20,7 @@ import { loadLbyPreview } from "./loadLbyPreview";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
 	Dialog,
 	DialogContent,
@@ -109,6 +111,7 @@ export function LbyImportPage({
 		error?: string;
 	} | null>(null);
 	const [checked, setChecked] = useState(false);
+	const [previewRoom, setPreviewRoom] = useState("");
 	const previewRequest = useRef(0);
 	const previewSection = useRef<HTMLElement>(null);
 	const previewTrigger = useRef<HTMLElement | null>(null);
@@ -119,6 +122,7 @@ export function LbyImportPage({
 		const request = ++previewRequest.current;
 		previewTrigger.current = document.activeElement as HTMLElement;
 		setChecked(false);
+		setPreviewRoom("");
 		setReview(null);
 		setPreview({ state, revision });
 		try {
@@ -128,8 +132,10 @@ export function LbyImportPage({
 				version?.sampleBarcode ?? "",
 				revision,
 			);
-			if (request === previewRequest.current)
+			if (request === previewRequest.current) {
+				setPreviewRoom(location.panels.find((panel) => panel.barcode === location.barcode)?.roomName ?? location.panels[0].roomName);
 				setPreview({ state, revision, location });
+			}
 		} catch {
 			if (request === previewRequest.current)
 				setPreview({
@@ -324,7 +330,7 @@ export function LbyImportPage({
 	};
 
 	return (
-		<main className="mx-auto min-h-dvh max-w-lg bg-background pb-28 ">
+		<main className={`mx-auto min-h-dvh bg-background pb-28 ${preview ? "max-w-none" : "max-w-lg"}`}>
 			<header hidden={Boolean(preview)} className="relative overflow-hidden rounded-b-[2.5rem] bg-accent/30 px-6 pt-6 pb-8 text-accent-foreground">
 				<img
 					src="/ayune-14.svg"
@@ -747,33 +753,21 @@ export function LbyImportPage({
 					ref={previewSection}
 					tabIndex={-1}
 					aria-label="Preview model LBY"
-					className="space-y-4 px-4 pt-5 outline-none md:px-6"
+					className="fixed inset-x-0 top-0 bottom-(--bottom-navigation-height) z-40 overflow-hidden bg-background outline-none"
 				>
-					<div className="space-y-3 border-b border-border/60 pb-4">
-						<div className="flex items-center justify-between gap-3">
-							<p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Pemeriksaan model</p>
-						<Button
-							variant="ghost"
-							size="sm"
-							disabled={Boolean(busy)}
-							onClick={closePreview}
-						>
-							Kembali ke daftar
-						</Button>
+					<div className="pointer-events-none absolute inset-x-3 top-3 z-20 space-y-3">
+						<div className="flex min-w-0 items-center gap-2">
+							<Button variant="outline" size="icon" className="pointer-events-auto shrink-0 bg-card/95 shadow-sm" aria-label="Kembali ke daftar" title="Kembali ke daftar" disabled={Boolean(busy)} onClick={closePreview}><ChevronLeft aria-hidden="true" /></Button>
+							<h2 className="min-w-0 truncate rounded-xl border bg-card/95 px-3 py-2 text-sm font-bold shadow-sm">{preview.location?.projectName ?? "Preview model"}</h2>
 						</div>
-						<h2 className="text-xl font-extrabold leading-snug tracking-tight wrap-anywhere">
-							{preview.location?.projectName ?? "Preview model"}
-						</h2>
+						{preview.location && <Select value={previewRoom} onValueChange={(value) => { if (value) setPreviewRoom(value); }}>
+							<SelectTrigger aria-label="Ruangan" className="pointer-events-auto w-fit max-w-64 bg-card/95 shadow-sm"><SelectValue /></SelectTrigger>
+							<SelectContent>{[...new Set(preview.location.panels.map((panel) => panel.roomName))].map((room) => <SelectItem key={room} value={room}>{room}</SelectItem>)}</SelectContent>
+						</Select>}
 					</div>
-					<div>
-						<h3 className="flex items-center gap-2 text-sm font-bold">
-							<span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">1</span>
-							Periksa model 3D
-						</h3>
-						<p className="mt-1 pl-8 text-xs text-muted-foreground">Putar dan cocokkan bentuk serta ruang dengan model di LBY.</p>
-					</div>
+					<div className="absolute inset-0 flex flex-col">
 					{preview.error ? (
-						<div role="alert" className="space-y-3 rounded-xl border p-4">
+						<div role="alert" className="m-auto space-y-3 rounded-xl border p-4">
 							<p>{preview.error}</p>
 							<Button
 								onClick={() =>
@@ -784,10 +778,12 @@ export function LbyImportPage({
 							</Button>
 						</div>
 					) : preview.location ? (
-						<div className="flex h-[60dvh] min-h-96 flex-col overflow-hidden rounded-2xl border bg-card md:h-[72dvh]">
+						<div className="flex min-h-0 flex-1 flex-col">
 							<PanelLocationViewer
-								key={preview.state.projectKey + ":" + preview.revision}
+								key={preview.state.projectKey + ":" + preview.revision + ":" + previewRoom}
 								{...preview.location}
+								barcode={preview.location.panels.find((panel) => panel.roomName === previewRoom)?.barcode ?? preview.location.barcode}
+								panels={preview.location.panels.filter((panel) => panel.roomName === previewRoom)}
 								immersive
 								preview
 								desktopLayout
@@ -797,7 +793,7 @@ export function LbyImportPage({
 					) : (
 						<div
 							role="status"
-							className="flex h-[60dvh] min-h-96 items-center justify-center gap-2 rounded-2xl border md:h-[72dvh]"
+							className="flex flex-1 items-center justify-center gap-2"
 						>
 							<LoaderCircle
 								aria-hidden="true"
@@ -806,13 +802,14 @@ export function LbyImportPage({
 							Memuat preview...
 						</div>
 					)}
+					</div>
 					{preview.revision !== preview.state.activeRevision && (
-						<div className="space-y-4 rounded-2xl border border-primary/25 bg-primary/5 p-4">
+						<div className="absolute inset-x-3 bottom-24 z-20 mx-auto max-w-lg space-y-2 rounded-xl border bg-card/95 p-3 shadow-sm md:right-auto md:bottom-6 md:mx-0 md:w-96">
 							<h3 className="flex items-center gap-2 font-bold">
 								<span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">2</span>
 								Konfirmasi kesesuaian
 							</h3>
-							<p className="text-xs text-muted-foreground">
+							<p className="sr-only">
 								{preview.state.activeRevision || preview.state.bundledVersion
 									? "Konfirmasi akan mengganti model yang digunakan untuk pencarian lokasi panel. Versi sebelumnya tetap tersimpan."
 									: "Model ini belum aktif. Konfirmasi agar digunakan untuk pencarian lokasi panel."}
