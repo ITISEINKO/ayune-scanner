@@ -18,6 +18,16 @@ const { Vector3 } = require('three');
 		async function bluePixels() {
 			await page.goto('http://localhost:3000/panel-viewer/814606578513608858');
 			await page.locator('canvas').waitFor();
+			const slider = page.getByRole('slider', { name: 'Explode' });
+			const box = await slider.locator('..').locator('..').boundingBox();
+			await page.mouse.move(box.x + 8, box.y + box.height / 2);
+			await page.mouse.down();
+			await page.mouse.move(box.x + box.width * 0.7, box.y + box.height / 2, { steps: 5 });
+			await page.mouse.up();
+			assert(Number(await slider.inputValue()) > 0, 'dragging must update the explode value');
+			assert.match(await page.locator('output').innerText(), /^[1-9]\d*%$/, 'explode percentage must remain numeric');
+			await slider.focus();
+			await page.keyboard.press('Home');
 			await page.getByRole('button', { name: 'Nomor panel' }).click();
 			const screenshot = await page.locator('canvas').screenshot();
 			return page.evaluate(async (data) => {

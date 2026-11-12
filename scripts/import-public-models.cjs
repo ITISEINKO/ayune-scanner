@@ -39,17 +39,24 @@ async function read(url, signal) {
 	return Buffer.concat(chunks);
 }
 
-function prepare(model, orderId) {
+function prepare(model, orderId, panels = []) {
 	assert(String(model.value?.orderId) === orderId && !model.value._V_ && Array.isArray(model.value.docs), 'Unsupported or mismatched model');
+	const serials = new Map();
+	for (const panel of panels) {
+		assert(String(panel.orderId) === orderId && typeof panel.laberNumber === 'string' && panel.laberNumber.trim() && typeof panel.splitId === 'string' && !serials.has(panel.splitId), 'Invalid panel mapping');
+		serials.set(panel.splitId, panel.laberNumber.trim());
+	}
 	return model.value.docs.map((doc) => {
 		assert(typeof doc.houseId === 'string' && doc.houseId && Array.isArray(doc.renderModels), 'Invalid room');
 		const models = new Map((doc.models || []).map((item) => [item.id, item]));
 		const hingeMeshes = new Map((doc.renderHoleModels || []).map((mesh) => [mesh.geometryType, mesh.geometry]));
+		const matches = [];
 		const geometry = doc.renderModels.map(({ modelId, geometry: g }) => {
 			assert(Array.isArray(g?.position) && g.position.length % 3 === 0 && g.position.every(Number.isFinite), 'Invalid positions');
 			const index = Array.isArray(g.index) ? g.index : Object.values(g.index || {});
 			assert(index.length % 3 === 0 && index.every((n) => Number.isInteger(n) && n >= 0 && n < g.position.length / 3), 'Invalid indices');
 			const model = models.get(modelId);
+			if (typeof modelId === 'string') matches.push({ id: modelId, serial: serials.get(modelId) || '', number: String(model?.roomPlankIdx || '') });
 			const doorOpenType = ['left', 'right', 'up', 'bottom'].includes(model?.doorOpenType) ? model.doorOpenType : null;
 			const hinges = (doc.models || []).filter((item) => item.parentId === modelId && isHinge(item)).flatMap((item) => {
 				const mesh = hingeMeshes.get(item.objFileId);
@@ -61,16 +68,16 @@ function prepare(model, orderId) {
 			const uv = Array.isArray(g.uv) && g.uv.length === g.position.length / 3 * 2 && g.uv.every(Number.isFinite) ? g.uv : [];
 			const texture = uv.length && typeof model?.textureImage === 'string' && /^\d{1,30}$/.test(model.textureImage) ? model.textureImage : null;
 			const color = Number.isInteger(model?.color) && model.color >= 0 && model.color <= 0xffffff ? model.color : null;
-			return { position: g.position, index, uv, texture, color, number: String(model?.roomPlankIdx || ''), doorOpenType, doorMotion: doorMotion(model, models, doorOpenType), isDoor: Boolean(doorOpenType || /门板|門板|\bdoor\b|\bpintu\b/i.test(model?.name || '')), hinges };
+			return { id: modelId, position: g.position, index, uv, texture, color, number: String(model?.roomPlankIdx || ''), doorOpenType, doorMotion: doorMotion(model, models, doorOpenType), isDoor: Boolean(doorOpenType || /门板|門板|\bdoor\b|\bpintu\b/i.test(model?.name || '')), hinges };
 		});
-		return { id: doc.houseId, name: String(doc.houseName || doc.houseId), data: gzipSync(JSON.stringify(geometry)) };
+		return { id: doc.houseId, name: String(doc.houseName || doc.houseId), data: gzipSync(JSON.stringify(geometry)), matches };
 	});
 }
 
 async function run() {
 	fs.mkdirSync(folder, { recursive: true });
 	const db = new DatabaseSync(path.join(folder, 'public-models.sqlite'));
-	db.exec('CREATE TABLE IF NOT EXISTS models (id TEXT PRIMARY KEY, name TEXT NOT NULL); CREATE TABLE IF NOT EXISTS rooms (model_id TEXT NOT NULL, id TEXT NOT NULL, name TEXT NOT NULL, geometry BLOB NOT NULL, PRIMARY KEY(model_id,id)); CREATE TABLE IF NOT EXISTS textures (id TEXT PRIMARY KEY, mime TEXT NOT NULL, image BLOB NOT NULL);');
+	db.exec('CREATE TABLE IF NOT EXISTS models (id TEXT PRIMARY KEY, name TEXT NOT NULL); CREATE TABLE IF NOT EXISTS rooms (model_id TEXT NOT NULL, id TEXT NOT NULL, name TEXT NOT NULL, geometry BLOB NOT NULL, PRIMARY KEY(model_id,id)); CREATE TABLE IF NOT EXISTS textures (id TEXT PRIMARY KEY, mime TEXT NOT NULL, image BLOB NOT NULL); CREATE TABLE IF NOT EXISTS panel_search (model_id TEXT NOT NULL, room_id TEXT NOT NULL, panel_id TEXT NOT NULL, serial TEXT NOT NULL, number TEXT NOT NULL, PRIMARY KEY(model_id,room_id,panel_id)); CREATE INDEX IF NOT EXISTS panel_search_serial ON panel_search(serial); CREATE INDEX IF NOT EXISTS panel_search_number ON panel_search(number);');
 	const links = fs.readFileSync(process.argv[2] || 'docs/lbyerp-cadvisitor-docs/list-link.md', 'utf8').split(/\r?\n/).filter(Boolean);
 	const orders = new Map();
 	for (const link of links) { try { const source = parseShareLink(link); orders.set(source.orderId, source); } catch (error) { console.error(`Skipped link: ${error.message}`); } }
@@ -84,7 +91,9 @@ async function run() {
 			let raw;
 			if (value.trimStart().startsWith('{')) raw = value;
 			else { const url = new URL(value); assert(url.protocol === 'https:' && !url.username && !url.password && ['www.lbyerp.com', 'ali-oss-lby.oss-cn-hangzhou.aliyuncs.com'].includes(url.hostname), 'Unexpected download host'); raw = unzipModel(await read(url, signal), id); }
-			const rooms = prepare(JSON.parse(raw), id);
+			const panelResponse = JSON.parse(await read(`https://www.lbyerp.com/api/erp/anyTenant/app/getPlankByOrderId/${id}`, signal));
+			assert(panelResponse.code === 0 && Array.isArray(panelResponse.data) && panelResponse.data.length, 'Invalid panel response');
+			const rooms = prepare(JSON.parse(raw), id, panelResponse.data);
 			assert(rooms.length && rooms.some((room) => JSON.parse(require('node:zlib').gunzipSync(room.data)).length), 'No panel geometry');
 			const ids = [...new Set(rooms.flatMap((room) => JSON.parse(require('node:zlib').gunzipSync(room.data)).map((part) => part.texture).filter(Boolean)))];
 			const missing = ids.filter((texture) => !db.prepare('SELECT 1 FROM textures WHERE id = ?').get(texture));
@@ -108,8 +117,10 @@ async function run() {
 				for (const texture of textures) saveTexture.run(texture.id, texture.mime, texture.image);
 				db.prepare('INSERT INTO models(id,name) VALUES(?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name').run(id, source.name);
 				db.prepare('DELETE FROM rooms WHERE model_id=?').run(id);
+				db.prepare('DELETE FROM panel_search WHERE model_id=?').run(id);
 				const insert = db.prepare('INSERT INTO rooms(model_id,id,name,geometry) VALUES(?,?,?,?)');
-				for (const room of rooms) insert.run(id, room.id, room.name, room.data);
+				const insertPanel = db.prepare('INSERT INTO panel_search(model_id,room_id,panel_id,serial,number) VALUES(?,?,?,?,?)');
+				for (const room of rooms) { insert.run(id, room.id, room.name, room.data); for (const panel of room.matches) insertPanel.run(id, room.id, panel.id, panel.serial, panel.number); }
 				db.exec('COMMIT');
 			} catch (error) { db.exec('ROLLBACK'); throw error; }
 			console.log(`Imported ${source.name}: ${rooms.length} rooms`);

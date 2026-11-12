@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { DoorOpen, EyeOff, ScanEye, Hash } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Slider } from "@/components/ui/slider";
 import {
 	Select,
 	SelectContent,
@@ -15,11 +16,15 @@ import type { PublicRoomGeometry } from "@/types/publicModel";
 export function PanelViewerDetailPage({
 	id,
 	rooms,
+	initialRoom,
+	selectedPanel,
 }: {
 	id: string;
 	rooms: { id: string; name: string }[];
+	initialRoom?: string;
+	selectedPanel?: string;
 }) {
-	const [room, setRoom] = useState(rooms[0]?.id ?? "");
+	const [room, setRoom] = useState(rooms.some((item) => item.id === initialRoom) ? initialRoom! : rooms[0]?.id ?? "");
 	const [status, setStatus] = useState("");
 	const [unresolvedDoors, setUnresolvedDoors] = useState(0);
 	const [doorsOpen, setDoorsOpen] = useState(false);
@@ -101,6 +106,7 @@ export function PanelViewerDetailPage({
 				color: 0x737b85,
 				side: THREE.DoubleSide,
 			});
+			const outlineMaterial = new THREE.LineBasicMaterial({ color: 0x403b35, transparent: true, opacity: 0.55 });
 			scene.add(new THREE.AmbientLight(0xffffff, 1.7));
 			const geometries: InstanceType<typeof THREE.BufferGeometry>[] = [];
 			const sprites: InstanceType<typeof THREE.Sprite>[] = [];
@@ -124,14 +130,18 @@ export function PanelViewerDetailPage({
 				const axis = part.doorMotion ? new THREE.Vector3().fromArray(part.doorMotion.axis) : null;
 				const normal = axis ? new THREE.Vector3().subVectors(middle, pivot).cross(axis).normalize() : null;
 				const hinges: { geometry: InstanceType<typeof THREE.BufferGeometry>; source: Float32Array; weights: number[] }[] = [];
-				const materialKey = `${part.texture || ''}:${part.color ?? ''}`;
+				const selected = room === initialRoom && part.id === selectedPanel && Boolean(selectedPanel);
+				const materialKey = selected ? 'selected-panel' : `${part.texture || ''}:${part.color ?? ''}`;
 				let material = materials.get(materialKey);
 				if (!material) {
-					material = new THREE.MeshLambertMaterial({ color: part.color ?? 0xd4c3a5, side: THREE.DoubleSide });
+					material = new THREE.MeshLambertMaterial({ color: selected ? 0xef4444 : part.color ?? 0xd4c3a5, side: THREE.DoubleSide });
 					materials.set(materialKey, material);
 				}
 				const mesh = new THREE.Mesh(geometry, material);
 				group.add(mesh);
+				const edges = new THREE.EdgesGeometry(geometry, 20);
+				geometries.push(edges);
+				group.add(new THREE.LineSegments(edges, outlineMaterial));
 				scene.add(group);
 				for (const hinge of part.hinges ?? []) {
 					const hingeGeometry = new THREE.BufferGeometry();
@@ -300,6 +310,7 @@ export function PanelViewerDetailPage({
 				materials.forEach((material) => material.dispose());
 				textures.forEach((texture) => texture.dispose());
 				hingeMaterial.dispose();
+				outlineMaterial.dispose();
 				renderer.dispose();
 				renderer.domElement.remove();
 			};
@@ -311,7 +322,7 @@ export function PanelViewerDetailPage({
 			abort.abort();
 			dispose();
 		};
-	}, [id, room]);
+	}, [id, room, initialRoom, selectedPanel]);
 	return (
 		<section className="absolute inset-0" aria-label="Viewer model 3D">
 			<div
@@ -394,19 +405,16 @@ export function PanelViewerDetailPage({
 			<div className="absolute inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] rounded-xl border bg-card/95 p-3 shadow-sm sm:left-5 sm:right-auto sm:w-96">
 				{unresolvedDoors > 0 && <p role="status" className="mb-2 text-xs text-amber-700">{unresolvedDoors} pintu tidak dianimasikan karena arah bukanya belum dapat dipastikan.</p>}
 				<div className="flex items-center gap-3">
-					<label htmlFor="explode" className="text-sm font-semibold">
+					<span className="text-sm font-semibold">
 						Explode
-					</label>
-					<input
-						id="explode"
-						type="range"
-						min="0"
-						max="100"
+					</span>
+					<Slider
+						aria-label="Explode"
 						value={explode}
-						onChange={(event) => setExplode(Number(event.target.value))}
+						onValueChange={setExplode}
 						className="min-w-0 flex-1"
 					/>
-					<output htmlFor="explode" className="text-sm">
+					<output className="text-sm">
 						{explode}%
 					</output>
 				</div>
