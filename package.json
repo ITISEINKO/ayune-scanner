@@ -7,6 +7,7 @@
   },
   "scripts": {
     "import:lby": "node scripts/import-lby-project.cjs import",
+    "import:public-models": "node scripts/import-public-models.cjs",
     "activate:panel-location": "node scripts/import-lby-project.cjs activate",
     "dev": "next dev",
     "build": "next build",

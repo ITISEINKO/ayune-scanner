@@ -174,7 +174,7 @@ async function main() {
 		const lossCanvas = lossPage.locator('svg[data-selected-barcode]').locator('..').locator('canvas');
 		await expect(lossCanvas).toBeVisible();
 		await expect(lossPage.locator('svg[data-selected-barcode] [data-barcode]')).toHaveCount(0);
-		assert(await lossCanvas.evaluate((canvas) => Math.abs(canvas.width / canvas.getBoundingClientRect().width - 1.5) < 0.01), "mobile canvas must cap pixel ratio at 1.5");
+		assert(await lossCanvas.evaluate((canvas) => Math.abs(canvas.width / canvas.getBoundingClientRect().width - 2) < 0.01), "mobile canvas must cap pixel ratio at 2");
 		await lossCanvas.evaluate((canvas) => canvas.dispatchEvent(new Event("webglcontextlost", { cancelable: true })));
 		await expect(lossCanvas).toHaveCount(0);
 		await expect(lossPage.locator('svg[data-selected-barcode] polygon').first()).toBeVisible();

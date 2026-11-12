@@ -545,7 +545,8 @@ export function PanelLocationViewer({
 							</g>
 							{showNumbers && numberLabels.map((label) => (
 								<g key={label.barcode} pointerEvents="none">
-									<text data-panel-number={label.number} x={label.x} y={label.y} textAnchor="middle" dominantBaseline="central" fontSize={numberScale * 14} fontWeight="bold" fill="#1d4ed8" stroke="white" strokeWidth={numberScale * 2} paintOrder="stroke">{label.number}</text>
+									<circle cx={label.x} cy={label.y} r={numberScale * 9} fill="white" stroke="#272b22" strokeWidth={numberScale} />
+									<text data-panel-number={label.number} x={label.x} y={label.y} textAnchor="middle" dominantBaseline="central" fontSize={numberScale * Math.min(10, 25 / label.number.length)} fontWeight="bold" fill="#272b22">{label.number}</text>
 								</g>
 							))}
 						</svg>

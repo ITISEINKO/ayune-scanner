@@ -82,7 +82,7 @@ export function PanelLocation3D({ panels, barcode, hideDoors, showNumbers, explo
 		if (!webgl || !element || !width || !height) return;
 		const rect = element.getBoundingClientRect();
 		if (!rect.width || !rect.height) return;
-		webgl.setPixelRatio(Math.min(window.devicePixelRatio || 1, window.matchMedia("(max-width: 767px)").matches ? 1.5 : 2));
+		webgl.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 		webgl.setSize(rect.width, rect.height, false);
 		const scene = new THREE.Scene();
 		const depth = Math.max(1, ...panels.flatMap((panel) => [...panel.points, ...panel.hinges.flatMap((hinge) => hinge.points)].map((point) => Math.abs(point[2]) + Math.abs(panel.explodeOffset[2]))));
@@ -127,19 +127,22 @@ export function PanelLocation3D({ panels, barcode, hideDoors, showNumbers, explo
 					let texture = numberTextures.current.get(panel.panelNumber);
 					if (!texture) {
 						const surface = document.createElement("canvas");
-						surface.width = 256; surface.height = 128;
+						surface.width = 128; surface.height = 128;
 						const context = surface.getContext("2d");
 						if (!context) continue;
-						context.font = "900 120px sans-serif";
+						context.beginPath(); context.arc(64, 64, 58, 0, Math.PI * 2);
+						context.fillStyle = "white"; context.fill();
+						context.strokeStyle = "#272b22"; context.lineWidth = 5; context.stroke();
+						context.font = "bold 66px sans-serif";
 						context.textAlign = "center"; context.textBaseline = "middle";
-						context.fillStyle = "#1d4ed8"; context.fillText(panel.panelNumber, 128, 64, 246);
+						context.fillStyle = "#272b22"; context.fillText(panel.panelNumber, 64, 66, 100);
 						texture = new THREE.CanvasTexture(surface);
 						texture.colorSpace = THREE.SRGBColorSpace;
 						numberTextures.current.set(panel.panelNumber, texture);
 					}
-						const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, side: THREE.DoubleSide, depthWrite: false });
+						const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, side: THREE.DoubleSide, depthWrite: false, depthTest: false });
 						const labelHeight = Math.min(70, placement.radius * 0.85);
-						const geometry = new THREE.PlaneGeometry(labelHeight * 2, labelHeight);
+						const geometry = new THREE.PlaneGeometry(labelHeight, labelHeight);
 						const label = new THREE.Mesh(geometry, material);
 						const vertical = new THREE.Vector3().crossVectors(placement.normal, placement.axis).normalize();
 						label.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(placement.axis, vertical, placement.normal));
