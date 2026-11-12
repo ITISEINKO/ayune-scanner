@@ -28,8 +28,10 @@ const messageFor = (error?: string) =>
 		CLICKUP_FIELD_MISSING: "Field Status Barang Scan tidak tersedia.",
 		RATE_LIMITED: "Terlalu banyak permintaan. Coba lagi sebentar.",
 		UNAUTHORIZED: "Sesi login sudah berakhir. Silakan login kembali.",
-		LOCATION_AMBIGUOUS: "Serial ditemukan di beberapa model aktif. Periksa model LBY di profil admin.",
-		LOCATION_UNAVAILABLE: "Lokasi panel belum dapat dimuat. Coba lagi sebentar.",
+		LOCATION_AMBIGUOUS:
+			"Serial ditemukan di beberapa model aktif. Periksa model LBY di profil admin.",
+		LOCATION_UNAVAILABLE:
+			"Lokasi panel belum dapat dimuat. Coba lagi sebentar.",
 	})[error ?? ""] ?? "Data barang tidak dapat diproses.";
 
 export const UbahManualPage = ({ serialNumber }: { serialNumber?: string }) => {
@@ -209,17 +211,28 @@ export const UbahManualPage = ({ serialNumber }: { serialNumber?: string }) => {
 					>
 						<div className="flex items-start justify-between gap-3">
 							<h2 className="min-w-0 flex-1 text-lg font-extrabold leading-snug">
-								{panelDisplayName(item.nama, locatedPanel?.panelNumber ? `Panel ${locatedPanel.panelNumber}` : "Panel")}
+								{panelDisplayName(
+									item.nama,
+									locatedPanel?.panelNumber
+										? `Panel ${locatedPanel.panelNumber}`
+										: "Panel",
+								)}
 							</h2>
 							<Badge
-								title={item.status ? `Status saat ini: ${item.status}` : "Task ClickUp belum ditemukan"}
+								title={
+									item.status
+										? `Status saat ini: ${item.status}`
+										: "Task ClickUp belum ditemukan"
+								}
 								className="max-w-[55%] gap-1.5 rounded-full bg-accent/20 px-2.5 py-1.5 text-[10px] font-bold text-foreground"
 							>
 								<span
 									aria-hidden="true"
 									className="size-1.5 shrink-0 rounded-full bg-primary"
 								/>
-								<span className="truncate">{item.status ?? "STATUS TIDAK TERSEDIA"}</span>
+								<span className="truncate">
+									{item.status ?? "STATUS TIDAK TERSEDIA"}
+								</span>
 							</Badge>
 						</div>
 						<p className="mt-1 text-xs text-muted-foreground">
@@ -235,7 +248,11 @@ export const UbahManualPage = ({ serialNumber }: { serialNumber?: string }) => {
 						>
 							Ubah status barang
 						</Button>
-						{!item.task_id && <p className="mt-2 text-xs text-muted-foreground">Lokasi tersedia di LBY. Task ClickUp untuk serial ini belum ditemukan, jadi status belum dapat diubah.</p>}
+						{!item.task_id && (
+							<p className="mt-2 text-xs text-muted-foreground">
+								Lokasi tersedia di LBY. Task belum In Progress.
+							</p>
+						)}
 					</section>
 				</>
 			)}

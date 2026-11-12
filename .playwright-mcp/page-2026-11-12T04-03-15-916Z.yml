@@ -1,0 +1,26 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - generic: 模型加载中，请稍候...
+    - generic:
+      - generic:
+        - generic:
+          - generic: 订单编号：814606578513608858 客户地址：AMETHYST 58 - KAMAR LT.4
+          - generic:
+            - generic:
+              - generic:
+                - generic:
+                  - combobox
+                - generic: 选择房间
+            - button "尺寸显示"
+            - button "物料明细"
+            - button "隐藏门板"
+            - button "透视模式"
+            - button "显示板号"
+            - button "爆炸模式"
+            - button "动画开关"
+            - button "隐藏选中"
+            - button "显示全部"
+            - button "还原复位"
+          - text:    /   
+  - img:
+    - generic: "%"

@@ -150,7 +150,7 @@ export function PanelLocationViewer({
 		const center = [0, 1, 2].map((axis) => (Math.min(...panels.flatMap((panel) => (panel.geometry?.vertices ?? panel.corners).map((point) => point[axis]))) + Math.max(...panels.flatMap((panel) => (panel.geometry?.vertices ?? panel.corners).map((point) => point[axis])))) / 2);
 		return Math.max(1, ...vertices.map((point) => Math.hypot(...point.map((value, axis) => value - center[axis]))));
 	}, [panels]);
-	const width = Math.max(sceneRadius * 4, sceneRadius * 4 * aspect, 1) * zoom;
+	const width = Math.max(sceneRadius * 3, sceneRadius * 3 * aspect, 1) * zoom;
 	const height = width / aspect;
 	const numberScale = width / (viewportWidth || 320);
 	const numberLabels = useMemo(() => showNumbers && webglFailed ? layoutPanelNumbers(
@@ -161,7 +161,7 @@ export function PanelLocationViewer({
 	) : [], [showNumbers, webglFailed, projected, barcode, hideDoors, explode, numberScale, width, height, pan]);
 	const shapes = useMemo(
 		() =>
-			projected
+			!webglFailed ? [] : projected
 				.map((panel) => {
 					// shortcut: translucent panels share one fill path; use a depth buffer for opaque CAD rendering.
 					const facePaths = (indices: number[][], vertices: number[][]) => indices.map((face) => {
@@ -198,7 +198,7 @@ export function PanelLocationViewer({
 					};
 				})
 				.sort((a, b) => b.depth - a.depth),
-		[projected],
+		[projected, webglFailed],
 	);
 	const target = shapes.find((panel) => panel.barcode === barcode);
 	const targetCenter =

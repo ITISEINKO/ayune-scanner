@@ -136,6 +136,12 @@ async function main() {
 		});
 		const url = `${baseURL}/panel-location?project=z96buhry4p&barcode=15370046376`;
 		const page = await context.newPage();
+		await page.addInitScript(() => {
+			const getContext = HTMLCanvasElement.prototype.getContext;
+			HTMLCanvasElement.prototype.getContext = function (kind, ...args) {
+				return !sessionStorage.getItem("test-webgl") && (kind === "webgl2" || kind === "webgl") ? null : getContext.call(this, kind, ...args);
+			};
+		});
 		const hydrationErrors = [];
 		page.on("pageerror", (error) => hydrationErrors.push(error.message));
 		page.on("console", (message) => {
@@ -162,9 +168,13 @@ async function main() {
 		await expect(fallbackPage.locator('svg[data-selected-barcode]').locator('..').locator('canvas')).toHaveCount(0);
 		await fallbackPage.close();
 		const lossPage = await context.newPage();
+		await lossPage.setViewportSize({ width: 390, height: 844 });
+		await lossPage.addInitScript(() => Object.defineProperty(window, "devicePixelRatio", { value: 3, configurable: true }));
 		await lossPage.goto(url);
 		const lossCanvas = lossPage.locator('svg[data-selected-barcode]').locator('..').locator('canvas');
 		await expect(lossCanvas).toBeVisible();
+		await expect(lossPage.locator('svg[data-selected-barcode] [data-barcode]')).toHaveCount(0);
+		assert(await lossCanvas.evaluate((canvas) => Math.abs(canvas.width / canvas.getBoundingClientRect().width - 1.5) < 0.01), "mobile canvas must cap pixel ratio at 1.5");
 		await lossCanvas.evaluate((canvas) => canvas.dispatchEvent(new Event("webglcontextlost", { cancelable: true })));
 		await expect(lossCanvas).toHaveCount(0);
 		await expect(lossPage.locator('svg[data-selected-barcode] polygon').first()).toBeVisible();
@@ -425,6 +435,7 @@ async function main() {
 			args: [previewRevision, JSON.stringify({ projectKey: "z96buhr3eu", name: "Candidate preview", version: "cccccccccccc",
 				revision: previewRevision, mappingSha256: createHash("sha256").update(previewMapping).digest("hex") }),
 				gzipSync(previewSnapshot), gzipSync(previewMapping), "c".repeat(64)] });
+		await page.evaluate(() => sessionStorage.setItem("test-webgl", "1"));
 		await page.goto(`${baseURL}/panel-location?project=z96buhr3eu&barcode=15370046376&revision=${previewRevision}`);
 		await expect(page.getByText("Preview versi V2", { exact: true })).toBeVisible();
 		await expect(page.getByRole("heading", { level: 1 })).toContainText("Candidate preview");
@@ -453,9 +464,10 @@ async function main() {
 		await expect(svg).toHaveAttribute("data-explode", "100");
 		await explodeSlider.fill("0");
 		await expect(svg).toHaveAttribute("data-explode", "0");
+		await canvas3d.evaluate((canvas) => canvas.dispatchEvent(new Event("webglcontextlost", { cancelable: true })));
 		const hingeShape = svg.locator('[data-hinge-id="preview-hinge"]');
 		await expect(hingeShape).toHaveCount(1);
-		await expect(svg.locator("..").locator("canvas")).toBeVisible();
+		await expect(svg.locator("..").locator("canvas")).toHaveCount(0);
 		await page.getByText("Engsel panel: 1", { exact: true }).click();
 		await expect(page.getByRole("listitem").getByText("Test hinge · H-01", { exact: true })).toBeVisible();
 		await expect(page.getByText("Bukaan: kanan", { exact: true })).toBeVisible();

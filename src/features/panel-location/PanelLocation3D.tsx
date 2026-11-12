@@ -82,7 +82,7 @@ export function PanelLocation3D({ panels, barcode, hideDoors, showNumbers, explo
 		if (!webgl || !element || !width || !height) return;
 		const rect = element.getBoundingClientRect();
 		if (!rect.width || !rect.height) return;
-		webgl.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+		webgl.setPixelRatio(Math.min(window.devicePixelRatio || 1, window.matchMedia("(max-width: 767px)").matches ? 1.5 : 2));
 		webgl.setSize(rect.width, rect.height, false);
 		const scene = new THREE.Scene();
 		const depth = Math.max(1, ...panels.flatMap((panel) => [...panel.points, ...panel.hinges.flatMap((hinge) => hinge.points)].map((point) => Math.abs(point[2]) + Math.abs(panel.explodeOffset[2]))));
