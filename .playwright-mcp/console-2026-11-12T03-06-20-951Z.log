@@ -1,0 +1,36 @@
+[    3958ms] [ERROR] Executing inline event handler violates the following Content Security Policy directive 'script-src 'nonce-vj60Gf_L6mlio2QB7IL9-A' 'strict-dynamic' 'report-sample' 'unsafe-eval' 'unsafe-inline' https: http:'. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked. @ https://www.google.com/search?q=click&oq=click&gs_lcrp=EgZjaHJvbWUyBggAEEUYOTITCAEQLhiDARjHARixAxjRAxiABDIKCAIQABixAxiABDINCAMQABiDARixAxiABDIKCAQQABixAxiABDINCAUQABiDARixAxiABDINCAYQABiDARixAxiABDIHCAcQABiABDIHCAgQABiABNIBCDEzNzVqMGo3qAIAsAIA&sourceid=chrome&source=chrome.ob&ie=UTF-8&sei=Mi31aq2_LIeH4-EP-oji8Qg:1
+[    5386ms] [WARNING] The powerPreference option is currently ignored when calling requestAdapter() on Windows. See https://crbug.com/369219127 @ :1
+[    7639ms] [ERROR] Executing inline event handler violates the following Content Security Policy directive 'script-src 'nonce-vQpQAgBjczKzWccJgDFiDA' 'strict-dynamic' 'report-sample' 'unsafe-eval' 'unsafe-inline' https: http:'. Note that 'unsafe-inline' is ignored if either a hash or nonce value is present in the source list. The action has been blocked. @ https://www.google.com/search?q=clickup&sca_esv=5d8ce98b00ee142f&sxsrf=AKL5yDjPorCBDTHVXvM1fn7RW0tcfO-Q2w%3A1794452786859&ei=Mi31aoH-M7GN4-EPjs-E-Ac&biw=825&bih=803&uact=5&oq=clickup&gs_lp=Egxnd3Mtd2l6LXNlcnAiB2NsaWNrdXAyERAuGIAEGLEDGIMBGMcBGNEDMgUQABiABDIFEAAYgAQyBRAAGIAEMgUQABiABDIFEAAYgAQyBRAAGIAEMgUQABiABDIFEAAYgAQyBRAAGIAESLYJUNQGWL8HcAF4AZABAJgBJqABTaoBATK4AQPIAQD4AQGYAgOgAlnCAgoQABhHGNYEGLADwgINEAAYgAQYigUYQxiwA5gDAIgGAZAGDJIHATOgB9gMsgcBMrgHVcIHBTAuMi4xyAcIgAgB&sclient=gws-wiz-serp:1
+[    8639ms] [WARNING] The powerPreference option is currently ignored when calling requestAdapter() on Windows. See https://crbug.com/369219127 @ :1
+[    8677ms] [WARNING] Unrecognized feature: 'attribution-reporting'. @ https://www.google.com/search?q=clickup&sca_esv=5d8ce98b00ee142f&sxsrf=AKL5yDjPorCBDTHVXvM1fn7RW0tcfO-Q2w%3A1794452786859&ei=Mi31aoH-M7GN4-EPjs-E-Ac&biw=825&bih=803&uact=5&oq=clickup&gs_lp=Egxnd3Mtd2l6LXNlcnAiB2NsaWNrdXAyERAuGIAEGLEDGIMBGMcBGNEDMgUQABiABDIFEAAYgAQyBRAAGIAEMgUQABiABDIFEAAYgAQyBRAAGIAEMgUQABiABDIFEAAYgAQyBRAAGIAESLYJUNQGWL8HcAF4AZABAJgBJqABTaoBATK4AQPIAQD4AQGYAgOgAlnCAgoQABhHGNYEGLADwgINEAAYgAQYigUYQxiwA5gDAIgGAZAGDJIHATOgB9gMsgcBMrgHVcIHBTAuMi4xyAcIgAgB&sclient=gws-wiz-serp:36
+[    8678ms] [WARNING] Unrecognized feature: 'attribution-reporting'. @ https://www.google.com/search?q=clickup&sca_esv=5d8ce98b00ee142f&sxsrf=AKL5yDjPorCBDTHVXvM1fn7RW0tcfO-Q2w%3A1794452786859&ei=Mi31aoH-M7GN4-EPjs-E-Ac&biw=825&bih=803&uact=5&oq=clickup&gs_lp=Egxnd3Mtd2l6LXNlcnAiB2NsaWNrdXAyERAuGIAEGLEDGIMBGMcBGNEDMgUQABiABDIFEAAYgAQyBRAAGIAEMgUQABiABDIFEAAYgAQyBRAAGIAEMgUQABiABDIFEAAYgAQyBRAAGIAESLYJUNQGWL8HcAF4AZABAJgBJqABTaoBATK4AQPIAQD4AQGYAgOgAlnCAgoQABhHGNYEGLADwgINEAAYgAQYigUYQxiwA5gDAIgGAZAGDJIHATOgB9gMsgcBMrgHVcIHBTAuMi4xyAcIgAgB&sclient=gws-wiz-serp:36
+[    9352ms] [ERROR] Error: getGtagData: gtag data not found
+    at https://clickup.com/_next/static/chunks/5144-3511096bc48cc0aa.js:1:25756 @ https://clickup.com/_next/static/chunks/5144-3511096bc48cc0aa.js:1
+[    9391ms] [WARNING] Datadog Browser SDK: env value doesn't meet tag requirements and will be sanitized. More details: https://docs.datadoghq.com/getting_started/tagging/#defining-tags @ https://clickup.com/_next/static/chunks/pages/_app-1d7b471396deab3e.js:1
+[    9391ms] [WARNING] Datadog Browser SDK: version value doesn't meet tag requirements and will be sanitized. More details: https://docs.datadoghq.com/getting_started/tagging/#defining-tags @ https://clickup.com/_next/static/chunks/pages/_app-1d7b471396deab3e.js:1
+[   10276ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://pixel.pointmediatracker.com/kpi?c=clickup&kpi=visit&tag_id=190&fpc=519b8da0-e414-4e05-9794-1f6a4a030e3e&utm_source=google&utm_medium=cpc&utm_campaign=gs_cpc_arlv_nnc_brand_trial_all-devices_troas_lp_x_all-departments_x_brand&gtmcb=1277608777:1
+[   10427ms] [WARNING] [Meta Pixel] - Invalid parameter format for currency. Please refer https://developers.facebook.com/docs/meta-pixel/reference/ for valid parameter specifications. @ https://connect.facebook.net/en_US/fbevents.js:206
+[   10662ms] Uncaught ReferenceError: revealCallback is not defined
+    at <anonymous> (https://reveal.clearbit.com/v1/companies/reveal?authorization=pk_77a36b09108b9b80c547cddad434b648&callback=revealCallback:1:1)
+[   10729ms] [LOG] %c[Conversion] color: #2b7fff; Loading pixel @ https://p.conversion.ai/:1
+[   10729ms] [LOG] %c[Conversion] color: #00bc7d; Pixel loaded @ https://p.conversion.ai/:1
+[   10729ms] [LOG] %c[Conversion] color: #2b7fff; Initializing pixel @ https://p.conversion.ai/:1
+[   11213ms] [LOG] %cAre you an exceptional Angular Engineer?
+
+Want to work on a product used and loved by millions of people?
+
+Then come and work for ClickUp!
+
+https://clickup.com/careers
+ font-size: 14px; color: #5f48ea; @ https://app-cdn.clickup.com/scripts-KRWIEKVG.js:1
+[   12219ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) %o @ https://app.clickup.com/login?_tv=eyJiIjoiZmVkNTQ1YWItMjYxYS00MjkyLWFhZDYtMTBiN2Y1ZWJmOTIzIiwibyI6IjExOGExMTI2LTBjNWYtNDM4NS1hODY0LTM1ZWY5ODZkMTQ3NiIsInRzIjoxNzk0NDUyNzkxfQ:1
+[   57334ms] [WARNING] [virtuoso-grid-table] duplicate kind name "row" — the second definition is ignored. @ https://app-cdn.clickup.com/common6-eb6a0192f9.js:33
+[   57334ms] [WARNING] [virtuoso-grid-table] duplicate kind name "row" — the second definition is ignored. @ https://app-cdn.clickup.com/common6-eb6a0192f9.js:33
+[   57334ms] [WARNING] [virtuoso-grid-table] duplicate kind name "row" — the second definition is ignored. @ https://app-cdn.clickup.com/common6-eb6a0192f9.js:33
+[   57334ms] [WARNING] [virtuoso-grid-table] duplicate kind name "row" — the second definition is ignored. @ https://app-cdn.clickup.com/common6-eb6a0192f9.js:33
+[   57334ms] [WARNING] [virtuoso-grid-table] duplicate kind name "row" — the second definition is ignored. @ https://app-cdn.clickup.com/common6-eb6a0192f9.js:33
+[   57334ms] [WARNING] [virtuoso-grid-table] duplicate kind name "row" — the second definition is ignored. @ https://app-cdn.clickup.com/common6-eb6a0192f9.js:33
+[   57334ms] [WARNING] [virtuoso-grid-table] duplicate kind name "row" — the second definition is ignored. @ https://app-cdn.clickup.com/common6-eb6a0192f9.js:33
+[   57335ms] [WARNING] [virtuoso-grid-table] duplicate kind name "row" — the second definition is ignored. @ https://app-cdn.clickup.com/common6-eb6a0192f9.js:33
+[   57335ms] [WARNING] [virtuoso-grid-table] duplicate kind name "row" — the second definition is ignored. @ https://app-cdn.clickup.com/common6-eb6a0192f9.js:33
+[   58977ms] [ERROR] Failed to load resource: the server responded with a status of 401 () @ https://fast.chameleon.io/observe/v2/profiles:1

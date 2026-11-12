@@ -1,0 +1,39 @@
+- generic [active] [ref=f6e1]:
+  - main [ref=f6e2]:
+    - generic [ref=f6e4]:
+      - paragraph [ref=f6e5]: Admin
+      - heading "Model LBY" [level=1] [ref=f6e6]
+      - paragraph [ref=f6e7]: Kelola model untuk pencarian lokasi panel.
+      - list "Cara menggunakan model" [ref=f6e8]:
+        - listitem [ref=f6e9]: 1. Import link
+        - listitem [ref=f6e10]: 2. Periksa preview
+        - listitem [ref=f6e11]: 3. Gunakan model
+    - generic [ref=f6e12]:
+      - generic [ref=f6e13]:
+        - heading "Import model baru" [level=2] [ref=f6e14]
+        - generic [ref=f6e15]:
+          - text: Link share LBY
+          - generic [ref=f6e16]:
+            - textbox "Link share LBY" [disabled]:
+              - /placeholder: https://www.lbyerp.com/#/cadVisitor?...
+            - button "Tempel" [disabled]
+        - paragraph [ref=f6e17]: Pastikan link berasal dari model/order LBY yang benar. Setelah import, cocokkan bentuk model dengan tampilan di LBY sebelum digunakan.
+        - button "Import model" [disabled]
+      - region "Model tersimpan" [ref=f6e18]:
+        - heading "Model tersimpan" [level=2] [ref=f6e20]
+        - searchbox "Cari model tersimpan" [ref=f6e23]
+        - status "Memuat model tersimpan" [ref=f6e24]:
+          - generic [ref=f6e25]: Memuat model tersimpan…
+  - navigation "Main navigation" [ref=f6e36]:
+    - link "Home" [ref=f6e37] [cursor=pointer]:
+      - /url: /admin
+    - link "Projects" [ref=f6e43] [cursor=pointer]:
+      - /url: /admin/projects
+    - link "Scan" [ref=f6e48] [cursor=pointer]:
+      - /url: /admin/ubah-manual
+    - link "Member" [ref=f6e56] [cursor=pointer]:
+      - /url: /admin/settings
+    - link "Profile" [ref=f6e64] [cursor=pointer]:
+      - /url: /admin/profile
+  - region "Notifications alt+T"
+  - button "Open Next.js Dev Tools" [ref=f6e74] [cursor=pointer]

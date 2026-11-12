@@ -1,0 +1,13 @@
+[     534ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3000/_next/static/chunks/206l_next_dist_0-wdcwc._.js:777
+[     600ms] [LOG] [HMR] connected @ http://localhost:3000/_next/static/chunks/206l_next_dist_0-wdcwc._.js:777
+[   21500ms] [LOG] %cAre you an exceptional Angular Engineer?
+
+Want to work on a product used and loved by millions of people?
+
+Then come and work for ClickUp!
+
+https://clickup.com/careers
+ font-size: 14px; color: #5f48ea; @ https://app-cdn.clickup.com/scripts-KRWIEKVG.js:1
+[   24280ms] [ERROR] Failed to load resource: net::ERR_NAME_NOT_RESOLVED @ https://pixel.pointmediatracker.com/kpi?c=clickup&kpi=visit&tag_id=190&fpc=519b8da0-e414-4e05-9794-1f6a4a030e3e&utm_source=google&utm_medium=cpc&utm_campaign=gs_cpc_arlv_nnc_brand_trial_all-devices_troas_lp_x_all-departments_x_brand&gtmcb=789134691:1
+[   27606ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3000/_next/static/chunks/206l_next_dist_0-wdcwc._.js:777
+[   27643ms] [LOG] [HMR] connected @ http://localhost:3000/_next/static/chunks/206l_next_dist_0-wdcwc._.js:777
