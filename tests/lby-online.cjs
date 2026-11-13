@@ -743,7 +743,7 @@ async function main() {
 		});
 		oldView.on("pageerror", (cause) => errors.push(cause.message));
 		await oldView.clock.install();
-		await oldView.goto(`${base}/cari-lokasi?barcode=000123`);
+		await oldView.goto(`${base}/cari-lokasi?barcode=000123&source=old`);
 		await expect(
 			oldView.getByText("Versi tampilan V1", { exact: true }),
 		).toBeVisible();

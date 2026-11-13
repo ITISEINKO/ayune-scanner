@@ -36,7 +36,11 @@ export type ManualPanelItem = {
 	status: string | null;
 	location: PanelLocationView | null;
 	location_error?: string;
+	project_name?: string | null;
+	project_id?: string | null;
 };
+
+export type ManualPanelChoice = Pick<ManualPanelItem, "task_id" | "nama" | "status" | "project_name" | "project_id">;
 
 export type LbyImportManifest = {
 	projectKey: string;

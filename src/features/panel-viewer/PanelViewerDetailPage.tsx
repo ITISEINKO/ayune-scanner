@@ -30,6 +30,7 @@ export function PanelViewerDetailPage({
 	trialRevision,
 	hideRoomSelector = false,
 	locationViewer = false,
+	canvasBehindNavigation = false,
 	onReady,
 	footer,
 }: {
@@ -40,6 +41,7 @@ export function PanelViewerDetailPage({
 	trialRevision?: string;
 	hideRoomSelector?: boolean;
 	locationViewer?: boolean;
+	canvasBehindNavigation?: boolean;
 	onReady?: (ready: boolean) => void;
 	footer?: ReactNode;
 }) {
@@ -68,8 +70,26 @@ export function PanelViewerDetailPage({
 		null,
 	);
 	const onReadyRef = useRef(onReady);
-	const latest = useRef({ room, initialRoom, selectedPanel, doorsOpen, hideDoors, xray, numbers, explode });
-	latest.current = { room, initialRoom, selectedPanel, doorsOpen, hideDoors, xray, numbers, explode };
+	const latest = useRef({
+		room,
+		initialRoom,
+		selectedPanel,
+		doorsOpen,
+		hideDoors,
+		xray,
+		numbers,
+		explode,
+	});
+	latest.current = {
+		room,
+		initialRoom,
+		selectedPanel,
+		doorsOpen,
+		hideDoors,
+		xray,
+		numbers,
+		explode,
+	};
 	onReadyRef.current = onReady;
 	useEffect(() => {
 		onReadyRef.current?.(status.kind === "ready");
@@ -84,7 +104,13 @@ export function PanelViewerDetailPage({
 		if (!parts?.length || !container.current) return;
 		let cancelled = false;
 		let current: Awaited<ReturnType<typeof createPanelViewer>> | null = null;
-		createPanelViewer(container.current, parts, id, trialRevision, locationViewer)
+		createPanelViewer(
+			container.current,
+			parts,
+			id,
+			trialRevision,
+			locationViewer,
+		)
 			.then(async (result) => {
 				if (cancelled) {
 					result.dispose();
@@ -93,11 +119,16 @@ export function PanelViewerDetailPage({
 				current = result;
 				viewer.current = result;
 				const state = latest.current;
-				result.setSelected(state.room === state.initialRoom ? state.selectedPanel : undefined);
+				result.setSelected(
+					state.room === state.initialRoom ? state.selectedPanel : undefined,
+				);
 				result.setDoorsOpen(state.doorsOpen);
 				result.apply(state);
 				await result.ready;
-				if (!cancelled) { result.apply(latest.current); setStatus({ kind: "ready" }); }
+				if (!cancelled) {
+					result.apply(latest.current);
+					setStatus({ kind: "ready" });
+				}
 			})
 			.catch((error) => {
 				if (!cancelled) {
@@ -127,7 +158,7 @@ export function PanelViewerDetailPage({
 		<section className="absolute inset-0" aria-label="Viewer model 3D">
 			<div
 				ref={container}
-				className="absolute inset-0"
+				className={`absolute inset-0 ${canvasBehindNavigation ? "-bottom-(--bottom-navigation-height)" : ""}`}
 				aria-label="Model 3D interaktif"
 			/>
 			{status.kind !== "ready" && (
@@ -143,38 +174,40 @@ export function PanelViewerDetailPage({
 					)}
 				</div>
 			)}
-			{!hideRoomSelector && <div className="absolute left-3 top-16 sm:left-5 sm:top-20">
-				<Select
-					value={room}
-					onValueChange={(value) => {
-						if (value) setRoom(value);
-					}}
-				>
-					<SelectTrigger
-						aria-label="Ruangan"
-						className="max-w-56 border-border bg-card/95 shadow-sm"
+			{!hideRoomSelector && (
+				<div className="absolute left-3 top-16 sm:left-5 sm:top-20">
+					<Select
+						value={room}
+						onValueChange={(value) => {
+							if (value) setRoom(value);
+						}}
 					>
-						<SelectValue>
-							{rooms.find((item) => item.id === room)?.name}
-						</SelectValue>
-					</SelectTrigger>
-					<SelectContent
-						align="start"
-						alignItemWithTrigger={false}
-						className="w-max min-w-(--anchor-width) max-w-[calc(100vw-1.5rem)]"
-					>
-						{rooms.map((item) => (
-							<SelectItem
-								key={item.id}
-								value={item.id}
-								className="[&>span:first-child]:min-w-0 [&>span:first-child]:shrink [&>span:first-child]:whitespace-normal [&>span:first-child]:wrap-break-word"
-							>
-								{item.name}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-			</div>}
+						<SelectTrigger
+							aria-label="Ruangan"
+							className="max-w-56 border-border bg-card/95 shadow-sm"
+						>
+							<SelectValue>
+								{rooms.find((item) => item.id === room)?.name}
+							</SelectValue>
+						</SelectTrigger>
+						<SelectContent
+							align="start"
+							alignItemWithTrigger={false}
+							className="w-max min-w-(--anchor-width) max-w-[calc(100vw-1.5rem)]"
+						>
+							{rooms.map((item) => (
+								<SelectItem
+									key={item.id}
+									value={item.id}
+									className="[&>span:first-child]:min-w-0 [&>span:first-child]:shrink [&>span:first-child]:whitespace-normal [&>span:first-child]:wrap-break-word"
+								>
+									{item.name}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+				</div>
+			)}
 			<div
 				className="absolute right-3 top-1/2 flex max-h-[60%] -translate-y-1/2 flex-col gap-1 overflow-y-auto rounded-xl border bg-card/95 p-1.5 shadow-sm sm:right-5"
 				role="toolbar"
@@ -184,7 +217,11 @@ export function PanelViewerDetailPage({
 					{
 						active: doorsOpen,
 						toggle: setDoorsOpen,
-						label: hasDrawers ? (hasDoors ? "Buka pintu dan laci" : "Buka laci") : "Buka pintu",
+						label: hasDrawers
+							? hasDoors
+								? "Buka pintu dan laci"
+								: "Buka laci"
+							: "Buka pintu",
 						Icon: DoorOpen,
 						disabled: !hasDoors && !hasDrawers,
 					},
@@ -218,18 +255,19 @@ export function PanelViewerDetailPage({
 					</Button>
 				))}
 			</div>
-			<div className={`absolute inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] max-h-[45%] overflow-y-auto rounded-xl border bg-card/95 shadow-sm ${hideRoomSelector ? "p-2" : "p-3 sm:left-5 sm:right-auto sm:w-96"}`}>
+			<div
+				className={`absolute inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] max-h-[45%] overflow-y-auto rounded-xl border bg-card/95 shadow-sm ${hideRoomSelector ? "p-2" : "p-3 sm:left-5 sm:right-auto sm:w-96"}`}
+			>
 				{missingHinges > 0 && (
 					<p role="status" className="mb-2 text-xs text-amber-700">
 						{missingHinges} pintu belum memiliki engsel dalam data desain
-						(ditandai oranye; panel terpilih tetap merah). Tanyakan ke drafter
-						sebelum produksi.
+						(ditandai kuning; panel terpilih tetap merah). Tanyakan ke drafter.
 					</p>
 				)}
 				{hingeCheckUnavailable && (
 					<p role="status" className="mb-2 text-xs text-muted-foreground">
-						Data engsel belum dapat diperiksa. Import ulang model untuk
-						memeriksa.
+						Data engsel belum dapat dipastikan. Periksa model sumber atau
+						import ulang model.
 					</p>
 				)}
 				{unresolvedDoors > 0 && (
@@ -248,7 +286,15 @@ export function PanelViewerDetailPage({
 					/>
 					<output className="text-sm">{explode}%</output>
 				</div>
-				{footer && <div className={hideRoomSelector ? "mt-1 border-t pt-2" : "mt-3 border-t pt-3"}>{footer}</div>}
+				{footer && (
+					<div
+						className={
+							hideRoomSelector ? "mt-1 border-t pt-2" : "mt-3 border-t pt-3"
+						}
+					>
+						{footer}
+					</div>
+				)}
 			</div>
 		</section>
 	);

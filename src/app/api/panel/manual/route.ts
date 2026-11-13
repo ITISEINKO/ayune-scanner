@@ -14,7 +14,7 @@ import { updatePpicComponentStatus } from "@/lib/db";
 import { getPanelLocation } from "@/lib/panelLocationSnapshot";
 import { serialNumberOf } from "@/lib/projectSerialCache";
 import type { ClickUpTask } from "@/types/clickup";
-import type { ManualPanelItem } from "@/types/panelLocation";
+import type { ManualPanelChoice, ManualPanelItem } from "@/types/panelLocation";
 
 const error = (status: number, code: string) =>
 	NextResponse.json({ ok: false, error: code }, { status });
@@ -25,8 +25,10 @@ const statusFieldId = () =>
 export async function GET(request: Request) {
 	await requireSuperAdmin();
 	const serialNumber = new URL(request.url).searchParams.get("serial_number")?.trim();
+	const selectedTaskId = new URL(request.url).searchParams.get("task_id")?.trim();
 	if (!serialNumber) return error(400, "MISSING_SERIAL_NUMBER");
 	if (serialNumber.length > 100) return error(400, "INVALID_SERIAL_NUMBER");
+	if (selectedTaskId !== undefined && (!selectedTaskId || selectedTaskId.length > 100)) return error(400, "INVALID_TASK_ID");
 	const token = await clickUpToken();
 	if (!token) return error(401, "UNAUTHORIZED");
 	const headers = clickUpHeaders(token);
@@ -47,11 +49,49 @@ export async function GET(request: Request) {
 	if (!searchResponse.ok)
 		return error(searchResponse.status === 429 ? 429 : 502, "CLICKUP_ERROR");
 	const statusField = fields?.["STATUS BARANG SCAN"];
-	const { tasks = [] } = (await searchResponse.json()) as {
+	const result = (await searchResponse.json()) as {
 		tasks?: ClickUpTask[];
+		last_page?: boolean;
 	};
-	if (tasks.length > 1) return error(409, "DUPLICATE_SERIAL_NUMBER");
-	const task = tasks[0];
+	const tasks = result.tasks ?? [];
+	let pageResult = result;
+	for (let page = 1; pageResult.last_page !== true && (pageResult.tasks?.length ?? 0) >= 100; page++) {
+		// shortcut: limit duplicate lookup to 1,000 tasks; add cursor-based selection if that ceiling is reached.
+		if (page >= 10) return error(502, "CLICKUP_TOO_MANY_MATCHES");
+		query.set("page", String(page));
+		const response = await fetch(`https://api.clickup.com/api/v2/list/${listId()}/task?${query}`, { headers, cache: "no-store" });
+		if (!response.ok) return error(response.status === 429 ? 429 : 502, "CLICKUP_ERROR");
+		pageResult = await response.json() as typeof result;
+		tasks.push(...(pageResult.tasks ?? []));
+	}
+	if (tasks.some((item) => typeof item.id !== "string" || !item.id.trim() || item.id.length > 100) || new Set(tasks.map((item) => item.id)).size !== tasks.length) return error(502, "CLICKUP_ERROR");
+	if (tasks.some((item) => serialNumberOf(item)?.trim() !== serialNumber)) return error(502, "INVALID_SERIAL_DATA");
+	if (tasks.length && (!statusField || statusField.id !== statusFieldId())) return error(500, "CLICKUP_FIELD_MISSING");
+	let choices: ManualPanelChoice[] = [];
+	if (tasks.length > 1) {
+		const parents = new Map<string, Promise<ClickUpTask | null>>();
+		const readParent = (id: string) => {
+			if (!parents.has(id)) parents.set(id, Promise.resolve().then(() => fetch(`https://api.clickup.com/api/v2/task/${encodeURIComponent(id)}`, { headers, cache: "no-store", signal: AbortSignal.timeout(5000) })).then(async (response) => response.ok ? await response.json() as ClickUpTask : null).catch(() => null));
+			return parents.get(id)!;
+		};
+		choices = await Promise.all(tasks.map(async (candidate) => {
+			let id = candidate.top_level_parent || candidate.parent || null;
+			let project: ClickUpTask | null = "parent" in candidate && candidate.parent === null && candidate.list?.id === listId() ? candidate : null;
+			const seen = new Set([candidate.id]);
+			// shortcut: stop after 12 ancestors; raise the limit if ClickUp adds deeper project hierarchies.
+			while (id && seen.size <= 12 && !seen.has(id)) {
+				seen.add(id);
+				const parent = await readParent(id);
+				if (!parent || parent.id !== id || parent.list?.id !== listId() || !("parent" in parent)) break;
+				if (!parent.parent) { project = parent; break; }
+				id = parent.parent;
+			}
+			return { task_id: candidate.id, nama: candidate.name ?? "Panel", status: optionName(statusField!, candidate.custom_fields?.find((field) => field.id === statusFieldId())?.value) ?? "BELUM DIATUR", project_name: project?.name ?? null, project_id: project?.id ?? null };
+		}));
+		if (!selectedTaskId) return NextResponse.json({ ok: false, error: "DUPLICATE_SERIAL_NUMBER", choices }, { status: 409 });
+	}
+	const task = selectedTaskId ? tasks.find((item) => item.id === selectedTaskId) : tasks[0];
+	if (selectedTaskId && !task) return error(409, "TASK_SELECTION_CHANGED");
 	let location: ManualPanelItem["location"] = null;
 	let locationError: string | undefined;
 	try {
@@ -61,7 +101,6 @@ export async function GET(request: Request) {
 		locationError = cause instanceof Error && cause.message === "LOCATION_AMBIGUOUS" ? "LOCATION_AMBIGUOUS" : "LOCATION_UNAVAILABLE";
 	}
 	if (!task && !location) return error(locationError === "LOCATION_AMBIGUOUS" ? 409 : locationError ? 502 : 404, locationError ?? "SERIAL_NUMBER_NOT_FOUND");
-	if (task && (!statusField || statusField.id !== statusFieldId())) return error(500, "CLICKUP_FIELD_MISSING");
 	const panel = location?.panels.find((panel) => panel.barcode === serialNumber);
 	return NextResponse.json({
 		ok: true,
@@ -74,6 +113,7 @@ export async function GET(request: Request) {
 				task.custom_fields?.find((field) => field.id === statusFieldId())?.value,
 			) ?? "BELUM DIATUR" : null,
 			location,
+			...(choices.length ? { project_name: choices.find((item) => item.task_id === task?.id)?.project_name, project_id: choices.find((item) => item.task_id === task?.id)?.project_id } : {}),
 			...(locationError ? { location_error: locationError } : {}),
 		} satisfies ManualPanelItem,
 	});

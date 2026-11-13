@@ -1,6 +1,0 @@
-- generic [active] [ref=e1]:
-  - generic [ref=e4]:
-    - img "Logo" [ref=e5]
-    - generic [ref=e12]: 鲁班云智造
-  - img:
-    - generic: "%"

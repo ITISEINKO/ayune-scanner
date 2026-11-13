@@ -9,6 +9,7 @@ import {
 } from "react";
 import Link from "next/link";
 import { Check, Circle, EllipsisVertical, LoaderCircle, Search, Upload } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -52,6 +53,7 @@ export function Trial3DImportPage({ workspace = "Admin" }: { workspace?: "Admin"
 	const [ready, setReady] = useState(false);
 	const [loading, setLoading] = useState(true);
 	const [busy, setBusy] = useState(false);
+	const [previewButton, setPreviewButton] = useState("");
 	const [message, setMessage] = useState("");
 	const [importStage, setImportStage] = useState<
 		(typeof importSteps)[number]["stage"] | null
@@ -169,8 +171,9 @@ export function Trial3DImportPage({ workspace = "Admin" }: { workspace?: "Admin"
 			setBusy(false);
 		}
 	}
-	async function openPreview(model: TrialPublicModel, revision: string) {
+	async function openPreview(model: TrialPublicModel, revision: string, button: string) {
 		setBusy(true);
+		setPreviewButton(button);
 		setMessage("");
 		try {
 			const response = await fetch(
@@ -184,12 +187,14 @@ export function Trial3DImportPage({ workspace = "Admin" }: { workspace?: "Admin"
 		} catch (error) {
 			setMessage(error instanceof Error ? error.message : "Preview gagal.");
 		} finally {
+			setPreviewButton("");
 			setBusy(false);
 		}
 	}
 	async function activate() {
 		if (!preview || !checked || !ready || busy) return;
 		setBusy(true);
+		setMessage("");
 		try {
 			const response = await fetch("/api/admin/trial-3d-import", {
 				method: "PATCH",
@@ -203,8 +208,8 @@ export function Trial3DImportPage({ workspace = "Admin" }: { workspace?: "Admin"
 			const result = await response.json();
 			if (!response.ok) throw new Error(result.error);
 			setPreview(null);
-			setMessage("Versi model berhasil diaktifkan.");
-			await load();
+			toast.success("Versi model berhasil diaktifkan.");
+			await load().catch(() => setMessage("Versi berhasil diaktifkan, tetapi daftar gagal dimuat. Muat ulang halaman."));
 		} catch (error) {
 			setMessage(error instanceof Error ? error.message : "Aktivasi gagal.");
 			setPreview(null);
@@ -459,10 +464,10 @@ export function Trial3DImportPage({ workspace = "Admin" }: { workspace?: "Admin"
 													disabled={busy}
 													className="h-11 rounded-xl shadow-sm"
 													onClick={() =>
-														void openPreview(model, latest.revision)
+																void openPreview(model, latest.revision, `${model.id}:latest`)
 													}
 												>
-													Preview 3D
+																{previewButton === `${model.id}:latest` && <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" />} Preview 3D
 												</Button>
 												<Button
 													type="button"
@@ -515,10 +520,10 @@ export function Trial3DImportPage({ workspace = "Admin" }: { workspace?: "Admin"
 																		className="h-8 rounded-xl text-xs"
 																		disabled={busy}
 																		onClick={() =>
-																			void openPreview(model, version.revision)
+																						void openPreview(model, version.revision, `${model.id}:${version.revision}`)
 																		}
 																	>
-																		Preview
+																					{previewButton === `${model.id}:${version.revision}` && <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" />} Preview
 																		<span className="sr-only">
 																			{" "}
 																			V{version.number}
@@ -544,10 +549,10 @@ export function Trial3DImportPage({ workspace = "Admin" }: { workspace?: "Admin"
 																className="h-8 shrink-0 rounded-xl text-xs"
 																disabled={busy}
 																onClick={() =>
-																	void openPreview(model, version.revision)
+																				void openPreview(model, version.revision, `${model.id}:${version.revision}`)
 																}
 															>
-																Aktifkan
+																			{previewButton === `${model.id}:${version.revision}` && <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" />} Aktifkan
 																<span className="sr-only">
 																	{" "}
 																	V{version.number}
@@ -596,14 +601,14 @@ export function Trial3DImportPage({ workspace = "Admin" }: { workspace?: "Admin"
 										disabled={!checked || !ready || busy}
 										onClick={() => void activate()}
 									>
-										Gunakan versi ini
+										{busy && <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" />} Gunakan versi ini
 									</Button>
 								</div>
 							)
 						}
 					/>
 					<div className="absolute inset-x-3 top-3 z-10 flex items-start gap-2">
-						<Button variant="outline" onClick={() => setPreview(null)}>
+						<Button variant="outline" disabled={busy} onClick={() => setPreview(null)}>
 							Kembali
 						</Button>
 						<span

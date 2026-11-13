@@ -492,7 +492,40 @@ async function main() {
 			"unknown model serial must not return unrelated room geometry",
 		);
 		assert.equal((await lookup("unknown")).status(), 404);
-		assert.equal((await lookup("duplicate")).status(), 409);
+		setMode("manual-location-duplicate");
+		const duplicateResponse = await lookup("duplicate");
+		assert.equal(duplicateResponse.status(), 409);
+		const duplicateChoices = (await duplicateResponse.json()).choices;
+		assert.deepEqual(duplicateChoices.map((choice) => choice.project_name), ["Project Alpha", "Project Beta"]);
+		assert.equal((await context.request.get(`${base}/api/panel/manual?serial_number=duplicate&task_id=unknown`)).status(), 409, "a task outside the current matches must not be selected");
+		setMode("manual-location-duplicate-unavailable");
+		const unavailableChoices = (await (await lookup("duplicate")).json()).choices;
+		assert.equal(unavailableChoices[1].project_name, null, "an unavailable project must not be guessed");
+		setMode("manual-location-duplicate");
+		await page.goto(`${base}/admin/ubah-manual/location?barcode=duplicate`);
+		const picker = page.getByRole("region", { name: "Pilih task ClickUp" });
+		await expect(picker).toContainText("Project Alpha");
+		await expect(picker).toContainText("Project Beta");
+		await picker.getByRole("button", { name: /Project Beta/ }).click();
+		await expect(page.getByRole("region", { name: "Status barang" })).toContainText("Project Beta");
+		await page.getByRole("button", { name: "Ubah status barang", exact: true }).click();
+		const duplicateDialog = page.getByRole("dialog");
+		await expect(duplicateDialog).toContainText("Project Beta");
+		await duplicateDialog.getByRole("button").filter({ hasText: "TERPASANG / DIGUNAKAN" }).click();
+		await duplicateDialog.getByRole("button", { name: "Ya, ubah status", exact: true }).click();
+		await expect(page.getByText("Status berhasil diperbarui.")).toBeVisible();
+		assert.equal((await control("writes")).byTask.duplicate, 1, "only the chosen duplicate task may be updated");
+		setMode("manual-location-duplicate-changed");
+		const changedSerial = await context.request.post(`${base}/api/panel/manual`, { data: { task_id: "duplicate", serial_number: "duplicate", status: "SEDANG_DIPACKING" } });
+		assert.equal(changedSerial.status(), 409, "a changed serial must block the selected task update");
+		assert.equal((await control("writes")).byTask.duplicate, 1);
+		setMode("manual-location-paged");
+		const paged = await lookup("paged");
+		assert.equal(paged.status(), 409);
+		assert.equal((await paged.json()).choices.length, 101, "duplicate choices include every returned page");
+		const selectedFromSecondPage = await context.request.get(`${base}/api/panel/manual?serial_number=paged&task_id=page-two`);
+		assert.equal(selectedFromSecondPage.status(), 200);
+		assert.equal((await selectedFromSecondPage.json()).data.task_id, "page-two");
 		assert.equal((await lookup("a".repeat(101))).status(), 400);
 		setMode("manual-location-cycle");
 		result = await (await lookup("15370046376")).json();
@@ -520,7 +553,7 @@ async function main() {
 			denied.url().endsWith("/unauthorized"),
 			"fresh authorization must reject a revoked admin before writing",
 		);
-		assert.equal((await control("writes")).writes, 1);
+		assert.equal((await control("writes")).writes, 2);
 		await authenticate("MEMBER");
 		await page.goto(`${base}/admin/ubah-manual/location?barcode=15370046376`);
 		await expect(page).toHaveURL(/\/unauthorized/);

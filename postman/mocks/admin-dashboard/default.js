@@ -7,6 +7,7 @@ let projectCompleted = false;
 let completeWrites = 0;
 let manualStatus = "22619cd5-078e-4b12-a6d2-96d723eed52b";
 let manualWrites = 0;
+let manualWritesByTask = {};
 const component = (id, status) => ({
 	id, parent: "group", name: id,
 	custom_fields: [
@@ -27,6 +28,7 @@ http.createServer((req, res) => {
 			body = { id: url.pathname.split("/").pop(), name: "Online import project", custom_id: "AY-ONLINE", parent: null, list: { id: listId }, status: { status: "in progress" } };
 		} else { status = 501; body = { error: "Endpoint not modeled" }; }
 	} else if (mode?.startsWith("manual-location")) {
+		const duplicateMode = mode.startsWith("manual-location-duplicate");
 		const statusId = "3d3a2535-9d01-4ca2-8a51-9b2f9182857c";
 		const options = [
 			{ id: "22619cd5-078e-4b12-a6d2-96d723eed52b", name: "BARANG DITERIMA" },
@@ -35,30 +37,39 @@ http.createServer((req, res) => {
 		];
 		const serial = JSON.parse(url.searchParams.get("custom_fields") || "[]")[0]?.value;
 		const task = { id: "manual-panel", name: "Panel contoh", list: { id: listId }, parent: "manual-group",
-			...(mode === "manual-location-parent" || mode === "manual-location-cycle" ? {} : { top_level_parent: serial === "no-model" ? "unimported-project" : serial === "15370040711" ? "z96buhr3eu" : "z96buhry4p" }),
-			custom_fields: [{ id: statusId, value: manualStatus }, { id: "dd6c185c-bd28-4967-b238-f386e98a64c8", value: serial || "15370046376" }],
+			...(mode === "manual-location-parent" || mode === "manual-location-cycle" ? {} : { top_level_parent: duplicateMode ? "manual-project-a" : serial === "no-model" ? "unimported-project" : serial === "15370040711" ? "z96buhr3eu" : "z96buhry4p" }),
+			custom_fields: [{ id: statusId, value: manualStatus }, { id: "dd6c185c-bd28-4967-b238-f386e98a64c8", value: serial || (mode === "manual-location-duplicate-changed" ? "changed" : duplicateMode ? "duplicate" : "15370046376") }],
 		};
 		if (url.pathname === "/test/reset") {
-			manualStatus = options[0].id; manualWrites = 0; body = {};
+			manualStatus = options[0].id; manualWrites = 0; manualWritesByTask = {}; body = {};
 		} else if (url.pathname === "/test/writes") {
-			body = { writes: manualWrites, status: manualStatus };
+			body = { writes: manualWrites, status: manualStatus, byTask: manualWritesByTask };
 		} else if (url.pathname === "/api/v2/user") {
 			body = { user: { id: "manual-admin" } };
 		} else if (url.pathname === `/api/v2/list/${listId}/field`) {
 			body = { fields: [{ id: statusId, name: "STATUS BARANG SCAN", type_config: { options } }] };
 		} else if (url.pathname === `/api/v2/list/${listId}/task`) {
 			if (mode === "manual-location-rate-limit") { status = 429; body = {}; }
-			else body = { tasks: mode === "manual-location-lby-only" || serial === "unknown" ? [] : serial === "duplicate" ? [task, { ...task, id: "duplicate" }] : [task] };
+			else if (mode === "manual-location-paged") {
+				const page = Number(url.searchParams.get("page") || 0);
+				body = { tasks: page === 0 ? Array.from({ length: 100 }, (_, i) => ({ ...task, id: `item-${i}`, parent: null, top_level_parent: null })) : [{ ...task, id: "page-two", parent: null, top_level_parent: null }], last_page: page > 0 };
+			}
+			else body = { tasks: mode === "manual-location-lby-only" || serial === "unknown" ? [] : serial === "duplicate" ? [task, { ...task, id: "duplicate", name: "Panel kedua", top_level_parent: "manual-project-b" }] : [task] };
 		} else if (req.method === "GET" && url.pathname === "/api/v2/task/manual-panel") {
 			body = task;
+		} else if (req.method === "GET" && url.pathname === "/api/v2/task/duplicate" && duplicateMode) {
+			body = { ...task, id: "duplicate", name: "Panel kedua", top_level_parent: "manual-project-b" };
+		} else if (req.method === "GET" && /^\/api\/v2\/task\/manual-project-[ab]$/.test(url.pathname) && duplicateMode) {
+			if (mode === "manual-location-duplicate-unavailable" && url.pathname.endsWith("-b")) { status = 503; body = {}; }
+			else body = { id: url.pathname.split("/").pop(), name: url.pathname.endsWith("-a") ? "Project Alpha" : "Project Beta", parent: null, list: { id: listId } };
 		} else if (req.method === "GET" && url.pathname === "/api/v2/task/manual-group") {
 			body = { id: "manual-group", parent: mode === "manual-location-cycle" ? "manual-panel" : "z96buhry4p", list: { id: listId } };
 		} else if (req.method === "GET" && url.pathname === "/api/v2/task/z96buhry4p") {
 			body = { id: "z96buhry4p", parent: null, list: { id: listId } };
-		} else if (req.method === "POST" && url.pathname === `/api/v2/task/manual-panel/field/${statusId}`) {
+		} else if (req.method === "POST" && (url.pathname === `/api/v2/task/manual-panel/field/${statusId}` || (duplicateMode && url.pathname === `/api/v2/task/duplicate/field/${statusId}`))) {
 			if (mode === "manual-location-save-fail") { status = 503; body = {}; }
 			else if (!options.some((option) => option.id === req.body?.value)) { status = 400; body = {}; }
-			else { manualStatus = req.body.value; manualWrites++; body = {}; }
+			else { manualStatus = req.body.value; manualWrites++; const id = url.pathname.split("/")[4]; manualWritesByTask[id] = (manualWritesByTask[id] || 0) + 1; body = {}; }
 		} else { status = 501; body = { error: "Endpoint not modeled" }; }
 	} else if (mode?.startsWith("project-complete")) {
 		const task = { id: "complete-project", name: "Rak Buku · Kantor Contoh", parent: null, list: { id: listId }, date_closed: projectCompleted ? String(Date.parse("2026-10-22T10:00:00Z")) : null, status: { status: projectCompleted ? "complete" : "in progress" } };

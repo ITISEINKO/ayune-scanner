@@ -1,16 +1,9 @@
 import { gunzipSync } from "node:zlib";
-import { canImportLby, getPpicAccess } from "@/lib/db";
-import { clickUpToken, ppicSession } from "@/lib/session";
 import { listTrialModels, readTrialModel } from "@/lib/trialPublicModels";
-import { hasPpicAdminAccess } from "@/types/ppic";
 
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
-	const session = await ppicSession();
-	if (!session || !(await clickUpToken())) return new Response(null, { status: 401 });
-	const access = await getPpicAccess(session.user_id);
-	if (!hasPpicAdminAccess(access?.role) && !(access?.role === "MEMBER" && Number(access.active) === 1) && !(await canImportLby(session.user_id))) return new Response(null, { status: 403 });
 	const params = new URL(request.url).searchParams;
 	const id = params.get("id"), revision = params.get("revision"), room = params.get("room"), texture = params.get("texture");
 	if (!id || !/^\d{1,30}$/.test(id) || !revision || !/^[a-f0-9]{64}$/.test(revision) || Boolean(room) === Boolean(texture)) return new Response(null, { status: 400 });

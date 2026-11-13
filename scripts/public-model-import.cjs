@@ -2,7 +2,7 @@ const assert = require('node:assert/strict');
 const { gzipSync } = require('node:zlib');
 const { unzipModel } = require('./import-lby-project.cjs');
 const { isHinge } = require('./lby-panel-geometry.cjs');
-const { Matrix3, Matrix4, Vector3, Quaternion } = require('three');
+const { Box3, Matrix3, Matrix4, Vector3, Quaternion } = require('three');
 
 function worldMatrix(model, models) {
 	const world = new Matrix4();
@@ -73,6 +73,26 @@ function prepare(model, orderId, panels = []) {
 		assert(typeof doc.houseId === 'string' && doc.houseId && Array.isArray(doc.renderModels), 'Invalid room');
 		const models = new Map((doc.models || []).map((item) => [item.id, item]));
 		const hingeMeshes = new Map((doc.renderHoleModels || []).map((mesh) => [mesh.geometryType, mesh.geometry]));
+		const doorBounds = new Map();
+		for (const { modelId, geometry } of doc.renderModels) {
+			if (!['left', 'right', 'up', 'bottom'].includes(models.get(modelId)?.doorOpenType) || !Array.isArray(geometry?.position)) continue;
+			const box = new Box3();
+			for (let i = 0; i + 2 < geometry.position.length; i += 3) box.expandByPoint(new Vector3(...geometry.position.slice(i, i + 3)));
+			if (!box.isEmpty()) doorBounds.set(modelId, box);
+		}
+		const hingesByDoor = new Map();
+		let unresolvedHinges = false;
+		for (const hinge of (doc.models || []).filter(isHinge)) {
+			const matrix = hinge.instanceMatrix;
+			if (!Array.isArray(matrix) || matrix.length !== 16 || !matrix.every(Number.isFinite)) { unresolvedHinges = true; continue; }
+			const point = new Vector3().setFromMatrixPosition(new Matrix4().fromArray(matrix));
+			// shortcut: 50 mm proximity and 1 mm separation are heuristics; replace with validated vendor mounting links.
+			const nearby = [...doorBounds].map(([id, box]) => ({ id, distance: box.distanceToPoint(point) })).filter(({ distance }) => distance <= 50).sort((a, b) => a.distance - b.distance);
+			const door = nearby.length && (!nearby[1] || nearby[1].distance - nearby[0].distance > 1) ? nearby[0].id : undefined;
+			if (!door) { unresolvedHinges = true; continue; }
+			if (!hingesByDoor.has(door)) hingesByDoor.set(door, []);
+			hingesByDoor.get(door).push(hinge);
+		}
 		const drawerParts = new Map();
 		for (const { modelId } of doc.renderModels) {
 			const item = models.get(modelId);
@@ -115,11 +135,7 @@ function prepare(model, orderId, panels = []) {
 			const model = models.get(modelId);
 			if (typeof modelId === 'string') matches.push({ id: modelId, serial: serials.get(modelId) || '', number: String(model?.roomPlankIdx || '') });
 			let doorOpenType = ['left', 'right', 'up', 'bottom'].includes(model?.doorOpenType) ? model.doorOpenType : null;
-			const hingeModels = (doc.models || []).filter((item) => {
-				if (!isHinge(item)) return false;
-				const linkedDoors = Array.isArray(item.relaPlankIds) ? item.relaPlankIds.filter((id) => ['left', 'right', 'up', 'bottom'].includes(models.get(id)?.doorOpenType)) : [];
-				return linkedDoors.length ? linkedDoors.includes(modelId) : item.parentId === modelId;
-			});
+			const hingeModels = hingesByDoor.get(modelId) || [];
 			const hinges = hingeModels.flatMap((item) => {
 				const mesh = hingeMeshes.get(item.objFileId);
 				if (!Array.isArray(mesh?.position) || !mesh.position.length || mesh.position.length % 3 || !mesh.position.every(Number.isFinite) || !Array.isArray(item.instanceMatrix) || item.instanceMatrix.length !== 16 || !item.instanceMatrix.every(Number.isFinite)) return [];
@@ -132,7 +148,7 @@ function prepare(model, orderId, panels = []) {
 			if (motion) doorOpenType = motion.opening;
 			const texture = uv.length && typeof model?.textureImage === 'string' && /^\d{1,30}$/.test(model.textureImage) ? model.textureImage : null;
 			const color = Number.isInteger(model?.color) && model.color >= 0 && model.color <= 0xffffff ? model.color : null;
-			return { id: modelId, position: g.position, index, uv, texture, color, number: String(model?.roomPlankIdx || ''), doorOpenType, doorMotion: motion && { pivot: motion.pivot, axis: motion.axis }, isDoor: Boolean(doorOpenType || /门板|門板|\bdoor\b|\bpintu\b/i.test(model?.name || '')), hinges, hingeCount: hingeModels.length, ...(drawerParts.has(modelId) ? { drawerOffset: drawerParts.get(modelId), drawerRails: drawerRails.get(modelId) || [] } : {}) };
+			return { id: modelId, position: g.position, index, uv, texture, color, number: String(model?.roomPlankIdx || ''), doorOpenType, doorMotion: motion && { pivot: motion.pivot, axis: motion.axis }, isDoor: Boolean(doorOpenType || /门板|門板|\bdoor\b|\bpintu\b/i.test(model?.name || '')), hinges, ...(doorOpenType && unresolvedHinges ? {} : { hingeCount: hingeModels.length }), ...(drawerParts.has(modelId) ? { drawerOffset: drawerParts.get(modelId), drawerRails: drawerRails.get(modelId) || [] } : {}) };
 		});
 		return { id: doc.houseId, name: String(doc.houseName || doc.houseId), data: gzipSync(JSON.stringify(geometry)), matches };
 	});

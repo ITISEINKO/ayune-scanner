@@ -58,13 +58,18 @@ const findSerial = async (token: string, serialNumber: string) => {
 			{ field_id: CF_PANEL.SERIAL_NUMBER, operator: "=", value: serialNumber },
 		]),
 	});
-	const response = await fetch(
-		`https://api.clickup.com/api/v2/list/${process.env.CLICKUP_PPIC_PANEL_LIST_ID || PANEL_LIST_ID}/task?${query}`,
-		{ headers: clickUpHeaders(token), cache: "no-store" },
-	);
-	if (!response.ok) throw new Error(response.status === 429 ? "RATE_LIMITED" : "CLICKUP_ERROR");
-	const { tasks = [] } = (await response.json()) as { tasks?: ClickUpTask[] };
-	return tasks;
+	const results: ClickUpTask[] = [];
+	for (let page = 0; ; page++) {
+		query.set("page", String(page));
+		const response = await fetch(
+			`https://api.clickup.com/api/v2/list/${process.env.CLICKUP_PPIC_PANEL_LIST_ID || PANEL_LIST_ID}/task?${query}`,
+			{ headers: clickUpHeaders(token), cache: "no-store" },
+		);
+		if (!response.ok) throw new Error(response.status === 429 ? "RATE_LIMITED" : "CLICKUP_ERROR");
+		const { tasks = [], last_page } = (await response.json()) as { tasks?: ClickUpTask[]; last_page?: boolean };
+		results.push(...tasks);
+		if (last_page || !tasks.length) return results;
+	}
 };
 
 const updateStatus = async (token: string, taskId: string, statusId: string) => {
@@ -123,14 +128,14 @@ export async function POST(request: Request) {
 			taskId = cached.task_id;
 			name = cached.name;
 		} else {
-			if (cache?.complete) return error(403, "SERIAL_NOT_IN_SELECTED_PROJECT");
 			const tasks = await findSerial(token, serialNumber);
 			if (!tasks.length) return error(404, "SERIAL_NUMBER_NOT_FOUND");
-			if (tasks.length > 1) return error(409, "DUPLICATE_SERIAL_NUMBER");
-			const task = tasks[0];
-			const scope = taskProjectScope(task, mainTaskId);
-			if (scope === "OTHER") return error(403, "SERIAL_NOT_IN_SELECTED_PROJECT");
-			if (scope !== "MATCH") return error(422, "INVALID_TASK_HIERARCHY");
+			if (tasks.some((task) => taskProjectScope(task, mainTaskId) === "INVALID"))
+				return error(422, "INVALID_TASK_HIERARCHY");
+			const matches = tasks.filter((task) => taskProjectScope(task, mainTaskId) === "MATCH");
+			if (!matches.length) return error(403, "SERIAL_NOT_IN_SELECTED_PROJECT");
+			if (matches.length > 1) return error(409, "DUPLICATE_SERIAL_NUMBER");
+			const task = matches[0];
 			if (serialNumberOf(task) !== serialNumber)
 				return error(422, "INVALID_SERIAL_DATA");
 			taskId = task.id;

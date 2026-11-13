@@ -149,8 +149,8 @@ async function main() {
 				hydrationErrors.push(message.text());
 		});
 		await page.goto(url); await expect(page).toHaveURL(/\/login/);
-		await page.goto(`${baseURL}/cari-lokasi`); await expect(page).toHaveURL(/\/login/);
-		assert.equal((await context.request.get(`${baseURL}/api/panel/location-version?project=z96buhry4p`)).status(), 401);
+		await page.goto(`${baseURL}/cari-lokasi`); await expect(page.getByRole("heading", { name: "Cari lokasi panel" })).toBeVisible();
+		assert.equal((await context.request.get(`${baseURL}/api/panel/location-version?project=z96buhry4p`)).status(), 200);
 		const payload = Buffer.from(JSON.stringify({ user_id: "viewer-test", role: "MEMBER", allowed_status: ["BARANG_DITERIMA"], refreshed_at: Date.now() })).toString("base64url");
 		const signature = createHmac("sha256", secret).update(payload).digest("base64url");
 		await context.addCookies([{ name: "clickup_access_token", value: "local-viewer-test", url: baseURL },
@@ -193,7 +193,7 @@ async function main() {
 		await expect(page.locator('[aria-label="Kontrol tampilan"]').getByRole("button")).toHaveCount(4);
 		await expect(page.getByRole("region", { name: "Panel terpilih" })).toContainText("Panel 9");
 		await expect(page.getByRole("region", { name: "Informasi panel", exact: true })).toContainText("Serial: 15370046376");
-		await expect(page.getByRole("link", { name: "Kembali ke model", exact: true })).toHaveAttribute("href", "/drafter");
+		await expect(page.getByRole("link", { name: "Kembali ke model", exact: true })).toHaveAttribute("href", "/drafter/old");
 		assert.equal(await svg.locator('polygon[fill="#ef4444"]').count(), 6);
 		const initialPoints = await svg.locator("polygon").first().getAttribute("points");
 		await svg.focus(); await page.keyboard.press("ArrowRight");
@@ -376,6 +376,7 @@ async function main() {
 		await page.getByRole("button", { name: "Keyboard", exact: true }).click();
 		await page.getByRole("textbox", { name: "Input scan keyboard" }).fill(" 15370046376 ");
 		await expect(page).toHaveURL(`${baseURL}/cari-lokasi?barcode=15370046376`);
+		await page.getByRole("link", { name: "Cari di viewer old" }).click();
 		await expect(svg).toHaveAttribute("data-selected-barcode", "15370046376");
 		await expect(svg).toHaveAttribute("data-panel-count", "15");
 		await expect(page.getByRole("region", { name: "Informasi panel", exact: true })).toContainText("Serial: 15370046376");
@@ -404,6 +405,7 @@ async function main() {
 		await page.getByRole("button", { name: "Keyboard", exact: true }).click();
 		await page.getByRole("textbox", { name: "Input scan keyboard" }).fill("000123");
 		await expect(page).toHaveURL(`${baseURL}/cari-lokasi?barcode=000123`);
+		await page.getByRole("link", { name: "Cari di viewer old" }).click();
 		await expect(page.getByRole("main").getByRole("alert")).toContainText("Lokasi panel untuk serial ini belum tersedia");
 		await expect(page.getByRole("main").getByRole("alert")).toContainText("hubungi drafter untuk mengunggah model LBY");
 		await expect(svg).toHaveCount(0);
@@ -420,8 +422,8 @@ async function main() {
 		}
 		assert.deepEqual(memberRequests.filter(({ method, path }) => !["GET", "HEAD"].includes(method) || /^\/api\/(project|projects|panel\/manual)/.test(path)), [], "member location lookup must not select a project or call status APIs");
 		await db.execute("UPDATE ppic_permissions SET active=0 WHERE clickup_user_id='viewer-test'");
-		assert.equal((await context.request.get(`${baseURL}/api/panel/location-version?project=z96buhry4p`)).status(), 403);
-		await page.goto(`${baseURL}/cari-lokasi`); await expect(page).toHaveURL(/\/unauthorized/);
+		assert.equal((await context.request.get(`${baseURL}/api/panel/location-version?project=z96buhry4p`)).status(), 200);
+		await page.goto(`${baseURL}/cari-lokasi`); await expect(page.getByRole("heading", { name: "Cari lokasi panel" })).toBeVisible();
 		await page.goto(url); await expect(page).toHaveURL(/\/unauthorized/);
 		await db.execute("UPDATE ppic_permissions SET can_import_lby=1 WHERE clickup_user_id='viewer-test'");
 		const drafterPayload = Buffer.from(JSON.stringify({ user_id: "viewer-test", role: "MEMBER", allowed_status: null, can_import_lby: true, refreshed_at: Date.now() })).toString("base64url");
@@ -495,7 +497,7 @@ async function main() {
 		}
 		await numbersToggle.click();
 		await page.screenshot({ path: "test-results/panel-location-preview.png", fullPage: true });
-		await page.goto(`${baseURL}/cari-lokasi?barcode=15370046376`);
+		await page.goto(`${baseURL}/cari-lokasi?barcode=15370046376&source=old`);
 		assert.equal((await context.request.get(`${baseURL}/api/panel/location-version?project=z96buhry4p`)).status(), 200, "import-only users can check versions without scan permission");
 		await expect(svg).toHaveAttribute("data-selected-barcode", "15370046376");
 		const drafterNav = page.getByRole("navigation", { name: "Main navigation" });
@@ -508,10 +510,10 @@ async function main() {
 		await expect(page.getByRole("heading", { name: "Cari lokasi panel", exact: true })).toBeVisible();
 		assert.deepEqual(await drafterNav.getByRole("link").allTextContents(), ["Models", "Cari", "Profile"]);
 		await db.execute("UPDATE ppic_permissions SET can_import_lby=0 WHERE clickup_user_id='viewer-test'");
-		await page.goto(`${baseURL}/cari-lokasi?barcode=15370046376`); await expect(page).toHaveURL(/\/unauthorized/);
+		await page.goto(`${baseURL}/cari-lokasi?barcode=15370046376`); await expect(page.getByRole("main").getByRole("alert")).toContainText("Serial tidak ditemukan pada model 3D aktif");
 		assert.equal(external.length, 0, "viewer must not request vendor assets or services");
 		assert.deepEqual(hydrationErrors, [], "barcode changes and reloads must not cause hydration errors");
-		console.log("Browser checks passed: zero hydration errors, room-only viewer, read-only member search without project/status APIs, stable member/drafter navigation, rotate/reset/zoom, mobile fit, invalid inputs, login and fresh grant revocation; no external requests.");
+		console.log("Browser checks passed: public search, protected standalone preview, read-only lookup, member/drafter navigation, rotate/reset/zoom, mobile fit and invalid inputs; no hydration errors or external requests.");
 	} catch (error) { console.error(logs); throw error; }
 	finally { await browser?.close(); server.kill(); db.close(); }
 }

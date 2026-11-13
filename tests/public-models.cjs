@@ -70,6 +70,26 @@ assert.equal(JSON.parse(gunzipSync(prepare(model, '123')[0].data))[0].hinges.len
 model.value.docs[0].models.push({ id: 'cabinet' });
 model.value.docs[0].renderModels.push({ modelId: 'cabinet', geometry: { position: [0,0,0, 1,0,0, 0,1,0], index: [0,1,2] } });
 assert.equal(JSON.parse(gunzipSync(prepare(model, '123')[0].data))[1].hinges.length, 0, 'linked hinge must not also be rendered on its parent cabinet');
+const misplaced = structuredClone(model);
+const room = misplaced.value.docs[0];
+room.models.push({ id: 'other-door', roomPlankIdx: '5', doorOpenType: 'left' });
+room.renderModels.push({ modelId: 'other-door', geometry: { position: [200,0,0, 201,0,0, 200,1,0], index: [0,1,2] } });
+room.models[1].parentId = 'door';
+room.models[1].relaPlankIds = [];
+room.models[1].instanceMatrix = mount(200,0,0).matrix;
+let assigned = JSON.parse(gunzipSync(prepare(misplaced, '123')[0].data));
+assert.equal(assigned[0].hingeCount, 0, 'a distant parent must not claim a hinge');
+assert.equal(assigned[2].hingeCount, 1, 'the uniquely nearby door receives the hinge');
+room.models[1].instanceMatrix = mount(100,0,0).matrix;
+assigned = JSON.parse(gunzipSync(prepare(misplaced, '123')[0].data));
+assert.equal(assigned[0].hingeCount, undefined, 'unmatched hardware makes missing-hinge checks uncertain');
+assert.equal(assigned[2].hingeCount, undefined);
+assert.equal(assigned[0].hinges.length + assigned[2].hinges.length, 0, 'unmatched hardware must not animate on an arbitrary door');
+room.renderModels[2].geometry.position = [2,0,0, 3,0,0, 2,1,0];
+room.models[1].instanceMatrix = mount(1.5,0,0).matrix;
+assigned = JSON.parse(gunzipSync(prepare(misplaced, '123')[0].data));
+assert.equal(assigned[0].hingeCount, undefined, 'equidistant doors must remain uncertain');
+assert.equal(assigned[2].hingeCount, undefined);
 const transform = { position: [0,0,0], quaternion: [0,0,0,1], scale: [1,1,1] };
 const drawerModel = { value: { orderId: '123', docs: [{ houseId: 'drawer-room', models: [
 	{ id: 'group', className: 'BaseModuleGroupModel', moduleType: '06', ...transform, quaternion: [0,0,Math.SQRT1_2,Math.SQRT1_2] },

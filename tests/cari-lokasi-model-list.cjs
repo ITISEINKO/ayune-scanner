@@ -5,12 +5,13 @@ const ts = require("typescript");
 
 const models = [{ id: "1", name: "Active", activeRevision: "rev" }, { id: "2", name: "Inactive", activeRevision: null }];
 let lookupFails = false, oldReads = 0;
+let session = { user_id: "1" };
 const modules = {
 	"react/jsx-runtime": { jsx: (type, props) => ({ type, props }) },
 	"@/features/member/SearchPanelLocationPage": { SearchPanelLocationPage: "page" },
 	"next/navigation": { notFound: () => { throw new Error("not found"); }, redirect: () => { throw new Error("redirect"); } },
 	"@/lib/db": { getPpicAccess: async () => ({ role: "MEMBER", active: 1 }), canImportLby: async () => false },
-	"@/lib/session": { ppicSession: async () => ({ user_id: "1" }), requireClickUpToken: async () => {} },
+	"@/lib/session": { ppicSession: async () => session },
 	"@/types/ppic": { hasPpicAdminAccess: () => false },
 	"@/lib/panelLocationSnapshot": { getPanelLocation: async () => { oldReads++; return { projectName: "Old", panels: [] }; } },
 	"@/lib/trialPublicModels": { listTrialModels: async () => models, searchTrialPanels: async () => { if (lookupFails) throw new Error("unavailable"); return []; }, readTrialModel: async () => ({ rooms: [{ id: "room", name: "Bedroom" }] }) },
@@ -20,8 +21,11 @@ const source = ts.transpileModule(readFileSync("src/app/(member)/cari-lokasi/pag
 runInNewContext(source, { module: moduleResult, exports: moduleResult.exports, require: (id) => modules[id], console });
 (async () => {
 	const page = moduleResult.exports.default;
+	session = null;
 	const list = await page({ searchParams: Promise.resolve({}) });
 	assert.equal(list.props.models.length, 1);
+	assert.equal(list.props.hasNavigation, false);
+	session = { user_id: "1" };
 	const selected = await page({ searchParams: Promise.resolve({ model: "1" }) });
 	assert.equal(selected.props.selectedModel.revision, "rev");
 	assert.equal(selected.props.selectedModel.rooms[0].name, "Bedroom");

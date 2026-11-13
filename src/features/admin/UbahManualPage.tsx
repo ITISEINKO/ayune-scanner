@@ -19,14 +19,18 @@ import { statusBarangScanOptions } from "@/lib/produksiPanel";
 import { PanelLocationViewer } from "@/features/panel-location/PanelLocationViewer";
 import { PanelLocationLoader } from "@/features/panel-location/PanelLocationLoader";
 import { PanelViewerDetailPage } from "@/features/panel-viewer/PanelViewerDetailPage";
-import type { ManualPanelItem } from "@/types/panelLocation";
+import type { ManualPanelChoice, ManualPanelItem } from "@/types/panelLocation";
 import { panelDisplayName } from "@/lib/panelLocation";
 
 const messageFor = (error?: string) =>
 	({
 		SERIAL_NUMBER_NOT_FOUND: "Serial number tidak ditemukan.",
 		DUPLICATE_SERIAL_NUMBER: "Serial number terdaftar lebih dari satu kali.",
-		SERIAL_MISMATCH: "Serial task berubah atau tidak cocok. Scan ulang sebelum mengubah status.",
+		SERIAL_MISMATCH:
+			"Serial task berubah atau tidak cocok. Scan ulang sebelum mengubah status.",
+		TASK_SELECTION_CHANGED:
+			"Task tidak lagi cocok dengan serial ini. Scan ulang.",
+		INVALID_SERIAL_DATA: "Data serial dari ClickUp tidak cocok. Coba lagi.",
 		CLICKUP_FIELD_MISSING: "Field Status Barang Scan tidak tersedia.",
 		RATE_LIMITED: "Terlalu banyak permintaan. Coba lagi sebentar.",
 		UNAUTHORIZED: "Sesi login sudah berakhir. Silakan login kembali.",
@@ -41,6 +45,8 @@ export const UbahManualPage = ({ serialNumber }: { serialNumber?: string }) => {
 	const finding = useRef(false);
 	const savingRef = useRef(false);
 	const [item, setItem] = useState<ManualPanelItem | null>(null);
+	const [choices, setChoices] = useState<ManualPanelChoice[]>([]);
+	const [selectedTaskId, setSelectedTaskId] = useState("");
 	const [selectedStatus, setSelectedStatus] = useState("");
 	const [loading, setLoading] = useState(Boolean(serialNumber));
 	const [saving, setSaving] = useState(false);
@@ -75,7 +81,10 @@ export const UbahManualPage = ({ serialNumber }: { serialNumber?: string }) => {
 			})
 			.catch(() => {
 				if (!controller.signal.aborted) setModelError(true);
-			}).finally(() => { if (!controller.signal.aborted) setModelLoaded(true); });
+			})
+			.finally(() => {
+				if (!controller.signal.aborted) setModelLoaded(true);
+			});
 		return () => controller.abort();
 	}, [serialNumber]);
 	const findItem = (value: string) => {
@@ -95,31 +104,44 @@ export const UbahManualPage = ({ serialNumber }: { serialNumber?: string }) => {
 		if (!serialNumber) return;
 		const controller = new AbortController();
 		const load = async () => {
+			setLoading(true);
 			try {
-				const response = await fetch(
-					`/api/panel/manual?${new URLSearchParams({ serial_number: serialNumber })}`,
-					{
-						signal: controller.signal,
-					},
-				);
+				const params = new URLSearchParams({ serial_number: serialNumber });
+				if (selectedTaskId) params.set("task_id", selectedTaskId);
+				const response = await fetch(`/api/panel/manual?${params}`, {
+					signal: controller.signal,
+				});
 				const data = (await response.json()) as {
 					data?: ManualPanelItem;
 					error?: string;
+					choices?: ManualPanelChoice[];
 				};
+				if (
+					response.status === 409 &&
+					data.error === "DUPLICATE_SERIAL_NUMBER" &&
+					data.choices?.length
+				) {
+					setChoices(data.choices);
+					return;
+				}
 				if (!response.ok || !data.data) throw new Error(messageFor(data.error));
 				setItem(data.data);
+				setChoices([]);
 			} catch (error) {
-				if (!controller.signal.aborted)
+				if (!controller.signal.aborted) {
+					setChoices([]);
 					setErrorMessage(
 						error instanceof Error ? error.message : messageFor(),
 					);
+					if (selectedTaskId) setSelectedTaskId("");
+				}
 			} finally {
 				if (!controller.signal.aborted) setLoading(false);
 			}
 		};
 		void load();
 		return () => controller.abort();
-	}, [serialNumber]);
+	}, [serialNumber, selectedTaskId]);
 	const save = async () => {
 		if (!item?.task_id || !selectedStatus || savingRef.current) return;
 		savingRef.current = true;
@@ -128,7 +150,11 @@ export const UbahManualPage = ({ serialNumber }: { serialNumber?: string }) => {
 			const response = await fetch("/api/panel/manual", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ task_id: item.task_id, status: selectedStatus, serial_number: item.serial_number }),
+				body: JSON.stringify({
+					task_id: item.task_id,
+					status: selectedStatus,
+					serial_number: item.serial_number,
+				}),
 			});
 			const data = (await response.json()) as {
 				status?: string;
@@ -212,7 +238,11 @@ export const UbahManualPage = ({ serialNumber }: { serialNumber?: string }) => {
 					{model && !legacyViewer ? "Ubah status" : "Ubah status barang"}
 				</Button>
 				{model && !legacyViewer && item.location && (
-					<button type="button" onClick={() => setLegacyViewer(true)} className="ml-auto min-h-10 px-2 text-xs underline">
+					<button
+						type="button"
+						onClick={() => setLegacyViewer(true)}
+						className="ml-auto min-h-10 px-2 text-xs underline"
+					>
 						Viewer old
 					</button>
 				)}
@@ -224,10 +254,20 @@ export const UbahManualPage = ({ serialNumber }: { serialNumber?: string }) => {
 								: "mt-2 text-xs text-muted-foreground"
 						}
 					>
-							Task ClickUp untuk serial ini belum ditemukan.
+						Task ClickUp untuk serial ini belum ditemukan.
 					</p>
 				)}
 			</div>
+			{item.project_id && (
+				<p className="mt-2 text-xs text-muted-foreground">
+					Project: {item.project_name ?? item.project_id}
+				</p>
+			)}
+			{item.project_id === null && (
+				<p className="mt-2 text-xs text-muted-foreground">
+					Project tidak dapat dipastikan · Task: {item.task_id}
+				</p>
+			)}
 		</section>
 	) : (
 		<p role="status" className="relative z-10 bg-card p-4 text-sm">
@@ -306,7 +346,39 @@ export const UbahManualPage = ({ serialNumber }: { serialNumber?: string }) => {
 					Model 3D aktif belum dapat diperiksa. Coba lagi atau pilih viewer old.
 				</p>
 			)}
-			{models.length > 1 && modelIndex < 0 && (
+			{choices.length > 0 && !selectedTaskId && (
+				<section
+					aria-label="Pilih task ClickUp"
+					className="relative z-20 mx-4 mt-20 max-h-[70%] overflow-y-auto rounded-xl border bg-card p-4"
+				>
+					<p className="mb-3 text-sm font-semibold">
+						Serial ditemukan di beberapa task ClickUp. Pilih task yang ingin
+						diubah:
+					</p>
+					<div className="space-y-2">
+						{choices.map((choice) => (
+							<button
+								type="button"
+								key={choice.task_id}
+								className="block w-full rounded-lg border p-3 text-left text-sm"
+								onClick={() => {
+									setErrorMessage("");
+									setSelectedTaskId(choice.task_id ?? "");
+								}}
+							>
+								<span className="block font-bold">{choice.nama}</span>
+								<span className="block text-muted-foreground">
+									Project: {choice.project_name ?? "Tidak dapat dipastikan"}
+								</span>
+								<span className="block text-xs text-muted-foreground">
+									Task: {choice.task_id} · Status: {choice.status}
+								</span>
+							</button>
+						))}
+					</div>
+				</section>
+			)}
+			{choices.length === 0 && models.length > 1 && modelIndex < 0 && (
 				<div className="relative z-10 mt-20 bg-card p-4">
 					<p className="mb-2 text-sm">
 						Serial ditemukan di beberapa model. Pilih project:
@@ -332,106 +404,127 @@ export const UbahManualPage = ({ serialNumber }: { serialNumber?: string }) => {
 					{errorMessage}
 				</p>
 			)}
-			{(item || model) && !(models.length > 1 && modelIndex < 0) && (
-				<>
-					{model && !legacyViewer ? (
-						<div className="relative min-h-0 flex-1">
-							<PanelViewerDetailPage
-								key={`${model.modelId}:${model.revision}:${model.roomId}:${model.panelId}`}
-								id={model.modelId}
-								rooms={model.rooms}
-								initialRoom={model.roomId}
-								selectedPanel={model.panelId}
-								trialRevision={model.revision}
-								hideRoomSelector
-								footer={
-									<details open className="group">
-										<summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden">
-											<span className="flex min-w-0 flex-1 flex-col">
-												<span className="truncate text-sm font-bold">
-													{item
-														? panelDisplayName(
-																item.nama,
-																locatedPanel?.panelNumber
-																	? `Panel ${locatedPanel.panelNumber}`
-																	: "Panel",
-															)
-														: "Panel"}
+			{(item || model) &&
+				choices.length === 0 &&
+				!(models.length > 1 && modelIndex < 0) && (
+					<>
+						{model && !legacyViewer ? (
+							<div className="relative min-h-0 flex-1">
+								<PanelViewerDetailPage
+									key={`${model.modelId}:${model.revision}:${model.roomId}:${model.panelId}`}
+									id={model.modelId}
+									rooms={model.rooms}
+									initialRoom={model.roomId}
+									selectedPanel={model.panelId}
+									trialRevision={model.revision}
+									hideRoomSelector
+									footer={
+										<details open className="group">
+											<summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden">
+												<span className="flex min-w-0 flex-1 flex-col">
+													<span className="truncate text-sm font-bold">
+														{item
+															? panelDisplayName(
+																	item.nama,
+																	locatedPanel?.panelNumber
+																		? `Panel ${locatedPanel.panelNumber}`
+																		: "Panel",
+																)
+															: "Panel"}
+													</span>
+													<span className="truncate text-xs text-muted-foreground">
+														Serial: {item?.serial_number ?? serialNumber}
+													</span>
 												</span>
-												<span className="truncate text-xs text-muted-foreground">
-													Serial: {item?.serial_number ?? serialNumber}
-												</span>
-											</span>
-											{item && (
-												<Badge className="max-w-[55%] truncate rounded-full bg-accent/20 px-2 py-1 text-[10px] font-bold text-foreground">
-													{item.status ?? "STATUS TIDAK TERSEDIA"}
-												</Badge>
-											)}
-											<ChevronDown
-												aria-hidden="true"
-												className="size-4 shrink-0 transition-transform group-open:rotate-180"
-											/>
-										</summary>
-										{statusCard}
-									</details>
-								}
-							/>
-							{models.length > 1 && (
-								<select
-									aria-label="Pilih project"
-									value={modelIndex}
-									onChange={(event) =>
-										setModelIndex(Number(event.target.value))
+												{item && (
+													<Badge className="max-w-[55%] truncate rounded-full bg-accent/20 px-2 py-1 text-[10px] font-bold text-foreground">
+														{item.status ?? "STATUS TIDAK TERSEDIA"}
+													</Badge>
+												)}
+												<ChevronDown
+													aria-hidden="true"
+													className="size-4 shrink-0 transition-transform group-open:rotate-180"
+												/>
+											</summary>
+											{statusCard}
+										</details>
 									}
-									className="absolute left-3 top-28 z-10 max-w-56 rounded-lg border bg-card p-2 text-sm"
+								/>
+								{models.length > 1 && (
+									<select
+										aria-label="Pilih project"
+										value={modelIndex}
+										onChange={(event) =>
+											setModelIndex(Number(event.target.value))
+										}
+										className="absolute left-3 top-28 z-10 max-w-56 rounded-lg border bg-card p-2 text-sm"
+									>
+										{models.map((match, index) => (
+											<option
+												key={`${match.modelId}:${match.roomId}:${match.panelId}`}
+												value={index}
+											>
+												{match.name} ·{" "}
+												{
+													match.rooms.find((room) => room.id === match.roomId)
+														?.name
+												}
+											</option>
+										))}
+									</select>
+								)}
+							</div>
+						) : item?.location && legacyViewer ? (
+							<div className="relative flex min-h-0 flex-1 flex-col">
+								<PanelLocationViewer {...item.location} immersive />
+								<p
+									role="status"
+									className="absolute left-3 top-16 z-20 rounded-full bg-card px-3 py-1 text-xs"
 								>
-									{models.map((match, index) => (
-										<option
-											key={`${match.modelId}:${match.roomId}:${match.panelId}`}
-											value={index}
-										>
-											{match.name} ·{" "}
-											{
-												match.rooms.find((room) => room.id === match.roomId)
-													?.name
-											}
-										</option>
-									))}
-								</select>
-							)}
-						</div>
-					) : item?.location && legacyViewer ? (
-						<div className="relative flex min-h-0 flex-1 flex-col">
-							<PanelLocationViewer {...item.location} immersive />
-							<p role="status" className="absolute left-3 top-16 z-20 rounded-full bg-card px-3 py-1 text-xs">Viewer old</p>
-							{model && (
-								<button
-									type="button"
-									onClick={() => setLegacyViewer(false)}
-									className="absolute bottom-3 left-3 z-10 rounded-lg border bg-card p-2 text-xs"
-								>
-									Viewer 3D
-								</button>
-							)}
-						</div>
-					) : (
-						<div
-							role="status"
-							className="flex min-h-0 flex-1 flex-col items-center justify-center-safe overflow-y-auto px-5 pb-8 pt-20 text-center text-sm text-muted-foreground"
-						>
-							<p>
-								{!modelLoaded ? "Mencari model 3D aktif…" : modelError ? "Model 3D aktif belum dapat diperiksa." : item?.location ? "Serial tidak ditemukan pada model 3D aktif." : item?.location_error === "LOCATION_AMBIGUOUS"
-									? "Serial ditemukan di beberapa model aktif. Periksa model LBY di profil admin. Status barang tetap dapat diubah."
-									: item?.location_error
-										? "Lokasi panel belum dapat dimuat. Status barang tetap dapat diubah."
-										: "Lokasi panel belum tersedia. Hubungi drafter untuk mengunggah model LBY. Status barang tetap dapat diubah."}
-							</p>
-							{modelLoaded && item?.location && <button type="button" className="mt-3 underline" onClick={() => setLegacyViewer(true)}>Buka viewer old</button>}
-						</div>
-					)}
-					{!(model && !legacyViewer) && statusCard}
-				</>
-			)}
+									Viewer old
+								</p>
+								{model && (
+									<button
+										type="button"
+										onClick={() => setLegacyViewer(false)}
+										className="absolute bottom-3 left-3 z-10 rounded-lg border bg-card p-2 text-xs"
+									>
+										Viewer 3D
+									</button>
+								)}
+							</div>
+						) : (
+							<div
+								role="status"
+								className="flex min-h-0 flex-1 flex-col items-center justify-center-safe overflow-y-auto px-5 pb-8 pt-20 text-center text-sm text-muted-foreground"
+							>
+								<p>
+									{!modelLoaded
+										? "Mencari model 3D aktif…"
+										: modelError
+											? "Model 3D aktif belum dapat diperiksa."
+											: item?.location
+												? "Serial tidak ditemukan pada model 3D aktif."
+												: item?.location_error === "LOCATION_AMBIGUOUS"
+													? "Serial ditemukan di beberapa model aktif. Periksa model LBY di profil admin. Status barang tetap dapat diubah."
+													: item?.location_error
+														? "Lokasi panel belum dapat dimuat. Status barang tetap dapat diubah."
+														: "Lokasi panel belum tersedia. Hubungi drafter untuk mengunggah model LBY. Status barang tetap dapat diubah."}
+								</p>
+								{modelLoaded && item?.location && (
+									<button
+										type="button"
+										className="mt-3 underline"
+										onClick={() => setLegacyViewer(true)}
+									>
+										Buka viewer old
+									</button>
+								)}
+							</div>
+						)}
+						{!(model && !legacyViewer) && statusCard}
+					</>
+				)}
 
 			{item?.task_id && (
 				<Drawer
@@ -453,6 +546,12 @@ export const UbahManualPage = ({ serialNumber }: { serialNumber?: string }) => {
 							<DrawerDescription className="mt-1">
 								Pilih status baru untuk barang ini.
 							</DrawerDescription>
+							{item.project_id !== undefined && (
+								<p className="mt-2 text-sm text-muted-foreground">
+									Project: {item.project_name ?? "Tidak dapat dipastikan"} ·
+									Task: {item.task_id}
+								</p>
+							)}
 							<div className="my-6 rounded-2xl bg-card p-5 text-center">
 								<p className="text-sm text-muted-foreground">Status saat ini</p>
 								<p className="mt-1 text-2xl font-black">{item.status}</p>
