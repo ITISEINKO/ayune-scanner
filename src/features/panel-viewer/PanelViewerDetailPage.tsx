@@ -261,13 +261,13 @@ export function PanelViewerDetailPage({
 				{missingHinges > 0 && (
 					<p role="status" className="mb-2 text-xs text-amber-700">
 						{missingHinges} pintu belum memiliki engsel dalam data desain
-						(ditandai kuning; panel terpilih tetap merah). Tanyakan ke drafter.
+						(ditandai kuning; panel terpilih tetap merah). Tanyakan Tim.
 					</p>
 				)}
 				{hingeCheckUnavailable && (
 					<p role="status" className="mb-2 text-xs text-muted-foreground">
-						Data engsel belum dapat dipastikan. Periksa model sumber atau
-						import ulang model.
+						Data engsel belum dapat dipastikan. Periksa model sumber atau import
+						ulang model.
 					</p>
 				)}
 				{unresolvedDoors > 0 && (

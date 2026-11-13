@@ -288,12 +288,11 @@ export const UbahManualPage = ({ serialNumber }: { serialNumber?: string }) => {
 					<Button
 						variant="outline"
 						size="sm"
-						className="h-10 rounded-full border-border/50 bg-card/95 px-3 shadow-sm"
+						className="h-10 rounded-full border-border/50 bg-card/95 p-3 shadow-sm"
 						nativeButton={false}
 						render={<Link href="/admin/ubah-manual" />}
 					>
 						<ArrowLeft aria-hidden="true" data-icon="inline-start" />
-						Scan panel lain
 					</Button>
 					<h1
 						title={

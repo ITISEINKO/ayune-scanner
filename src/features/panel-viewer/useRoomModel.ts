@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 import type { PublicRoomGeometry } from "@/types/publicModel";
-export function useRoomModel(id: string, room: string, trialRevision?: string, locationViewer = false) {
+export function useRoomModel(
+	id: string,
+	room: string,
+	trialRevision?: string,
+	locationViewer = false,
+) {
 	const [parts, setParts] = useState<PublicRoomGeometry | null>(null);
 	const [status, setStatus] = useState<{
 		kind: "loading" | "ready" | "empty" | "error";

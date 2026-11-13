@@ -140,7 +140,9 @@ export async function createPanelViewer(
 			pivot: pivot.sub(center),
 			middle: middle.sub(center),
 			axis,
-			drawerOffset: part.drawerOffset ? new THREE.Vector3().fromArray(part.drawerOffset) : null,
+			drawerOffset: part.drawerOffset
+				? new THREE.Vector3().fromArray(part.drawerOffset)
+				: null,
 			label,
 		};
 	});
@@ -228,7 +230,8 @@ export async function createPanelViewer(
 			panel.group.position
 				.copy(panel.pivot)
 				.addScaledVector(panel.middle, (s.explode / 100) * 0.6);
-			if (panel.drawerOffset) panel.group.position.addScaledVector(panel.drawerOffset, doorProgress);
+			if (panel.drawerOffset)
+				panel.group.position.addScaledVector(panel.drawerOffset, doorProgress);
 			panel.group.rotation.set(0, 0, 0);
 			const opening = panel.part.doorOpenType;
 			if (opening && panel.axis && !panel.part.drawerOffset) {
@@ -246,6 +249,7 @@ export async function createPanelViewer(
 	const resize = new ResizeObserver(() => {
 		const { clientWidth, clientHeight } = target;
 		if (!clientWidth || !clientHeight) return;
+		sprites.forEach((sprite) => sprite.scale.setScalar(extent * (window.innerWidth < 640 ? 0.02 : 0.035)));
 		camera.aspect = clientWidth / clientHeight;
 		camera.updateProjectionMatrix();
 		renderer.setSize(clientWidth, clientHeight);
