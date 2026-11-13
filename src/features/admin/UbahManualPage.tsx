@@ -26,6 +26,7 @@ const messageFor = (error?: string) =>
 	({
 		SERIAL_NUMBER_NOT_FOUND: "Serial number tidak ditemukan.",
 		DUPLICATE_SERIAL_NUMBER: "Serial number terdaftar lebih dari satu kali.",
+		SERIAL_MISMATCH: "Serial task berubah atau tidak cocok. Scan ulang sebelum mengubah status.",
 		CLICKUP_FIELD_MISSING: "Field Status Barang Scan tidak tersedia.",
 		RATE_LIMITED: "Terlalu banyak permintaan. Coba lagi sebentar.",
 		UNAUTHORIZED: "Sesi login sudah berakhir. Silakan login kembali.",
@@ -58,6 +59,7 @@ export const UbahManualPage = ({ serialNumber }: { serialNumber?: string }) => {
 	const [modelIndex, setModelIndex] = useState(0);
 	const [legacyViewer, setLegacyViewer] = useState(false);
 	const [modelError, setModelError] = useState(false);
+	const [modelLoaded, setModelLoaded] = useState(false);
 	const model = models[modelIndex];
 	useEffect(() => {
 		if (!serialNumber) return;
@@ -73,7 +75,7 @@ export const UbahManualPage = ({ serialNumber }: { serialNumber?: string }) => {
 			})
 			.catch(() => {
 				if (!controller.signal.aborted) setModelError(true);
-			});
+			}).finally(() => { if (!controller.signal.aborted) setModelLoaded(true); });
 		return () => controller.abort();
 	}, [serialNumber]);
 	const findItem = (value: string) => {
@@ -126,7 +128,7 @@ export const UbahManualPage = ({ serialNumber }: { serialNumber?: string }) => {
 			const response = await fetch("/api/panel/manual", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ task_id: item.task_id, status: selectedStatus }),
+				body: JSON.stringify({ task_id: item.task_id, status: selectedStatus, serial_number: item.serial_number }),
 			});
 			const data = (await response.json()) as {
 				status?: string;
@@ -201,7 +203,7 @@ export const UbahManualPage = ({ serialNumber }: { serialNumber?: string }) => {
 					size={model && !legacyViewer ? "lg" : "default"}
 					className={
 						model && !legacyViewer
-							? "h-11 rounded-lg text-xs"
+							? "h-10 rounded-lg px-3 text-xs"
 							: "mt-4 w-full rounded-xl"
 					}
 					disabled={!item.task_id}
@@ -209,6 +211,11 @@ export const UbahManualPage = ({ serialNumber }: { serialNumber?: string }) => {
 				>
 					{model && !legacyViewer ? "Ubah status" : "Ubah status barang"}
 				</Button>
+				{model && !legacyViewer && item.location && (
+					<button type="button" onClick={() => setLegacyViewer(true)} className="ml-auto min-h-10 px-2 text-xs underline">
+						Viewer old
+					</button>
+				)}
 				{!item.task_id && (
 					<p
 						className={
@@ -217,7 +224,7 @@ export const UbahManualPage = ({ serialNumber }: { serialNumber?: string }) => {
 								: "mt-2 text-xs text-muted-foreground"
 						}
 					>
-						Lokasi tersedia di LBY. Task belum In Progress.
+							Task ClickUp untuk serial ini belum ditemukan.
 					</p>
 				)}
 			</div>
@@ -296,8 +303,7 @@ export const UbahManualPage = ({ serialNumber }: { serialNumber?: string }) => {
 					role="status"
 					className="relative z-10 mt-16 rounded-lg bg-card p-2 text-xs"
 				>
-					Viewer 3D trial belum dapat dimuat. Menampilkan viewer sebelumnya jika
-					tersedia.
+					Model 3D aktif belum dapat diperiksa. Coba lagi atau pilih viewer old.
 				</p>
 			)}
 			{models.length > 1 && modelIndex < 0 && (
@@ -341,8 +347,8 @@ export const UbahManualPage = ({ serialNumber }: { serialNumber?: string }) => {
 								footer={
 									<details open className="group">
 										<summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden">
-											<span className="flex min-w-0 flex-1 items-center gap-2">
-												<span className="max-w-[40%] truncate text-sm font-bold">
+											<span className="flex min-w-0 flex-1 flex-col">
+												<span className="truncate text-sm font-bold">
 													{item
 														? panelDisplayName(
 																item.nama,
@@ -367,15 +373,6 @@ export const UbahManualPage = ({ serialNumber }: { serialNumber?: string }) => {
 											/>
 										</summary>
 										{statusCard}
-										{item?.location && (
-											<button
-												type="button"
-												onClick={() => setLegacyViewer(true)}
-												className="mt-2 text-xs underline"
-											>
-												Viewer sebelumnya
-											</button>
-										)}
 									</details>
 								}
 							/>
@@ -403,9 +400,10 @@ export const UbahManualPage = ({ serialNumber }: { serialNumber?: string }) => {
 								</select>
 							)}
 						</div>
-					) : item?.location ? (
+					) : item?.location && legacyViewer ? (
 						<div className="relative flex min-h-0 flex-1 flex-col">
 							<PanelLocationViewer {...item.location} immersive />
+							<p role="status" className="absolute left-3 top-16 z-20 rounded-full bg-card px-3 py-1 text-xs">Viewer old</p>
 							{model && (
 								<button
 									type="button"
@@ -422,12 +420,13 @@ export const UbahManualPage = ({ serialNumber }: { serialNumber?: string }) => {
 							className="flex min-h-0 flex-1 flex-col items-center justify-center-safe overflow-y-auto px-5 pb-8 pt-20 text-center text-sm text-muted-foreground"
 						>
 							<p>
-								{item?.location_error === "LOCATION_AMBIGUOUS"
+								{!modelLoaded ? "Mencari model 3D aktif…" : modelError ? "Model 3D aktif belum dapat diperiksa." : item?.location ? "Serial tidak ditemukan pada model 3D aktif." : item?.location_error === "LOCATION_AMBIGUOUS"
 									? "Serial ditemukan di beberapa model aktif. Periksa model LBY di profil admin. Status barang tetap dapat diubah."
 									: item?.location_error
 										? "Lokasi panel belum dapat dimuat. Status barang tetap dapat diubah."
 										: "Lokasi panel belum tersedia. Hubungi drafter untuk mengunggah model LBY. Status barang tetap dapat diubah."}
 							</p>
+							{modelLoaded && item?.location && <button type="button" className="mt-3 underline" onClick={() => setLegacyViewer(true)}>Buka viewer old</button>}
 						</div>
 					)}
 					{!(model && !legacyViewer) && statusCard}

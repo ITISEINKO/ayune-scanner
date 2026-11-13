@@ -28,10 +28,10 @@ export async function listTrialModels() {
 	return [...models.values()];
 }
 
-export async function saveTrialModel(id: string, name: string, rooms: { id: string; name: string; data: Buffer; matches: { id: string; serial: string; number: string }[] }[], textures: { id: string; mime: string; image: Buffer }[]) {
+export async function saveTrialModel(id: string, name: string, rooms: { id: string; name: string; data: Buffer; matches: { id: string; serial: string; number: string }[] }[], textures: { id: string; mime: string; image: Buffer }[], serialCoverageValidated = false) {
 	await ensureTrialSchema();
 	if (new Set(rooms.map((room) => room.id)).size !== rooms.length || rooms.some((room) => new Set(room.matches.map((panel) => panel.id)).size !== room.matches.length)) throw new Error("DUPLICATE_MODEL_ID");
-	const payload = JSON.stringify({ name, rooms: rooms.map((room) => ({ ...room, data: room.data.toString("base64"), matches: [...room.matches].sort((a, b) => a.id.localeCompare(b.id)) })).sort((a, b) => a.id.localeCompare(b.id)), textures: textures.map((texture) => ({ ...texture, image: texture.image.toString("base64") })).sort((a, b) => a.id.localeCompare(b.id)) });
+	const payload = JSON.stringify({ name, serialCoverageValidated, rooms: rooms.map((room) => ({ ...room, data: room.data.toString("base64"), matches: [...room.matches].sort((a, b) => a.id.localeCompare(b.id)) })).sort((a, b) => a.id.localeCompare(b.id)), textures: textures.map((texture) => ({ ...texture, image: texture.image.toString("base64") })).sort((a, b) => a.id.localeCompare(b.id)) });
 	const revision = createHash("sha256").update(payload).digest("hex");
 	if (Buffer.byteLength(payload) > 64 * 1024 * 1024) throw new Error("MODEL_TOO_LARGE");
 	const compressed = gzipSync(payload);
@@ -65,13 +65,18 @@ export async function readTrialModel(id: string, revision: string) {
 	}
 	const payload = gunzipSync(compressed, { maxOutputLength: 64 * 1024 * 1024 }).toString("utf8");
 	if (createHash("sha256").update(payload).digest("hex") !== revision) throw new Error("CHECKSUM_MISMATCH");
-	return JSON.parse(payload) as { name: string; rooms: { id: string; name: string; data: string; matches: { id: string; serial: string; number: string }[] }[]; textures: { id: string; mime: string; image: string }[] };
+	return JSON.parse(payload) as { name: string; serialCoverageValidated?: boolean; rooms: { id: string; name: string; data: string; matches: { id: string; serial: string; number: string }[] }[]; textures: { id: string; mime: string; image: string }[] };
 }
 
-export async function activateTrialModel(id: string, revision: string, expected: string | null) {
+export async function activateTrialModel(id: string, revision: string | null, expected: string | null) {
 	await ensureTrialSchema();
+	if (revision === null) {
+		const result = await db.execute({ sql: "UPDATE ppic_trial_model SET active_revision = NULL WHERE id = ? AND active_revision IS ?", args: [id, expected] });
+		return result.rowsAffected === 1;
+	}
 	const snapshot = await readTrialModel(id, revision);
 	if (!snapshot) return false;
+	if (!snapshot.serialCoverageValidated) throw new Error("SERIAL_COVERAGE_UNVERIFIED");
 	const result = await db.execute({ sql: "UPDATE ppic_trial_model SET active_revision = ?, name = ? WHERE id = ? AND active_revision IS ? AND EXISTS (SELECT 1 FROM ppic_trial_revision WHERE model_id = ? AND revision = ?)", args: [revision, snapshot.name, id, expected, id, revision] });
 	return result.rowsAffected === 1;
 }

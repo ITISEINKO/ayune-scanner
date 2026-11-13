@@ -8,12 +8,13 @@ import {
 	type FormEvent,
 } from "react";
 import Link from "next/link";
-import { Check, Circle, LoaderCircle, Search, Upload } from "lucide-react";
+import { Check, Circle, EllipsisVertical, LoaderCircle, Search, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { PanelViewerDetailPage } from "@/features/panel-viewer/PanelViewerDetailPage";
 import type { TrialPublicModel } from "@/types/publicModel";
 import {
@@ -38,7 +39,7 @@ const importSteps = [
 	{ stage: "saving", label: "Menyimpan versi" },
 ] as const;
 
-export function Trial3DImportPage() {
+export function Trial3DImportPage({ workspace = "Admin" }: { workspace?: "Admin" | "Drafter" }) {
 	const [url, setUrl] = useState("");
 	const [search, setSearch] = useState("");
 	const [models, setModels] = useState<TrialPublicModel[]>([]);
@@ -202,7 +203,7 @@ export function Trial3DImportPage() {
 			const result = await response.json();
 			if (!response.ok) throw new Error(result.error);
 			setPreview(null);
-			setMessage("Versi trial berhasil diaktifkan.");
+			setMessage("Versi model berhasil diaktifkan.");
 			await load();
 		} catch (error) {
 			setMessage(error instanceof Error ? error.message : "Aktivasi gagal.");
@@ -210,6 +211,18 @@ export function Trial3DImportPage() {
 		} finally {
 			setBusy(false);
 		}
+	}
+	async function deactivate(model: TrialPublicModel) {
+		if (!model.activeRevision || busy || !window.confirm(`Nonaktifkan model 3D ${model.name}? Model tidak lagi muncul dalam pencarian aktif. Viewer old hanya tersedia jika data old ada. Versi yang belum diverifikasi harus diimport ulang sebelum dapat diaktifkan kembali.`)) return;
+		setBusy(true);
+		try {
+			const response = await fetch("/api/admin/trial-3d-import", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: model.id, revision: null, expected: model.activeRevision }) });
+			const result = await response.json();
+			if (!response.ok) throw new Error(result.error);
+			setMessage("Model 3D dinonaktifkan. Data dan riwayat tetap tersimpan; gunakan viewer old bila diperlukan.");
+			await load();
+		} catch (error) { setMessage(error instanceof Error ? error.message : "Gagal menonaktifkan model."); }
+		finally { setBusy(false); }
 	}
 	const filtered = models.filter((model) =>
 		model.name.toLowerCase().includes(search.trim().toLowerCase()),
@@ -223,23 +236,26 @@ export function Trial3DImportPage() {
 					aria-hidden="true"
 					className="pointer-events-none absolute -top-20 -right-16 size-70 opacity-10"
 				/>
-				<div className="relative">
-					<p className="text-md text-muted-foreground/80">Admin · Trial</p>
+				<div className="relative pr-12">
+					<DropdownMenu>
+						<DropdownMenuTrigger aria-label="Menu model" className="absolute right-0 top-0 flex size-11 items-center justify-center rounded-full hover:bg-background/50 focus-visible:outline-2 focus-visible:outline-ring">
+							<EllipsisVertical aria-hidden="true" className="size-5" />
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end">
+							<DropdownMenuItem render={<Link href="/cari-lokasi" />}>Buka pencarian lokasi</DropdownMenuItem>
+							<DropdownMenuItem render={<Link href={workspace === "Admin" ? "/admin/import-3d/old" : "/drafter/old"} />}>Kelola model LBY old</DropdownMenuItem>
+						</DropdownMenuContent>
+					</DropdownMenu>
+					<p className="text-md text-muted-foreground/80">{workspace}</p>
 					<h1 className="text-2xl font-extrabold tracking-tight">
-						Model LBY Trial
+						Model LBY 3D Ver2
 					</h1>
 					<p className="mt-2 text-sm text-muted-foreground">
-						Model trial tersimpan terpisah dari model live.
+						Kelola model aktif untuk pencarian lokasi panel.
 					</p>
 				</div>
 			</header>
 			<div className="space-y-6 px-4 pt-5">
-				<Link
-					href="/admin/trial-3d-import/viewer"
-					className="block text-sm font-semibold text-primary underline"
-				>
-					Buka panel viewer trial
-				</Link>
 				{importStage ? (
 					<section
 						aria-label="Progres import"
@@ -328,7 +344,7 @@ export function Trial3DImportPage() {
 							/>
 						</div>
 						<p className="text-xs text-muted-foreground">
-							Model disimpan sebagai kandidat trial. Periksa preview sebelum
+							Model disimpan sebagai kandidat. Periksa preview sebelum
 							aktivasi.
 						</p>
 						<Button
@@ -436,6 +452,7 @@ export function Trial3DImportPage() {
 											</span>
 										</summary>
 										<div className="space-y-4 border-t border-border/50 p-4">
+											{model.activeRevision && <Button type="button" variant="outline" disabled={busy} className="w-full" onClick={() => void deactivate(model)}>Nonaktifkan model 3D (gunakan old)</Button>}
 											<div className="grid grid-cols-2 gap-2">
 												<Button
 													type="button"
@@ -555,7 +572,7 @@ export function Trial3DImportPage() {
 			{preview && (
 				<section
 					className="fixed inset-x-0 top-0 bottom-(--bottom-navigation-height) z-40 bg-background"
-					aria-label="Preview versi trial"
+					aria-label="Preview versi model"
 				>
 					<PanelViewerDetailPage
 						id={preview.model.id}

@@ -340,7 +340,7 @@ export function LbyImportPage({
 				/>
 				<div className="relative z-10">
 					<p className="text-md text-muted-foreground/80">{workspace}</p>
-					<h1 className="text-2xl font-extrabold tracking-tight">Model LBY</h1>
+					<h1 className="text-2xl font-extrabold tracking-tight">Model LBY old</h1>
 					<p className="mt-2 text-sm text-muted-foreground">
 						Kelola model untuk pencarian lokasi panel.
 					</p>

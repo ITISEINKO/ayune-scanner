@@ -18,11 +18,17 @@ export const SearchPanelLocationPage = ({
 	location,
 	errorMessage,
 	trialMatches,
+	models,
+	selectedModel,
+	oldSource,
 }: {
 	serialNumber: string;
 	location: PanelLocationView | null;
 	errorMessage: string;
 	trialMatches: TrialPanelMatch[];
+	models: { id: string; name: string }[];
+	selectedModel: { id: string; name: string; revision: string; rooms: { id: string; name: string }[] } | null;
+	oldSource: boolean;
 }) => {
 	const router = useRouter();
 	const finding = useRef(false);
@@ -49,12 +55,12 @@ export const SearchPanelLocationPage = ({
 	return (
 		<main
 			className={
-				serialNumber
+				serialNumber || selectedModel
 					? "relative mx-auto flex h-dvh max-w-lg flex-col overflow-hidden bg-neutral-50 pb-(--bottom-navigation-height) dark:bg-background"
 					: "mx-auto min-h-dvh max-w-lg p-4 pb-28"
 			}
 		>
-			{serialNumber ? (
+			{serialNumber || selectedModel ? (
 				<header className="absolute inset-x-3 top-3 z-20 flex min-w-0 items-center gap-2">
 					<Link
 						href="/cari-lokasi"
@@ -65,13 +71,13 @@ export const SearchPanelLocationPage = ({
 								"h-10 rounded-full border-border/50 bg-card/95 px-3 shadow-sm",
 						})}
 					>
-						<ArrowLeft aria-hidden="true" /> Scan panel lain
+						<ArrowLeft aria-hidden="true" /> {selectedModel ? "Kembali" : "Scan panel lain"}
 					</Link>
 					<h1
-						title={title}
+						title={selectedModel?.name ?? title}
 						className="min-w-0 flex-1 truncate rounded-full border border-border/50 bg-card/95 px-3 py-3 text-center text-[11px] font-bold shadow-sm"
 					>
-						{title}
+						{selectedModel?.name ?? title}
 					</h1>
 				</header>
 			) : (
@@ -95,6 +101,10 @@ export const SearchPanelLocationPage = ({
 						</p>
 					</header>
 					<Scanner onDetected={findPanel} disabled={searching} />
+					<section className="mt-7" aria-label="Semua model">
+						<h2 className="font-bold">Semua model</h2>
+						{models.length ? <ul className="mt-3 grid gap-3">{models.map((item) => <li key={item.id}><Link className="block rounded-xl border bg-card p-4 font-semibold hover:bg-muted" href={`/cari-lokasi?${new URLSearchParams({ model: item.id })}`}>{item.name}</Link></li>)}</ul> : <p className="mt-3 text-sm text-muted-foreground">Belum ada model aktif yang diimpor.</p>}
+					</section>
 					{searching && (
 						<p
 							role="status"
@@ -109,18 +119,21 @@ export const SearchPanelLocationPage = ({
 					)}
 				</>
 			)}
+			{selectedModel && <div className="relative min-h-0 flex-1"><PanelViewerDetailPage id={selectedModel.id} rooms={selectedModel.rooms} trialRevision={selectedModel.revision} locationViewer /></div>}
 			{errorMessage && (
 				<p
 					role="alert"
 					className="mx-4 mt-20 rounded-xl border bg-card p-5 text-sm"
 				>
 					{errorMessage}
+					{!oldSource && serialNumber && <Link className="mt-3 block underline" href={`/cari-lokasi?${new URLSearchParams({ barcode: serialNumber, source: "old" })}`}>Cari di viewer old</Link>}
 				</p>
 			)}
 			{trialMatches.length > 1 && selectedMatch < 0 && <div className="relative z-10 mt-20 space-y-2 p-4"><p className="text-sm">Serial ditemukan di beberapa model. Pilih project:</p>{trialMatches.map((match, index) => <button type="button" key={`${match.modelId}:${match.roomId}:${match.panelId}`} className="block w-full rounded-lg border bg-card p-3 text-left text-sm" onClick={() => setSelectedMatch(index)}>{match.name} · {match.roomName}</button>)}</div>}
-			{trial && <div className="relative min-h-0 flex-1"><PanelViewerDetailPage id={trial.modelId} rooms={[{ id: trial.roomId, name: trial.roomName }]} initialRoom={trial.roomId} selectedPanel={trial.panelId} trialRevision={trial.revision} hideRoomSelector locationViewer footer={<section aria-label="Informasi panel" className="flex flex-wrap items-baseline gap-x-3 gap-y-1"><h2 className="text-sm font-bold">{trial.number ? `Panel ${trial.number}` : "Panel"}</h2><p className="text-xs text-muted-foreground">Serial: {serialNumber}</p></section>} /></div>}
+			{trial && <div className="relative min-h-0 flex-1"><PanelViewerDetailPage id={trial.modelId} rooms={[{ id: trial.roomId, name: trial.roomName }]} initialRoom={trial.roomId} selectedPanel={trial.panelId} trialRevision={trial.revision} hideRoomSelector locationViewer footer={<section aria-label="Informasi panel" className="flex flex-wrap items-baseline gap-x-3 gap-y-1"><h2 className="text-sm font-bold">{trial.number ? `Panel ${trial.number}` : "Panel"}</h2><p className="text-xs text-muted-foreground">Serial: {serialNumber}</p><Link className="text-xs underline" href={`/cari-lokasi?${new URLSearchParams({ barcode: serialNumber, source: "old" })}`}>Viewer old</Link></section>} /></div>}
 			{location && (
 				<>
+					<p role="status" className="absolute left-3 top-16 z-20 rounded-full bg-card px-3 py-1 text-xs">Viewer old</p>
 					<PanelLocationViewer {...location} immersive />
 					<section
 						aria-label="Informasi panel"

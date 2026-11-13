@@ -12,6 +12,7 @@ import {
 } from "@/lib/session";
 import { updatePpicComponentStatus } from "@/lib/db";
 import { getPanelLocation } from "@/lib/panelLocationSnapshot";
+import { serialNumberOf } from "@/lib/projectSerialCache";
 import type { ClickUpTask } from "@/types/clickup";
 import type { ManualPanelItem } from "@/types/panelLocation";
 
@@ -80,18 +81,19 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
 	await requireFreshSuperAdmin();
-	let body: { task_id?: unknown; status?: unknown };
+	let body: { task_id?: unknown; status?: unknown; serial_number?: unknown };
 	try {
 		body = (await request.json()) as typeof body;
 	} catch {
 		return error(400, "MISSING_FIELD");
 	}
 	const taskId = typeof body.task_id === "string" ? body.task_id.trim() : "";
+	const serialNumber = typeof body.serial_number === "string" ? body.serial_number.trim() : "";
 	const target =
 		typeof body.status === "string"
 			? statusBarangScanOptions.find((option) => option.key === body.status)
 			: undefined;
-	if (!taskId || !target) return error(400, "INVALID_STATUS");
+	if (!taskId || !target || !serialNumber || serialNumber.length > 100) return error(400, "INVALID_STATUS");
 	const token = await clickUpToken();
 	if (!token) return error(401, "UNAUTHORIZED");
 	const headers = clickUpHeaders(token);
@@ -105,7 +107,8 @@ export async function POST(request: Request) {
 	if (!taskResponse.ok)
 		return error(taskResponse.status === 429 ? 429 : 502, "CLICKUP_ERROR");
 	const task = (await taskResponse.json()) as ClickUpTask;
-	if (task.list?.id !== listId()) return error(404, "TASK_NOT_FOUND");
+	if (task.id !== taskId || task.list?.id !== listId()) return error(404, "TASK_NOT_FOUND");
+	if (serialNumberOf(task)?.trim() !== serialNumber) return error(409, "SERIAL_MISMATCH");
 	const statusField = fields?.["STATUS BARANG SCAN"];
 	if (!statusField || statusField.id !== statusFieldId())
 		return error(500, "CLICKUP_FIELD_MISSING");

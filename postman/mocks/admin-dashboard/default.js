@@ -36,7 +36,7 @@ http.createServer((req, res) => {
 		const serial = JSON.parse(url.searchParams.get("custom_fields") || "[]")[0]?.value;
 		const task = { id: "manual-panel", name: "Panel contoh", list: { id: listId }, parent: "manual-group",
 			...(mode === "manual-location-parent" || mode === "manual-location-cycle" ? {} : { top_level_parent: serial === "no-model" ? "unimported-project" : serial === "15370040711" ? "z96buhr3eu" : "z96buhry4p" }),
-			custom_fields: [{ id: statusId, value: manualStatus }],
+			custom_fields: [{ id: statusId, value: manualStatus }, { id: "dd6c185c-bd28-4967-b238-f386e98a64c8", value: serial || "15370046376" }],
 		};
 		if (url.pathname === "/test/reset") {
 			manualStatus = options[0].id; manualWrites = 0; body = {};

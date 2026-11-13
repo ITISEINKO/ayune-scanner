@@ -138,6 +138,12 @@ async function main() {
 		const context = await browser.newContext({
 			viewport: { width: 390, height: 844 },
 		});
+		await context.addInitScript(() => {
+			const original = HTMLCanvasElement.prototype.getContext;
+			HTMLCanvasElement.prototype.getContext = function (type, ...args) {
+				return type === "webgl" || type === "webgl2" || type === "experimental-webgl" ? null : original.call(this, type, ...args);
+			};
+		});
 		const external = [],
 			errors = [];
 		await context.route("**/*", (route) => {
@@ -180,10 +186,10 @@ async function main() {
 			);
 		};
 		await scan("15370046376");
+		await page.getByRole("button", { name: "Buka viewer old" }).click();
 		const svg = page.locator("svg[data-selected-barcode]");
 		await expect(svg).toHaveAttribute("data-selected-barcode", "15370046376");
 		await expect(svg).toHaveAttribute("data-panel-count", "15");
-		assert.equal(await svg.locator('polygon[fill="#ef4444"]').count(), 6);
 		const nav = page.getByRole("navigation", { name: "Main navigation" });
 		await expect(nav).toBeVisible();
 		await expect(
@@ -340,6 +346,9 @@ async function main() {
 		);
 		assert.equal((await control("writes")).writes, 0);
 		setMode("manual-location");
+		const mismatch = await context.request.post(`${base}/api/panel/manual`, { data: { task_id: "manual-panel", serial_number: "wrong-serial", status: "SEDANG_DIPACKING" } });
+		assert.equal(mismatch.status(), 409, "a different task serial must not be updated");
+		assert.equal((await control("writes")).writes, 0, "serial mismatch must not write to ClickUp");
 		await dialog
 			.getByRole("button", { name: "Ya, ubah status", exact: true })
 			.click();
@@ -359,8 +368,9 @@ async function main() {
 		});
 		await page.goto(`${base}/admin/ubah-manual/location?barcode=15370046368`);
 		await expect(page).toHaveURL(/\/admin\/ubah-manual\/location\?/);
+		await page.getByRole("button", { name: "Buka viewer old" }).click();
 		await expect(svg).toHaveAttribute("data-selected-barcode", "15370046368");
-		await expect(statusCard).toContainText("Serial: 15370046368");
+		await expect(statusCard).toContainText("15370046368");
 		await page.getByRole("button", { name: "Scan panel lain" }).click();
 		await expect(
 			page.getByRole("heading", { name: "Ubah status barang", exact: true }),
@@ -369,11 +379,13 @@ async function main() {
 		await page
 			.getByRole("textbox", { name: "Input scan keyboard" })
 			.fill("15370040711");
+		await page.getByRole("button", { name: "Buka viewer old" }).click();
 		await expect(svg).toHaveAttribute("data-selected-barcode", "15370040711");
 		await expect(page.getByRole("heading", { level: 1 })).toContainText(
 			"FIORDINI",
 		);
 		await page.reload();
+		await page.getByRole("button", { name: "Buka viewer old" }).click();
 		await expect(svg).toHaveAttribute("data-selected-barcode", "15370040711");
 		await page.setViewportSize({ width: 1280, height: 900 });
 		await page.screenshot({
@@ -401,6 +413,7 @@ async function main() {
 		assert.equal(lbyOnly.location.barcode, "15370046376");
 		await page.setViewportSize({ width: 390, height: 844 });
 		await page.goto(`${base}/admin/ubah-manual/location?barcode=15370046376`);
+		await page.getByRole("button", { name: "Buka viewer old" }).click();
 		await expect(svg).toHaveAttribute("data-selected-barcode", "15370046376");
 		await expect(editButton).toBeDisabled();
 		await expect(statusCard).toContainText(

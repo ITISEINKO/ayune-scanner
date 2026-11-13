@@ -60,11 +60,16 @@ async function read(url, signal) {
 function prepare(model, orderId, panels = []) {
 	assert(String(model.value?.orderId) === orderId && !model.value._V_ && Array.isArray(model.value.docs), 'Unsupported or mismatched model');
 	const serials = new Map();
+	const seenSerials = new Set();
 	for (const panel of panels) {
-		assert(String(panel.orderId) === orderId && typeof panel.laberNumber === 'string' && panel.laberNumber.trim() && typeof panel.splitId === 'string' && !serials.has(panel.splitId), 'Invalid panel mapping');
-		serials.set(panel.splitId, panel.laberNumber.trim());
+		assert(String(panel.orderId) === orderId && typeof panel.laberNumber === 'string' && panel.laberNumber.trim() && typeof panel.splitId === 'string' && panel.splitId && !serials.has(panel.splitId), 'Invalid panel mapping');
+		const serial = panel.laberNumber.trim();
+		assert(!seenSerials.has(serial), 'DUPLICATE_SERIAL_MAPPING');
+		seenSerials.add(serial);
+		serials.set(panel.splitId, serial);
 	}
-	return model.value.docs.map((doc) => {
+	const matched = new Set();
+	const rooms = model.value.docs.map((doc) => {
 		assert(typeof doc.houseId === 'string' && doc.houseId && Array.isArray(doc.renderModels), 'Invalid room');
 		const models = new Map((doc.models || []).map((item) => [item.id, item]));
 		const hingeMeshes = new Map((doc.renderHoleModels || []).map((mesh) => [mesh.geometryType, mesh.geometry]));
@@ -103,6 +108,10 @@ function prepare(model, orderId, panels = []) {
 			assert(Array.isArray(g?.position) && g.position.length % 3 === 0 && g.position.every(Number.isFinite), 'Invalid positions');
 			const index = Array.isArray(g.index) ? g.index : Object.values(g.index || {});
 			assert(index.length % 3 === 0 && index.every((n) => Number.isInteger(n) && n >= 0 && n < g.position.length / 3), 'Invalid indices');
+			if (serials.has(modelId)) {
+				assert(!matched.has(modelId), 'DUPLICATE_RENDER_MAPPING');
+				if (g.position.length && index.length) matched.add(modelId);
+			}
 			const model = models.get(modelId);
 			if (typeof modelId === 'string') matches.push({ id: modelId, serial: serials.get(modelId) || '', number: String(model?.roomPlankIdx || '') });
 			let doorOpenType = ['left', 'right', 'up', 'bottom'].includes(model?.doorOpenType) ? model.doorOpenType : null;
@@ -127,6 +136,8 @@ function prepare(model, orderId, panels = []) {
 		});
 		return { id: doc.houseId, name: String(doc.houseName || doc.houseId), data: gzipSync(JSON.stringify(geometry)), matches };
 	});
+	assert(matched.size === serials.size, `MISSING_RENDER_MAPPING:${serials.size - matched.size}`);
+	return rooms;
 }
 
 async function fetchPublicModel(source, signal, hasTexture = () => false, onProgress = (_stage = '') => {}) {

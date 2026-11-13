@@ -24,10 +24,11 @@ export async function GET(request: Request) {
 		const models = await listTrialModels();
 		const results = await Promise.all(matches.map(async (item) => {
 			const revision = models.find((model) => model.id === item.modelId && model.activeRevision === item.revision)?.activeRevision;
-			const snapshot = revision && await readTrialModel(item.modelId, revision);
-			return snapshot && revision ? { ...item, revision, rooms: snapshot.rooms.map(({ id, name }) => ({ id, name })) } : null;
+			const snapshot = revision ? await readTrialModel(item.modelId, revision) : null;
+			if (!snapshot || !snapshot.rooms.some((room) => room.id === item.roomId && room.matches.some((panel) => panel.id === item.panelId && panel.serial === serial.trim()))) throw new Error("ACTIVE_MODEL_CHANGED_OR_INVALID");
+			return { ...item, revision, rooms: snapshot.rooms.map(({ id, name }) => ({ id, name })) };
 		}));
-		return NextResponse.json({ results: results.filter(Boolean) }, { headers: { "Cache-Control": "no-store" } });
+		return NextResponse.json({ results }, { headers: { "Cache-Control": "no-store" } });
 	}
 	const id = params.get("id"), revision = params.get("revision");
 	if (id || revision) {
@@ -81,11 +82,13 @@ async function importModel(request: Request, progress: (stage: string) => void, 
 		if (!(await allowed())) return NextResponse.json({ error: "Akses ditolak." }, { status: 403 });
 		signal.throwIfAborted();
 		progress("saving");
-		const result = await saveTrialModel(source.orderId, source.name, rooms, textures);
+		const result = await saveTrialModel(source.orderId, source.name, rooms, textures, true);
 		return NextResponse.json({ ok: true, id: source.orderId, ...result });
 	} catch (error) {
 		const message = error instanceof Error ? error.message : "";
-		if (message === "MODEL_TOO_LARGE") return NextResponse.json({ error: "Model terlalu besar untuk penyimpanan trial." }, { status: 413 });
+		if (message === "MODEL_TOO_LARGE") return NextResponse.json({ error: "Model terlalu besar untuk penyimpanan Ver2." }, { status: 413 });
+		if (message.includes("MISSING_RENDER_MAPPING:")) return NextResponse.json({ error: `${message.split("MISSING_RENDER_MAPPING:")[1]} serial tidak memiliki panel 3D. Model aktif tidak berubah.` }, { status: 422 });
+		if (message.includes("DUPLICATE_SERIAL_MAPPING") || message.includes("DUPLICATE_RENDER_MAPPING")) return NextResponse.json({ error: "Mapping serial atau panel 3D duplikat. Model aktif tidak berubah." }, { status: 422 });
 		if (message === "INCOMPLETE_MODEL" || message === "DUPLICATE_MODEL_ID") return NextResponse.json({ error: "Data model, texture, atau mapping panel tidak lengkap. Model aktif tidak berubah." }, { status: 422 });
 		return NextResponse.json({ error: "Import gagal. Periksa link LBY dan coba lagi." }, { status: 400 });
 	}
@@ -98,9 +101,12 @@ export async function PATCH(request: Request) {
 		const raw = await request.text();
 		if (Buffer.byteLength(raw) > 2048) return NextResponse.json({ error: "Permintaan terlalu besar." }, { status: 413 });
 		const body = JSON.parse(raw);
-		if (typeof body.id !== "string" || !/^\d{1,30}$/.test(body.id) || typeof body.revision !== "string" || !/^[a-f0-9]{64}$/.test(body.revision) || !(body.expected === null || (typeof body.expected === "string" && /^[a-f0-9]{64}$/.test(body.expected)))) return NextResponse.json({ error: "Permintaan tidak valid." }, { status: 400 });
-		if (!await readTrialModel(body.id, body.revision)) return NextResponse.json({ error: "Versi tidak ditemukan." }, { status: 404 });
+		if (typeof body.id !== "string" || !/^\d{1,30}$/.test(body.id) || !(body.revision === null || (typeof body.revision === "string" && /^[a-f0-9]{64}$/.test(body.revision))) || !(body.expected === null || (typeof body.expected === "string" && /^[a-f0-9]{64}$/.test(body.expected)))) return NextResponse.json({ error: "Permintaan tidak valid." }, { status: 400 });
+		if (body.revision !== null && !await readTrialModel(body.id, body.revision)) return NextResponse.json({ error: "Versi tidak ditemukan." }, { status: 404 });
 		if (!await activateTrialModel(body.id, body.revision, body.expected)) return NextResponse.json({ error: "Versi aktif berubah. Muat ulang halaman." }, { status: 409 });
 		return NextResponse.json({ ok: true });
-	} catch { return NextResponse.json({ error: "Aktivasi gagal." }, { status: 500 }); }
+	} catch (error) {
+		if (error instanceof Error && error.message === "SERIAL_COVERAGE_UNVERIFIED") return NextResponse.json({ error: "Mapping serial versi ini belum diverifikasi. Import ulang model sebelum aktivasi." }, { status: 422 });
+		return NextResponse.json({ error: "Aktivasi gagal." }, { status: 500 });
+	}
 }
