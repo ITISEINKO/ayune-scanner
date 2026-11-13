@@ -2,27 +2,33 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useRef, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { ArrowLeft, LoaderCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Scanner } from "@/components/scanner";
 import { buttonVariants } from "@/components/ui/button";
 import { PanelLocationViewer } from "@/features/panel-location/PanelLocationViewer";
+import { PanelViewerDetailPage } from "@/features/panel-viewer/PanelViewerDetailPage";
 import type { PanelLocationView } from "@/types/panelLocation";
+import type { TrialPanelMatch } from "@/types/publicModel";
 import { panelDisplayName } from "@/lib/panelLocation";
 
 export const SearchPanelLocationPage = ({
 	serialNumber,
 	location,
 	errorMessage,
+	trialMatches,
 }: {
 	serialNumber: string;
 	location: PanelLocationView | null;
 	errorMessage: string;
+	trialMatches: TrialPanelMatch[];
 }) => {
 	const router = useRouter();
 	const finding = useRef(false);
 	const [searching, startSearch] = useTransition();
+	const [selectedMatch, setSelectedMatch] = useState(trialMatches.length === 1 ? 0 : -1);
+	const trial = trialMatches[selectedMatch];
 	const findPanel = (value: string) => {
 		const code = value.trim();
 		if (!code || finding.current) return;
@@ -36,7 +42,7 @@ export const SearchPanelLocationPage = ({
 		);
 	};
 	const panel = location?.panels.find((item) => item.barcode === serialNumber);
-	const title = location
+	const title = trial ? `${trial.name} · ${trial.roomName}` : location
 		? `${location.projectName}${panel ? ` · ${panel.roomName}` : ""}`
 		: "Lokasi panel";
 
@@ -111,6 +117,8 @@ export const SearchPanelLocationPage = ({
 					{errorMessage}
 				</p>
 			)}
+			{trialMatches.length > 1 && selectedMatch < 0 && <div className="relative z-10 mt-20 space-y-2 p-4"><p className="text-sm">Serial ditemukan di beberapa model. Pilih project:</p>{trialMatches.map((match, index) => <button type="button" key={`${match.modelId}:${match.roomId}:${match.panelId}`} className="block w-full rounded-lg border bg-card p-3 text-left text-sm" onClick={() => setSelectedMatch(index)}>{match.name} · {match.roomName}</button>)}</div>}
+			{trial && <div className="relative min-h-0 flex-1"><PanelViewerDetailPage id={trial.modelId} rooms={[{ id: trial.roomId, name: trial.roomName }]} initialRoom={trial.roomId} selectedPanel={trial.panelId} trialRevision={trial.revision} hideRoomSelector locationViewer footer={<section aria-label="Informasi panel" className="flex flex-wrap items-baseline gap-x-3 gap-y-1"><h2 className="text-sm font-bold">{trial.number ? `Panel ${trial.number}` : "Panel"}</h2><p className="text-xs text-muted-foreground">Serial: {serialNumber}</p></section>} /></div>}
 			{location && (
 				<>
 					<PanelLocationViewer {...location} immersive />

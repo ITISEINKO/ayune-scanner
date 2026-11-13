@@ -4,7 +4,7 @@ const { prepare, doorMotion } = require('../scripts/import-public-models.cjs');
 const { Vector3, Quaternion } = require('three');
 const model = { value: { orderId: '123', docs: [{ houseId: 'room', houseName: 'Room', models: [{ id: 'door', roomPlankIdx: '4', doorOpenType: 'left' }], renderModels: [{ modelId: 'door', geometry: { position: [0,0,0, 1,0,0, 0,1,0], index: { 0: 0, 1: 1, 2: 2 } } }] }] } };
 const rooms = prepare(model, '123');
-assert.deepEqual(JSON.parse(gunzipSync(rooms[0].data)), [{ id: 'door', position: [0,0,0, 1,0,0, 0,1,0], index: [0,1,2], uv: [], texture: null, color: null, number: '4', doorOpenType: 'left', doorMotion: null, isDoor: true, hinges: [] }]);
+assert.deepEqual(JSON.parse(gunzipSync(rooms[0].data)), [{ id: 'door', position: [0,0,0, 1,0,0, 0,1,0], index: [0,1,2], uv: [], texture: null, color: null, number: '4', doorOpenType: 'left', doorMotion: null, isDoor: true, hinges: [], hingeCount: 0 }]);
 assert.deepEqual(prepare(model, '123', [{ orderId: '123', splitId: 'door', laberNumber: '000123' }])[0].matches, [{ id: 'door', serial: '000123', number: '4' }]);
 assert.throws(() => prepare(model, '123', [{ orderId: 'other', splitId: 'door', laberNumber: '000123' }]), /Invalid panel mapping/);
 const parent = { id: 'parent', position: [10,20,30], quaternion: [0,0,Math.SQRT1_2,Math.SQRT1_2], scale: [1,1,1] };
@@ -53,6 +53,30 @@ model.value.docs[0].renderHoleModels = [{ geometryType: 'h1', geometry: { positi
 const hinge = JSON.parse(gunzipSync(prepare(model, '123')[0].data))[0].hinges[0];
 assert.deepEqual(hinge.matrix.slice(12, 15), [10, 20, 30]);
 assert.deepEqual(hinge.index, []);
+assert.equal(JSON.parse(gunzipSync(prepare(model, '123')[0].data))[0].hingeCount, 1);
+model.value.docs[0].renderHoleModels = [];
+const noMesh = JSON.parse(gunzipSync(prepare(model, '123')[0].data))[0];
+assert.equal(noMesh.hingeCount, 1, 'hardware exists even if its render mesh is missing');
+assert.equal(noMesh.hinges.length, 0);
+model.value.docs[0].renderHoleModels = [{ geometryType: 'h1', geometry: { position: [0,0,0,1,0,0,0,1,0], index: [] } }];
+model.value.docs[0].models[1].parentId = 'cabinet';
+model.value.docs[0].models[1].relaPlankIds = ['cabinet', 'door'];
+assert.equal(JSON.parse(gunzipSync(prepare(model, '123')[0].data))[0].hinges.length, 1, 'linked door must receive its hinge even when it is not the parent');
+model.value.docs[0].models.push({ id: 'cabinet' });
+model.value.docs[0].renderModels.push({ modelId: 'cabinet', geometry: { position: [0,0,0, 1,0,0, 0,1,0], index: [0,1,2] } });
+assert.equal(JSON.parse(gunzipSync(prepare(model, '123')[0].data))[1].hinges.length, 0, 'linked hinge must not also be rendered on its parent cabinet');
+const transform = { position: [0,0,0], quaternion: [0,0,0,1], scale: [1,1,1] };
+const drawerModel = { value: { orderId: '123', docs: [{ houseId: 'drawer-room', models: [
+	{ id: 'group', className: 'BaseModuleGroupModel', moduleType: '06', ...transform, quaternion: [0,0,Math.SQRT1_2,Math.SQRT1_2] },
+	{ id: 'nested', parentId: 'group', ...transform },
+	{ id: 'drawer', parentId: 'nested', ...transform },
+	{ id: 'rail', className: 'BasePlankHardwareModel', funcType: '03', relaPlankIds: ['drawer'], objFileId: 'rail-mesh', instanceMatrix: mount(0,0,0).matrix },
+], renderModels: [{ modelId: 'drawer', geometry: { position: [0,0,0,1,0,0,0,1,0], index: [0,1,2] } }], renderHoleModels: [{ geometryType: 'rail-mesh', geometry: { position: [0,0,0,1,0,0,0,1,0], index: [0,1,2] } }] }] } };
+const drawer = JSON.parse(gunzipSync(prepare(drawerModel, '123')[0].data))[0];
+near(drawer.drawerOffset, [300,0,0]);
+assert.equal(drawer.drawerRails.length, 1, 'linked rail must follow the drawer');
+drawerModel.value.docs[0].models[1].parentId = 'missing';
+assert.equal(JSON.parse(gunzipSync(prepare(drawerModel, '123')[0].data))[0].drawerOffset, undefined, 'unresolved hierarchy must not invent motion');
 assert.throws(() => prepare(model, '456'));
 model.value.docs[0].renderModels[0].geometry.index[2] = 3;
 assert.throws(() => prepare(model, '123'));

@@ -46,11 +46,11 @@ export async function saveTrialModel(id: string, name: string, rooms: { id: stri
 	return { revision, created: result[1].rowsAffected > 0 };
 }
 
-export async function searchTrialPanels(code: string) {
+export async function searchTrialPanels(code: string, serialOnly = false) {
 	await ensureTrialSchema();
 	if (!code || code.length > 100) return [];
-	const result = await db.execute({ sql: "SELECT p.model_id, p.room_id, p.panel_id, p.serial, p.number, m.name FROM ppic_trial_panel_search p JOIN ppic_trial_model m ON m.id = p.model_id AND m.active_revision = p.revision WHERE p.serial = ? OR p.number = ? ORDER BY m.name LIMIT 100", args: [code, code] });
-	return result.rows.map((row) => ({ modelId: String(row.model_id), roomId: String(row.room_id), panelId: String(row.panel_id), serial: String(row.serial), number: String(row.number), name: String(row.name) }));
+	const result = await db.execute({ sql: "SELECT p.model_id, p.revision, p.room_id, p.panel_id, p.serial, p.number, m.name FROM ppic_trial_panel_search p JOIN ppic_trial_model m ON m.id = p.model_id AND m.active_revision = p.revision WHERE p.serial = ? OR (p.number = ? AND ? = 0) ORDER BY m.name LIMIT 100", args: [code, code, Number(serialOnly)] });
+	return result.rows.map((row) => ({ modelId: String(row.model_id), revision: String(row.revision), roomId: String(row.room_id), panelId: String(row.panel_id), serial: String(row.serial), number: String(row.number), name: String(row.name) }));
 }
 
 export async function readTrialModel(id: string, revision: string) {

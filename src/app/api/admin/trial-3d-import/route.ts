@@ -4,7 +4,7 @@ import { canImportLby } from "@/lib/db";
 import { clickUpToken, ppicSession } from "@/lib/session";
 import { parseShareLink } from "../../../../../scripts/import-lby-project.cjs";
 import { fetchPublicModel } from "../../../../../scripts/public-model-import.cjs";
-import { activateTrialModel, listTrialModels, readTrialModel, saveTrialModel } from "@/lib/trialPublicModels";
+import { activateTrialModel, listTrialModels, readTrialModel, saveTrialModel, searchTrialPanels } from "@/lib/trialPublicModels";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -17,6 +17,18 @@ async function allowed() {
 export async function GET(request: Request) {
 	if (!(await allowed())) return NextResponse.json({ error: "Akses ditolak." }, { status: 403 });
 	const params = new URL(request.url).searchParams;
+	const serial = params.get("serial");
+	if (serial !== null) {
+		if (!serial.trim() || serial.length > 100) return new Response(null, { status: 400 });
+		const matches = await searchTrialPanels(serial.trim(), true);
+		const models = await listTrialModels();
+		const results = await Promise.all(matches.map(async (item) => {
+			const revision = models.find((model) => model.id === item.modelId && model.activeRevision === item.revision)?.activeRevision;
+			const snapshot = revision && await readTrialModel(item.modelId, revision);
+			return snapshot && revision ? { ...item, revision, rooms: snapshot.rooms.map(({ id, name }) => ({ id, name })) } : null;
+		}));
+		return NextResponse.json({ results: results.filter(Boolean) }, { headers: { "Cache-Control": "no-store" } });
+	}
 	const id = params.get("id"), revision = params.get("revision");
 	if (id || revision) {
 		if (!id || !/^\d{1,30}$/.test(id) || !revision || !/^[a-f0-9]{64}$/.test(revision)) return new Response(null, { status: 400 });

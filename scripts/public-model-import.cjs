@@ -4,8 +4,7 @@ const { unzipModel } = require('./import-lby-project.cjs');
 const { isHinge } = require('./lby-panel-geometry.cjs');
 const { Matrix3, Matrix4, Vector3, Quaternion } = require('three');
 
-function doorMotion(model, models, opening, hinges = []) {
-	if (!model || !opening) return null;
+function worldMatrix(model, models) {
 	const world = new Matrix4();
 	const seen = new Set();
 	let item = model;
@@ -16,6 +15,13 @@ function doorMotion(model, models, opening, hinges = []) {
 		if (item.parentId && !models.has(item.parentId)) return null;
 		item = item.parentId ? models.get(item.parentId) : null;
 	}
+	return world;
+}
+
+function doorMotion(model, models, opening, hinges = []) {
+	if (!model || !opening) return null;
+	const world = worldMatrix(model, models);
+	if (!world) return null;
 	// shortcut: only correct axis-aligned X mirrors without hinge anchors; use verified hinge data for rotated mirrors.
 	if (!hinges.length && world.determinant() < 0 && new Vector3(1, 0, 0).transformDirection(world).x < -0.999999 && (opening === 'left' || opening === 'right')) opening = opening === 'left' ? 'right' : 'left';
 	const horizontal = opening === 'left' || opening === 'right';
@@ -62,6 +68,36 @@ function prepare(model, orderId, panels = []) {
 		assert(typeof doc.houseId === 'string' && doc.houseId && Array.isArray(doc.renderModels), 'Invalid room');
 		const models = new Map((doc.models || []).map((item) => [item.id, item]));
 		const hingeMeshes = new Map((doc.renderHoleModels || []).map((mesh) => [mesh.geometryType, mesh.geometry]));
+		const drawerParts = new Map();
+		for (const { modelId } of doc.renderModels) {
+			const item = models.get(modelId);
+			const seen = new Set();
+			let parent = item;
+			while (parent && !seen.has(parent.id)) {
+				seen.add(parent.id);
+				if (parent.className === 'BaseModuleGroupModel' && parent.moduleType === '06') {
+					const world = worldMatrix(item, models);
+					if (world) {
+						const rotation = new Quaternion();
+						world.decompose(new Vector3(), rotation, new Vector3());
+						drawerParts.set(modelId, new Vector3(0, -300, 0).applyQuaternion(rotation).toArray());
+					}
+					break;
+				}
+				parent = models.get(parent.parentId);
+			}
+		}
+		const drawerRails = new Map();
+		for (const item of doc.models || []) {
+			if (item.className !== 'BasePlankHardwareModel' || !(item.funcType === '03' || /rail|slide|三节轨/i.test(item.name || ''))) continue;
+			const panelId = Array.isArray(item.relaPlankIds) && item.relaPlankIds.find((id) => drawerParts.has(id));
+			if (!panelId) continue;
+			const mesh = hingeMeshes.get(item.objFileId);
+			const index = Array.isArray(mesh?.index) ? mesh.index : Object.values(mesh?.index || {});
+			if (!Array.isArray(mesh?.position) || !mesh.position.length || mesh.position.length % 3 || !mesh.position.every(Number.isFinite) || index.length % 3 || !index.every((n) => Number.isInteger(n) && n >= 0 && n < mesh.position.length / 3) || !Array.isArray(item.instanceMatrix) || item.instanceMatrix.length !== 16 || !item.instanceMatrix.every(Number.isFinite)) continue;
+			if (!drawerRails.has(panelId)) drawerRails.set(panelId, []);
+			drawerRails.get(panelId).push({ position: mesh.position, index, matrix: item.instanceMatrix });
+		}
 		const matches = [];
 		const geometry = doc.renderModels.map(({ modelId, geometry: g }) => {
 			assert(Array.isArray(g?.position) && g.position.length % 3 === 0 && g.position.every(Number.isFinite), 'Invalid positions');
@@ -70,7 +106,12 @@ function prepare(model, orderId, panels = []) {
 			const model = models.get(modelId);
 			if (typeof modelId === 'string') matches.push({ id: modelId, serial: serials.get(modelId) || '', number: String(model?.roomPlankIdx || '') });
 			let doorOpenType = ['left', 'right', 'up', 'bottom'].includes(model?.doorOpenType) ? model.doorOpenType : null;
-			const hinges = (doc.models || []).filter((item) => item.parentId === modelId && isHinge(item)).flatMap((item) => {
+			const hingeModels = (doc.models || []).filter((item) => {
+				if (!isHinge(item)) return false;
+				const linkedDoors = Array.isArray(item.relaPlankIds) ? item.relaPlankIds.filter((id) => ['left', 'right', 'up', 'bottom'].includes(models.get(id)?.doorOpenType)) : [];
+				return linkedDoors.length ? linkedDoors.includes(modelId) : item.parentId === modelId;
+			});
+			const hinges = hingeModels.flatMap((item) => {
 				const mesh = hingeMeshes.get(item.objFileId);
 				if (!Array.isArray(mesh?.position) || !mesh.position.length || mesh.position.length % 3 || !mesh.position.every(Number.isFinite) || !Array.isArray(item.instanceMatrix) || item.instanceMatrix.length !== 16 || !item.instanceMatrix.every(Number.isFinite)) return [];
 				const indices = Array.isArray(mesh.index) ? mesh.index : Object.values(mesh.index || {});
@@ -82,7 +123,7 @@ function prepare(model, orderId, panels = []) {
 			if (motion) doorOpenType = motion.opening;
 			const texture = uv.length && typeof model?.textureImage === 'string' && /^\d{1,30}$/.test(model.textureImage) ? model.textureImage : null;
 			const color = Number.isInteger(model?.color) && model.color >= 0 && model.color <= 0xffffff ? model.color : null;
-			return { id: modelId, position: g.position, index, uv, texture, color, number: String(model?.roomPlankIdx || ''), doorOpenType, doorMotion: motion && { pivot: motion.pivot, axis: motion.axis }, isDoor: Boolean(doorOpenType || /门板|門板|\bdoor\b|\bpintu\b/i.test(model?.name || '')), hinges };
+			return { id: modelId, position: g.position, index, uv, texture, color, number: String(model?.roomPlankIdx || ''), doorOpenType, doorMotion: motion && { pivot: motion.pivot, axis: motion.axis }, isDoor: Boolean(doorOpenType || /门板|門板|\bdoor\b|\bpintu\b/i.test(model?.name || '')), hinges, hingeCount: hingeModels.length, ...(drawerParts.has(modelId) ? { drawerOffset: drawerParts.get(modelId), drawerRails: drawerRails.get(modelId) || [] } : {}) };
 		});
 		return { id: doc.houseId, name: String(doc.houseName || doc.houseId), data: gzipSync(JSON.stringify(geometry)), matches };
 	});
