@@ -75,6 +75,7 @@ export const SearchPanelLocationPage = ({
 				<header className="absolute inset-x-3 top-3 z-20 flex min-w-0 items-center gap-2">
 					<Link
 						href="/cari-lokasi"
+						aria-label="Kembali ke pencarian lokasi"
 						className={buttonVariants({
 							variant: "outline",
 							size: "sm",

@@ -3,12 +3,21 @@ import { listTrialModels, readTrialModel } from "@/lib/trialPublicModels";
 
 export const runtime = "nodejs";
 
+// shortcut: cache one revision per process; use bounded shared storage if traffic spans many models or instances.
+let cached: { key: string; snapshot: ReturnType<typeof readTrialModel> } | undefined;
+
 export async function GET(request: Request) {
 	const params = new URL(request.url).searchParams;
 	const id = params.get("id"), revision = params.get("revision"), room = params.get("room"), texture = params.get("texture");
 	if (!id || !/^\d{1,30}$/.test(id) || !revision || !/^[a-f0-9]{64}$/.test(revision) || Boolean(room) === Boolean(texture)) return new Response(null, { status: 400 });
 	if (!(await listTrialModels()).some((model) => model.id === id && model.activeRevision === revision)) return new Response(null, { status: 404 });
-	const snapshot = await readTrialModel(id, revision);
+	const key = `${id}:${revision}`;
+	if (cached?.key !== key) {
+		const entry = { key, snapshot: readTrialModel(id, revision) };
+		cached = entry;
+		entry.snapshot.catch(() => { if (cached === entry) cached = undefined; });
+	}
+	const snapshot = await cached.snapshot;
 	if (!snapshot) return new Response(null, { status: 404 });
 	const headers = { "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" };
 	if (room) {
