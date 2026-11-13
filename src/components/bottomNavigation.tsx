@@ -110,7 +110,11 @@ export function BottomNavigation({
 							aria-current={active ? "page" : undefined}
 							className={className}
 						>
-							<NavigationItemContent active={active} icon={Icon} label={label} />
+							<NavigationItemContent
+								active={active}
+								icon={Icon}
+								label={label}
+							/>
 						</Link>
 					</Fragment>
 				);

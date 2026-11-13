@@ -123,6 +123,7 @@ async function main() {
 							[0, 30, 200],
 						],
 					},
+					{ barcode: "000124", roomName: "Bedroom", panelNumber: "2", corners: [[0,0,0],[100,0,0],[100,30,0],[0,30,0],[0,0,200],[100,0,200],[100,30,200],[0,30,200]] },
 				],
 			});
 			const mapping = JSON.stringify({
@@ -137,8 +138,8 @@ async function main() {
 				revision,
 				version: `inline-v${n}`,
 				importedAt: `2026-10-29T0${n}:00:00Z`,
-				panelCount: 1,
-				roomCount: 1,
+				panelCount: 2,
+				roomCount: 2,
 				sampleBarcode: "000123",
 				mappingSha256: sha(mapping),
 			};
@@ -186,6 +187,23 @@ async function main() {
 		await expect(
 			preview.locator("svg[data-selected-barcode='000123']"),
 		).toBeVisible();
+		await expect(page.getByRole("navigation", { name: "Main navigation" })).toBeVisible();
+		const viewport = await preview.locator("svg[data-selected-barcode]").boundingBox();
+		assert(viewport.width >= 380 && viewport.height > 600, "preview fills the screen above navigation");
+		const slider = await preview.getByRole("slider", { name: "Jarak explode" }).boundingBox();
+		const navigation = await page.getByRole("navigation", { name: "Main navigation" }).boundingBox();
+		assert(slider.y + slider.height <= navigation.y && navigation.y - (slider.y + slider.height) < 45, "slider stays immediately above bottom navigation");
+		assert((await check.boundingBox()).y + (await check.boundingBox()).height < slider.y, "review stays above the slider");
+		const controls = preview.getByRole("button", { name: "Reset tampilan" });
+		const beforeScroll = await controls.boundingBox();
+		await page.evaluate(() => window.scrollTo(0, 1000));
+		assert.equal((await controls.boundingBox()).y, beforeScroll.y, "viewer controls stay fixed while scrolling");
+		await preview.getByRole("combobox", { name: "Ruangan" }).click();
+		await page.getByRole("option", { name: "Bedroom" }).click();
+		await expect(preview.locator("svg[data-selected-barcode='000124']")).toBeVisible();
+		await preview.getByRole("combobox", { name: "Ruangan" }).click();
+		await page.getByRole("option", { name: "Kitchen" }).click();
+		await expect(preview.locator("svg[data-selected-barcode='000123']")).toBeVisible();
 		await expect(
 			preview.getByRole("button", { name: "Aktifkan model", exact: true }),
 		).toBeDisabled();
@@ -232,6 +250,12 @@ async function main() {
 		).width;
 		await page.setViewportSize({ width: 1440, height: 1000 });
 		await expect(preview.locator("svg[data-selected-barcode]")).toBeVisible();
+		await expect.poll(async () => (await preview.locator("svg[data-selected-barcode]").boundingBox()).width).toBeGreaterThan(mobileWidth * 2);
+		const desktopSlider = await preview.getByRole("slider", { name: "Jarak explode" }).boundingBox();
+		const desktopCheck = await check.boundingBox();
+		const desktopNav = await page.getByRole("navigation", { name: "Main navigation" }).boundingBox();
+		assert(desktopCheck.x + desktopCheck.width < desktopSlider.x, "desktop review and slider remain separate");
+		assert(desktopSlider.y + desktopSlider.height <= desktopNav.y, "desktop slider stays above navigation");
 		assert(
 			(await preview.locator("svg[data-selected-barcode]").boundingBox())
 				.width >

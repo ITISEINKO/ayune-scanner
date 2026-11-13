@@ -1,0 +1,16 @@
+const assert = require("node:assert/strict");
+const { readFileSync } = require("node:fs");
+const { transpileModule, ModuleKind } = require("typescript");
+const { runInNewContext } = require("node:vm");
+const loaded = { exports: {} };
+runInNewContext(transpileModule(readFileSync("src/lib/panelNumberLabels.ts", "utf8"), { compilerOptions: { module: ModuleKind.CommonJS } }).outputText, { module: loaded, exports: loaded.exports });
+const bounds = { left: 0, top: 0, right: 300, bottom: 300 };
+const close = [{ barcode: "a", number: "32", x: 140, y: 140 }, { barcode: "b", number: "33", x: 145, y: 140 }];
+const labels = loaded.exports.layoutPanelNumbers(close, 1, bounds);
+assert.equal(labels.length, 1, "overlapping labels must not be displaced onto another panel");
+assert.equal(labels[0].x, close[0].x);
+assert.equal(labels[0].y, close[0].y);
+assert.equal(loaded.exports.layoutPanelNumbers([close[0], { ...close[1], x: 200 }], 1, bounds).length, 2, "separated labels remain visible");
+assert.equal(loaded.exports.layoutPanelNumbers([{ ...close[0] }, { ...close[1], x: 140 }], 1, bounds).length, 0, "indistinguishable anchors must not be mislabeled");
+assert(loaded.exports.layoutPanelNumbers(close, 1, bounds).every((label) => label.x - label.width / 2 >= bounds.left && label.x + label.width / 2 <= bounds.right));
+console.log("Panel number collision checks passed");

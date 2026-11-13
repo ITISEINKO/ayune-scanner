@@ -12,7 +12,7 @@ export default async function MemberLayout({
 	return (
 		<>
 			{children}
-			<SessionRefresh
+			{session && <SessionRefresh
 				refreshAfter={Math.max(
 					0,
 					PPIC_SESSION_REFRESH_TTL_MS -
@@ -20,7 +20,7 @@ export default async function MemberLayout({
 				)}
 				refreshedAt={session?.refreshed_at ?? 0}
 				userId={session?.user_id ?? null}
-			/>
+			/>}
 			<BottomNavigation role={session?.role ?? null} workspace={session?.can_import_lby ? "drafter" : undefined} />
 		</>
 	);

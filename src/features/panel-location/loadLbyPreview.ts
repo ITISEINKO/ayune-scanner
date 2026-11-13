@@ -12,7 +12,7 @@ export async function loadLbyPreview(project: string, barcode: string, revision:
 		typeof barcode !== "string" || barcode.length > 100 ||
 		(revision !== null && (typeof revision !== "string" || !/^[a-f0-9]{64}$/.test(revision))))
 		throw new Error("Model preview tidak valid.");
-	const location = await getPanelLocation(project, barcode, revision ?? undefined, revision === null);
+	const location = await getPanelLocation(project, barcode, revision ?? undefined, revision === null, true);
 	if (!location?.panels.length) throw new Error("Model preview tidak tersedia.");
 	return location;
 }

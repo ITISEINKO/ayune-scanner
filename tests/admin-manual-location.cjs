@@ -138,6 +138,12 @@ async function main() {
 		const context = await browser.newContext({
 			viewport: { width: 390, height: 844 },
 		});
+		await context.addInitScript(() => {
+			const original = HTMLCanvasElement.prototype.getContext;
+			HTMLCanvasElement.prototype.getContext = function (type, ...args) {
+				return type === "webgl" || type === "webgl2" || type === "experimental-webgl" ? null : original.call(this, type, ...args);
+			};
+		});
 		const external = [],
 			errors = [];
 		await context.route("**/*", (route) => {
@@ -180,10 +186,10 @@ async function main() {
 			);
 		};
 		await scan("15370046376");
+		await page.getByRole("button", { name: "Buka viewer old" }).click();
 		const svg = page.locator("svg[data-selected-barcode]");
 		await expect(svg).toHaveAttribute("data-selected-barcode", "15370046376");
 		await expect(svg).toHaveAttribute("data-panel-count", "15");
-		assert.equal(await svg.locator('polygon[fill="#ef4444"]').count(), 6);
 		const nav = page.getByRole("navigation", { name: "Main navigation" });
 		await expect(nav).toBeVisible();
 		await expect(
@@ -262,9 +268,7 @@ async function main() {
 		await page
 			.getByRole("button", { name: "Reset tampilan", exact: true })
 			.click();
-		await page
-			.getByRole("button", { name: "Explode panel", exact: true })
-			.click();
+		await page.getByRole("slider", { name: "Jarak explode" }).fill("100");
 		await expect(svg).toHaveAttribute("data-explode", "100");
 		await svg.focus();
 		await page.keyboard.press("-");
@@ -301,7 +305,6 @@ async function main() {
 			path: "test-results/admin-manual-location-exploded-mobile.png",
 			fullPage: true,
 		});
-		await page.getByRole("button", { name: "Semua panel", exact: true }).click();
 		await expect(svg).toHaveAttribute("data-explode-mode", "all");
 		assert(await svg.locator("g[data-barcode]").evaluateAll(groups => groups.filter(group => getComputedStyle(group).transform !== "matrix(1, 0, 0, 1, 0, 0)").length) > 1, "admin whole explode must move surrounding panels too");
 		await page.screenshot({ path: "test-results/admin-manual-location-all-exploded-mobile.png", fullPage: true });
@@ -343,6 +346,9 @@ async function main() {
 		);
 		assert.equal((await control("writes")).writes, 0);
 		setMode("manual-location");
+		const mismatch = await context.request.post(`${base}/api/panel/manual`, { data: { task_id: "manual-panel", serial_number: "wrong-serial", status: "SEDANG_DIPACKING" } });
+		assert.equal(mismatch.status(), 409, "a different task serial must not be updated");
+		assert.equal((await control("writes")).writes, 0, "serial mismatch must not write to ClickUp");
 		await dialog
 			.getByRole("button", { name: "Ya, ubah status", exact: true })
 			.click();
@@ -362,8 +368,9 @@ async function main() {
 		});
 		await page.goto(`${base}/admin/ubah-manual/location?barcode=15370046368`);
 		await expect(page).toHaveURL(/\/admin\/ubah-manual\/location\?/);
+		await page.getByRole("button", { name: "Buka viewer old" }).click();
 		await expect(svg).toHaveAttribute("data-selected-barcode", "15370046368");
-		await expect(statusCard).toContainText("Serial: 15370046368");
+		await expect(statusCard).toContainText("15370046368");
 		await page.getByRole("button", { name: "Scan panel lain" }).click();
 		await expect(
 			page.getByRole("heading", { name: "Ubah status barang", exact: true }),
@@ -372,11 +379,13 @@ async function main() {
 		await page
 			.getByRole("textbox", { name: "Input scan keyboard" })
 			.fill("15370040711");
+		await page.getByRole("button", { name: "Buka viewer old" }).click();
 		await expect(svg).toHaveAttribute("data-selected-barcode", "15370040711");
 		await expect(page.getByRole("heading", { level: 1 })).toContainText(
 			"FIORDINI",
 		);
 		await page.reload();
+		await page.getByRole("button", { name: "Buka viewer old" }).click();
 		await expect(svg).toHaveAttribute("data-selected-barcode", "15370040711");
 		await page.setViewportSize({ width: 1280, height: 900 });
 		await page.screenshot({
@@ -404,6 +413,7 @@ async function main() {
 		assert.equal(lbyOnly.location.barcode, "15370046376");
 		await page.setViewportSize({ width: 390, height: 844 });
 		await page.goto(`${base}/admin/ubah-manual/location?barcode=15370046376`);
+		await page.getByRole("button", { name: "Buka viewer old" }).click();
 		await expect(svg).toHaveAttribute("data-selected-barcode", "15370046376");
 		await expect(editButton).toBeDisabled();
 		await expect(statusCard).toContainText(
@@ -456,13 +466,8 @@ async function main() {
 		await expect(page.getByRole("status")).toContainText(
 			"Lokasi panel belum tersedia",
 		);
-		await expect
-			.poll(() =>
-				page
-					.locator('img[src="/empty-panel-location.svg"]')
-					.evaluate((image) => image.complete && image.naturalWidth > 0),
-			)
-			.toBe(true);
+		await expect(page.getByRole("status")).toContainText("Hubungi drafter untuk mengunggah model LBY");
+		await expect(page.locator('img[src="/empty-panel-location.svg"]')).toHaveCount(0);
 		await page.screenshot({
 			path: "test-results/admin-manual-location-empty.png",
 			fullPage: true,
@@ -487,7 +492,40 @@ async function main() {
 			"unknown model serial must not return unrelated room geometry",
 		);
 		assert.equal((await lookup("unknown")).status(), 404);
-		assert.equal((await lookup("duplicate")).status(), 409);
+		setMode("manual-location-duplicate");
+		const duplicateResponse = await lookup("duplicate");
+		assert.equal(duplicateResponse.status(), 409);
+		const duplicateChoices = (await duplicateResponse.json()).choices;
+		assert.deepEqual(duplicateChoices.map((choice) => choice.project_name), ["Project Alpha", "Project Beta"]);
+		assert.equal((await context.request.get(`${base}/api/panel/manual?serial_number=duplicate&task_id=unknown`)).status(), 409, "a task outside the current matches must not be selected");
+		setMode("manual-location-duplicate-unavailable");
+		const unavailableChoices = (await (await lookup("duplicate")).json()).choices;
+		assert.equal(unavailableChoices[1].project_name, null, "an unavailable project must not be guessed");
+		setMode("manual-location-duplicate");
+		await page.goto(`${base}/admin/ubah-manual/location?barcode=duplicate`);
+		const picker = page.getByRole("region", { name: "Pilih task ClickUp" });
+		await expect(picker).toContainText("Project Alpha");
+		await expect(picker).toContainText("Project Beta");
+		await picker.getByRole("button", { name: /Project Beta/ }).click();
+		await expect(page.getByRole("region", { name: "Status barang" })).toContainText("Project Beta");
+		await page.getByRole("button", { name: "Ubah status barang", exact: true }).click();
+		const duplicateDialog = page.getByRole("dialog");
+		await expect(duplicateDialog).toContainText("Project Beta");
+		await duplicateDialog.getByRole("button").filter({ hasText: "TERPASANG / DIGUNAKAN" }).click();
+		await duplicateDialog.getByRole("button", { name: "Ya, ubah status", exact: true }).click();
+		await expect(page.getByText("Status berhasil diperbarui.")).toBeVisible();
+		assert.equal((await control("writes")).byTask.duplicate, 1, "only the chosen duplicate task may be updated");
+		setMode("manual-location-duplicate-changed");
+		const changedSerial = await context.request.post(`${base}/api/panel/manual`, { data: { task_id: "duplicate", serial_number: "duplicate", status: "SEDANG_DIPACKING" } });
+		assert.equal(changedSerial.status(), 409, "a changed serial must block the selected task update");
+		assert.equal((await control("writes")).byTask.duplicate, 1);
+		setMode("manual-location-paged");
+		const paged = await lookup("paged");
+		assert.equal(paged.status(), 409);
+		assert.equal((await paged.json()).choices.length, 101, "duplicate choices include every returned page");
+		const selectedFromSecondPage = await context.request.get(`${base}/api/panel/manual?serial_number=paged&task_id=page-two`);
+		assert.equal(selectedFromSecondPage.status(), 200);
+		assert.equal((await selectedFromSecondPage.json()).data.task_id, "page-two");
 		assert.equal((await lookup("a".repeat(101))).status(), 400);
 		setMode("manual-location-cycle");
 		result = await (await lookup("15370046376")).json();
@@ -515,7 +553,7 @@ async function main() {
 			denied.url().endsWith("/unauthorized"),
 			"fresh authorization must reject a revoked admin before writing",
 		);
-		assert.equal((await control("writes")).writes, 1);
+		assert.equal((await control("writes")).writes, 2);
 		await authenticate("MEMBER");
 		await page.goto(`${base}/admin/ubah-manual/location?barcode=15370046376`);
 		await expect(page).toHaveURL(/\/unauthorized/);

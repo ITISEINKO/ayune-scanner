@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { LbyImportPage } from "@/features/panel-location/LbyImportPage";
+import { Trial3DImportPage } from "@/features/trial-import/Trial3DImportPage";
 import { canImportLby } from "@/lib/db";
 import { ppicSession } from "@/lib/session";
 
@@ -9,5 +9,5 @@ export default async function AdminImport3D() {
 	const session = await ppicSession();
 	if (!session) redirect("/login");
 	if (!(await canImportLby(session.user_id))) redirect("/unauthorized");
-	return <LbyImportPage workspace="Admin" />;
+	return <Trial3DImportPage workspace="Admin" />;
 }

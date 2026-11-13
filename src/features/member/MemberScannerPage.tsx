@@ -23,7 +23,7 @@ const messageFor = (error?: string) =>
 	({
 		MISSING_SERIAL_NUMBER: "Serial number wajib diisi.",
 		SERIAL_NUMBER_NOT_FOUND: "Serial number tidak ditemukan.",
-		DUPLICATE_SERIAL_NUMBER: "Serial number terdaftar lebih dari satu kali.",
+		DUPLICATE_SERIAL_NUMBER: "Serial number terdaftar lebih dari satu kali dalam project ini. Hubungi admin untuk memeriksa.",
 		CLICKUP_STATUS_UPDATE_FAILED: "Status Barang Scan gagal diperbarui.",
 		SCAN_HISTORY_SAVE_FAILED:
 			"Status sudah diubah, tetapi riwayat belum tersimpan. Scan ulang serial ini.",
