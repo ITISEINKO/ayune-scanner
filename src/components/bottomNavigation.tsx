@@ -25,13 +25,13 @@ const superAdminItems = [
 ];
 const memberItems = [
 	{ href: "/projects", label: "Projects", icon: FolderKanban },
-	{ href: "/panel-viewer", label: "Cari", icon: Search },
+	{ href: "/cari-lokasi", label: "Cari", icon: Search },
 	{ href: "/history", label: "History", icon: History },
 	{ href: "/profile", label: "Profile", icon: User },
 ];
 const drafterItems = [
 	{ href: "/drafter", label: "Models", icon: FolderKanban },
-	{ href: "/panel-viewer", label: "Cari", icon: Search },
+	{ href: "/cari-lokasi", label: "Cari", icon: Search },
 	{ href: "/drafter/profile", label: "Profile", icon: User },
 ];
 
