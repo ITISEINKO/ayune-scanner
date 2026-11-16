@@ -108,14 +108,10 @@ export async function createPanelViewer(
 			canvas.height = 128;
 			const context = canvas.getContext("2d");
 			if (context) {
-				context.fillStyle = "#111827";
-				context.strokeStyle = "#ffffff";
-				context.lineWidth = 8;
-				context.lineJoin = "round";
+				context.fillStyle = "#B6FF00";
 				context.textAlign = "center";
 				context.textBaseline = "middle";
 				context.font = "bold 80px sans-serif";
-				context.strokeText(part.number, 64, 64, 100);
 				context.fillText(part.number, 64, 64, 100);
 				const texture = new THREE.CanvasTexture(canvas);
 				texture.colorSpace = THREE.SRGBColorSpace;
@@ -244,12 +240,23 @@ export async function createPanelViewer(
 		}
 		renderer.render(scene, camera);
 	};
-	controls.addEventListener("change", () => renderer.render(scene, camera));
+	const scaleLabels = () =>
+		sprites.forEach((sprite) =>
+			sprite.scale.setScalar(
+				extent *
+					(window.innerWidth < 640 ? 0.02 : 0.035) *
+					Math.max(1, camera.position.distanceTo(controls.target) / extent),
+			),
+		);
+	controls.addEventListener("change", () => {
+		scaleLabels();
+		renderer.render(scene, camera);
+	});
 	controls.addEventListener("end", render);
 	const resize = new ResizeObserver(() => {
 		const { clientWidth, clientHeight } = target;
 		if (!clientWidth || !clientHeight) return;
-		sprites.forEach((sprite) => sprite.scale.setScalar(extent * (window.innerWidth < 640 ? 0.02 : 0.035)));
+		scaleLabels();
 		camera.aspect = clientWidth / clientHeight;
 		camera.updateProjectionMatrix();
 		renderer.setSize(clientWidth, clientHeight);
