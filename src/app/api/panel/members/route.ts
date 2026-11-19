@@ -3,11 +3,13 @@ import { revalidateTag } from "next/cache";
 import {
 	deactivatePpicPermission,
 	getPpicMemberAccess,
+	getPanelMembersSnapshot,
 	getLbyImportPermissions,
 	getPpicAccess,
 	isPpicRole,
 	isPpicSuperAdmin,
 	savePpicMemberNames,
+	savePanelMembersSnapshot,
 	savePpicPermission,
 	savePpicRole,
 	saveLbyImportPermission,
@@ -18,6 +20,7 @@ import {
 	clickUpUserId,
 	panelChannelMembers,
 	PANEL_MEMBERS_CACHE_TAG,
+	ppicSession,
 } from "@/lib/session";
 
 const accessError = (status: 401 | 403 | 502) =>
@@ -34,16 +37,24 @@ const accessError = (status: 401 | 403 | 502) =>
 		{ status },
 	);
 
-export async function GET() {
-	const result = await panelChannelMembers();
-	if (!result.ok) return accessError(result.status);
+export async function GET(request: Request) {
 	try {
-		const [, access, lbyImporters] = await Promise.all([
-			savePpicMemberNames(result.members),
-			getPpicMemberAccess(result.members.map((member) => member.id)),
-			getLbyImportPermissions(result.members.map((member) => member.id)),
+		const userId = (await ppicSession())?.user_id;
+		if (!userId) return accessError(401);
+		if (!(await isPpicSuperAdmin(userId))) return accessError(403);
+		let members = await getPanelMembersSnapshot();
+		if (new URL(request.url).searchParams.get("refresh") === "1" || members === null) {
+			revalidateTag(PANEL_MEMBERS_CACHE_TAG, { expire: 0 });
+			const result = await panelChannelMembers();
+			if (!result.ok) return accessError(result.status);
+			members = result.members;
+			await Promise.all([savePanelMembersSnapshot(members), savePpicMemberNames(members)]);
+		}
+		const [access, lbyImporters] = await Promise.all([
+			getPpicMemberAccess(members.map((member) => member.id)),
+			getLbyImportPermissions(members.map((member) => member.id)),
 		]);
-		return NextResponse.json({ ...result, ...access, lbyImporters });
+		return NextResponse.json({ ok: true, members, ...access, lbyImporters }, { headers: { "Cache-Control": "private, no-store" } });
 	} catch {
 		return NextResponse.json(
 			{ ok: false, error: "DATABASE_ERROR" },

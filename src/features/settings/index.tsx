@@ -283,7 +283,7 @@ export const SettingPage = ({
 								<Button
 									type="button"
 									variant="ghost"
-									className="absolute inset-0 size-full rounded-2xl"
+									className="absolute inset-0 size-full cursor-pointer rounded-2xl hover:bg-transparent! dark:hover:bg-transparent! aria-expanded:bg-transparent!"
 									aria-label={`Lihat detail ${member.name}`}
 									aria-haspopup="dialog"
 									disabled={

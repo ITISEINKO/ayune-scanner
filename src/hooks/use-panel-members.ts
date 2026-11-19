@@ -15,6 +15,8 @@ import {
 } from "@/types/ppic";
 import type { PpicRole, PpicStatuses } from "@/types/ppic";
 
+let reloadSynced = false;
+
 const loadMembers = async () => {
 	const response = await fetch("/api/panel/members", { cache: "no-store" });
 	const data = (await response.json()) as {
@@ -86,6 +88,14 @@ export function usePanelMembers() {
 
 	useEffect(() => {
 		let closed = false;
+		const navigation = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
+		if (navigation?.type === "reload" && !reloadSynced) {
+			reloadSynced = true;
+			void fetch("/api/panel/members?refresh=1", { cache: "no-store" }).then((response) => {
+				if (!response.ok) throw new Error("members refresh");
+				if (!closed) return queryClient.invalidateQueries({ queryKey: panelMembersQuery.queryKey });
+			}).catch(console.error);
+		}
 		const realtime = new Ably.Realtime({ authUrl: "/api/ably/token" });
 		const channel = realtime.channels.get("ppic:settings");
 		const onMemberUpdated = (message: Ably.InboundMessage) => {

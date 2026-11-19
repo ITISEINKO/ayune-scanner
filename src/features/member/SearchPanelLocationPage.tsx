@@ -211,6 +211,8 @@ export const SearchPanelLocationPage = ({
 						rooms={[{ id: trial.roomId, name: trial.roomName }]}
 						initialRoom={trial.roomId}
 						selectedPanel={trial.panelId}
+						initialSerial={serialNumber}
+						initialNumber={trial.number}
 						trialRevision={trial.revision}
 						hideRoomSelector
 						locationViewer
@@ -220,14 +222,8 @@ export const SearchPanelLocationPage = ({
 								aria-label="Informasi panel"
 								className="flex flex-wrap items-baseline gap-x-3 gap-y-1"
 							>
-								<h2 className="text-sm font-bold">
-									{trial.number ? `Panel ${trial.number}` : "Panel"}
-								</h2>
-								<p className="text-xs text-muted-foreground">
-									Serial: {serialNumber}
-								</p>
 								<Link
-									className="text-xs underline"
+									className="inline-flex min-h-9 items-center rounded-full bg-muted px-3 text-xs font-medium"
 									href={`/cari-lokasi?${new URLSearchParams({ barcode: serialNumber, source: "old" })}`}
 								>
 									Viewer old

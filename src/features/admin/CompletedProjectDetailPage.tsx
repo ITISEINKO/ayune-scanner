@@ -53,6 +53,7 @@ export const CompletedProjectDetailPage = ({
 						? `Selesai ${formatDate(review.completedAt, true)}`
 						: "Selesai · tanggal tidak tercatat"}
 				</p>
+				<p className="mt-2 text-xs text-muted-foreground">Project selesai tidak selalu berarti semua item sudah terpasang.</p>
 			</header>
 			<div className="review-content space-y-6 px-5 pt-6">
 				<section aria-labelledby="review-time">
@@ -64,7 +65,7 @@ export const CompletedProjectDetailPage = ({
 							<dt>Mulai</dt>
 							<dd>
 								{formatDate(review.startAt)}
-								<p>{review.startSource ?? "Belum ada data"}</p>
+								<p>{review.startSource ?? "Scan pertama dan tanggal mulai tidak tersedia dalam laporan."}</p>
 							</dd>
 						</div>
 						<div className="review-stat">
@@ -84,10 +85,10 @@ export const CompletedProjectDetailPage = ({
 							</dd>
 						</div>
 						<div className="review-stat">
-							<dt>Item terscan</dt>
+							<dt>Item berstatus scan</dt>
 							<dd>
 								{review.scanned}/{review.total}
-								<p>Status scan akhir item</p>
+								<p>Item dengan status scan saat data disimpan, bukan jumlah aktivitas scan.</p>
 							</dd>
 						</div>
 					</dl>
@@ -113,8 +114,8 @@ export const CompletedProjectDetailPage = ({
 						))}
 					</ol>
 					<p className="mt-4 text-xs leading-relaxed text-muted-foreground">
-						Milestone dihitung dari scan pertama setiap item dalam snapshot.
-						Jika riwayat tidak lengkap, milestone tidak ditampilkan.
+						Milestone dihitung dari riwayat scan yang tersedia dalam laporan.
+						Jika riwayat tidak lengkap, milestone mungkin tidak ditampilkan.
 					</p>
 				</section>
 				<section aria-labelledby="review-status">
@@ -189,8 +190,8 @@ export const CompletedProjectDetailPage = ({
 										))}
 									</ol>
 								</>
-							) : <p className="mt-3 text-sm text-muted-foreground">Belum ada retur yang tercatat.</p>}
-							<p className="mt-2 text-xs leading-relaxed text-muted-foreground">Item dihitung sekali jika pernah discan Retur atau berstatus Retur di snapshot. Beres berarti status snapshot Terpasang; Diterima/Dipacking masih proses. Riwayat yang tidak lengkap bisa membuat retur belum terhitung.</p>
+							) : <p className="mt-3 text-sm text-muted-foreground">Tidak ada item retur yang ditemukan dalam data laporan ini.</p>}
+							<p className="mt-2 text-xs leading-relaxed text-muted-foreground">Angka ini berdasarkan status item saat data disimpan dan riwayat scan yang tersedia di laporan. Riwayat yang tidak lengkap berarti retur sebelumnya mungkin belum terhitung; 0% bukan bukti bahwa tidak pernah ada retur. Beres berarti status item Terpasang; Diterima/Dipacking masih proses.</p>
 						</>
 					) : <p className="mt-3 text-sm text-muted-foreground">Insight retur belum tersedia.</p>}
 				</section>
@@ -250,7 +251,7 @@ export const CompletedProjectDetailPage = ({
 						</table>
 					) : (
 						<p className="mt-3 text-sm text-muted-foreground">
-							Belum ada riwayat scan yang tercatat.
+							Riwayat aktivitas scan tidak tersedia di laporan ini.
 						</p>
 					)}
 					<p className="mt-2 text-xs leading-relaxed text-muted-foreground">
@@ -262,7 +263,7 @@ export const CompletedProjectDetailPage = ({
 					<p className="text-xs leading-relaxed text-muted-foreground">
 						<ScanLine aria-hidden="true" className="mr-1 inline size-3" />
 						{completion?.source === "first-view"
-							? "Snapshot dibuat saat review pertama dibuka; kondisi item saat project selesai tidak tersedia."
+							? "Data item disimpan saat laporan pertama dibuka, bukan saat project selesai. Kondisi item saat project selesai tidak diketahui."
 							: "Snapshot disimpan saat proses penyelesaian project."}
 						{` Disimpan ${formatDate(completion?.capturedAt, true)}.`}
 					</p>

@@ -34,6 +34,21 @@ let scanHistorySchema: Promise<void> | undefined;
 let permissionNamesSchema: Promise<void> | undefined;
 let projectStatusSchema: Promise<void> | undefined;
 let dashboardSnapshotSchema: Promise<void> | undefined;
+let panelMembersSnapshotSchema: Promise<void> | undefined;
+
+const ensurePanelMembersSnapshotSchema = () =>
+	(panelMembersSnapshotSchema ??= db.execute("CREATE TABLE IF NOT EXISTS ppic_panel_members_snapshot (id INTEGER PRIMARY KEY CHECK (id = 1), members TEXT NOT NULL)").then(() => {}));
+
+export const getPanelMembersSnapshot = async (): Promise<PanelMember[] | null> => {
+	await ensurePanelMembersSnapshotSchema();
+	const result = await db.execute("SELECT members FROM ppic_panel_members_snapshot WHERE id = 1");
+	return result.rows.length ? JSON.parse(String(result.rows[0].members)) : null;
+};
+
+export const savePanelMembersSnapshot = async (members: PanelMember[]) => {
+	await ensurePanelMembersSnapshotSchema();
+	await db.execute({ sql: "INSERT INTO ppic_panel_members_snapshot (id, members) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET members = excluded.members", args: [JSON.stringify(members)] });
+};
 
 export const getLbyImportPermissions = async (userIds: string[]) => {
 	const permissions = Object.fromEntries(userIds.map((id) => [id, false]));

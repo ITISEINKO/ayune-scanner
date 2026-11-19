@@ -347,7 +347,7 @@ async function main() {
 			page.getByRole("definition").filter({ hasText: /^0\/0/ }),
 		).toBeVisible();
 		await expect(
-			page.getByText("Belum ada riwayat scan yang tercatat."),
+			page.getByText("Riwayat aktivitas scan tidak tersedia di laporan ini."),
 		).toBeVisible();
 		await expect(
 			durations.getByRole("definition").filter({ hasText: /^Belum ada data/ }),

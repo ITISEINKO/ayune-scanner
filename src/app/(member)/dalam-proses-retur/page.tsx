@@ -1,14 +1,14 @@
 import { MemberScannerPage } from "@/features/member/MemberScannerPage";
-import { getPpicAccess } from "@/lib/db";
 import {
-	requireFreshPpicStatusAccess,
+	ppicSession,
+	requirePpicStatusAccess,
 	requireSelectedMemberProject,
 } from "@/lib/session";
 
 const Packing = async () => {
 	const project = await requireSelectedMemberProject();
-	const userId = await requireFreshPpicStatusAccess("DALAM_PROSES_RETUR");
-	const allowedStatuses = (await getPpicAccess(userId))?.allowed_status ?? [];
+	await requirePpicStatusAccess("DALAM_PROSES_RETUR");
+	const allowedStatuses = (await ppicSession())?.allowed_status ?? [];
 	return (
 		<MemberScannerPage project={project} allowedStatuses={allowedStatuses} />
 	);

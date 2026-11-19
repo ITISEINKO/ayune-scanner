@@ -28,6 +28,7 @@ runInNewContext(transpileModule(readFileSync("src/hooks/use-panel-members.ts", "
 	module: moduleUnderTest,
 	exports: moduleUnderTest.exports,
 	console,
+	performance: { getEntriesByType: () => [] },
 	fetch: async () => { reads++; return { ok: true, json: async () => serverData }; },
 	require(id) {
 		if (id === "ably") return { Realtime: class {

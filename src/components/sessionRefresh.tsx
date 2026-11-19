@@ -18,19 +18,28 @@ export function SessionRefresh({
 
 	useEffect(() => {
 		if (pathname === "/login") return;
+		let closed = false;
+		let timeout: number;
 		const refresh = async (redirectToState = false) => {
-			const response = await fetch("/api/auth/refresh", { cache: "no-store" });
-			if (!response.ok) return;
-			if (!redirectToState) return;
-			const data = (await response.json()) as { path?: unknown };
-			if (typeof data.path === "string") router.replace(data.path);
-			router.refresh();
+			try {
+				const response = await fetch("/api/auth/refresh", { cache: "no-store" });
+				if (!response.ok || closed || !redirectToState) return;
+				const data = (await response.json()) as { path?: unknown };
+				if (typeof data.path === "string") router.replace(data.path);
+				router.refresh();
+			} catch (error) {
+				if (!closed) console.error("Session refresh failed", error);
+			} finally {
+				if (!closed) {
+					window.clearTimeout(timeout);
+					timeout = window.setTimeout(() => void refresh(), 15 * 60 * 1000);
+				}
+			}
 		};
-		const timeout = window.setTimeout(() => {
+		timeout = window.setTimeout(() => {
 			void refresh();
 		}, refreshAfter);
-		if (!userId) return () => window.clearTimeout(timeout);
-		let closed = false;
+		if (!userId) return () => { closed = true; window.clearTimeout(timeout); };
 		const realtime = new Ably.Realtime({ authUrl: "/api/ably/token" });
 		const channel = realtime.channels.get(`ppic:member:${userId}`);
 		const onSessionUpdated = () => void refresh(true);

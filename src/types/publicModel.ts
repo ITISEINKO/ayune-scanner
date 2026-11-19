@@ -29,3 +29,11 @@ export type TrialPanelMatch = {
 	number: string;
 	revision: string;
 };
+
+export type PanelHpl = {
+	serial: string;
+	side1: string | null;
+	side2: string | null;
+	status: "matched" | "partial" | "missing_hpl" | "panel_not_found" | "ambiguous" | "conflict" | "missing_parent" | "missing_production_serial";
+	source: string | null;
+};
