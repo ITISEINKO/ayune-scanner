@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createHash } from "node:crypto";
 import { clickUpHeaders } from "@/lib/clickup";
 import { panelHpl } from "@/lib/panelHpl";
+import { readHpl, saveHpl } from "@/lib/hplStorage";
+import { canImportLby } from "@/lib/db";
 import { panelListId } from "@/lib/projects";
 import { loadDescendantTasks } from "@/lib/projectDashboard";
 import { CF_PANEL } from "@/lib/produksiPanel";
@@ -11,15 +13,18 @@ import type { ClickUpTask } from "@/types/clickup";
 
 export const maxDuration = 60;
 
-// shortcut: process-local cache is lost on restart; use shared storage if instances need to share it.
-const cache = new Map<string, { expires: number; value: { panels: ReturnType<typeof panelHpl>[]; syncedAt: string } }>();
 const pending = new Map<string, Promise<{ panels: ReturnType<typeof panelHpl>[]; syncedAt: string }>>();
 
-export async function GET(request: Request) {
+export const GET = (request: Request) => handle(request, false);
+export const POST = (request: Request) => handle(request, true);
+
+async function handle(request: Request, refresh: boolean) {
 	const token = await clickUpToken();
 	const session = await ppicSession();
-	if (!token || !session)
+	if (refresh && (!token || !session))
 		return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+	if (refresh && request.headers.get("origin") !== new URL(request.url).origin) return new Response(null, { status: 403 });
+	if (refresh && session && !await canImportLby(session.user_id)) return new Response(null, { status: 403 });
 	const params = new URL(request.url).searchParams;
 	const id = params.get("id"),
 		revision = params.get("revision"), roomId = params.get("roomId"), panelId = params.get("panelId");
@@ -31,30 +36,26 @@ export async function GET(request: Request) {
 	)
 		return new Response(null, { status: 400 });
 	try {
-		if (
-			!(await listTrialModels()).some(
-				(model) => model.id === id && model.activeRevision === revision,
-			)
-		)
+		if (!(await listTrialModels()).some((model) => model.id === id && model.activeRevision === revision))
 			return new Response(null, { status: 404 });
+		if (!refresh) {
+			const stored = await readHpl(id, revision);
+			const panels = stored.filter((item) => (!roomId || item.room === roomId) && (!panelId || item.id === panelId));
+			return NextResponse.json({ panels, syncedAt: panels.reduce<string | null>((latest, item) => !latest || item.syncedAt > latest ? item.syncedAt : latest, null) }, { headers: { "Cache-Control": "private, no-store" } });
+		}
 		const snapshot = await readTrialModel(id, revision);
 		if (!snapshot) return new Response(null, { status: 404 });
 		const rooms = roomId ? snapshot.rooms.filter((room) => room.id === roomId) : snapshot.rooms;
 		if (roomId && rooms.length !== 1) return new Response(null, { status: 404 });
 		const selection = rooms.flatMap((room) => room.matches.filter((panel) => !panelId || panel.id === panelId).map((panel) => ({ room: room.id, panel })));
 		if (panelId && selection.length !== 1) return new Response(null, { status: 404 });
+		if (!token || !session) return new Response(null, { status: 401 });
 		const scope = [session.user_id, createHash("sha256").update(token).digest("hex"), panelListId(), id, revision];
 		const key = JSON.stringify([...scope, roomId, panelId]);
-		const cached = cache.get(key);
-		if (cached && cached.expires <= Date.now()) cache.delete(key);
-		if (cached && cached.expires > Date.now() && params.get("refresh") !== "1")
-			return NextResponse.json(cached.value, { headers: { "Cache-Control": "private, no-store" } });
 		let work = pending.get(key);
 		if (!work) {
 		work = (async () => {
 		const started = Date.now();
-		let pages = 0;
-		let parentMs = 0, descendantMs = 0;
 		const tasks = new Map<string, ClickUpTask>();
 		const signal = AbortSignal.timeout(45000);
 		const serials = [
@@ -72,7 +73,6 @@ export async function GET(request: Request) {
 				batches.slice(offset, offset + 4).map(async (batch) => {
 					const seen = new Set<string>();
 					for (let page = 0; ; page++) {
-						pages++;
 						const query = new URLSearchParams({
 							subtasks: "true",
 							include_closed: "true",
@@ -114,7 +114,6 @@ export async function GET(request: Request) {
 				}),
 			);
 		}
-		const serialMs = Date.now() - started;
 		const matchedTasks = [...tasks.values()];
 		const parents = [
 			...new Set(
@@ -126,12 +125,11 @@ export async function GET(request: Request) {
 		for (let offset = 0; offset < parents.length; offset += 4) {
 			await Promise.all(
 				parents.slice(offset, offset + 4).map(async (parent) => {
-					const parentStarted = Date.now();
 					const [response, descendants] = await Promise.all([
 						fetch(
 							`https://api.clickup.com/api/v2/task/${encodeURIComponent(parent)}`,
 							{ headers: clickUpHeaders(token), cache: "no-store", signal },
-						).finally(() => { parentMs += Date.now() - parentStarted; }),
+						),
 						(panelId
 							? (async () => {
 								const descendants: ClickUpTask[] = [];
@@ -140,7 +138,7 @@ export async function GET(request: Request) {
 								return descendants;
 							})()
 							: loadDescendantTasks(token, parent, signal)
-						).finally(() => { descendantMs += Date.now() - parentStarted; }),
+						),
 					]);
 					if (!response.ok) throw new Error("CLICKUP_ERROR");
 					const task = (await response.json()) as ClickUpTask;
@@ -162,25 +160,12 @@ export async function GET(request: Request) {
 				id: panel.id,
 				...panelHpl(allTasks, panel.serial.trim()),
 			}));
-		if (
-			!(await listTrialModels()).some(
-				(model) => model.id === id && model.activeRevision === revision,
-			)
-		)
+		if (!(await listTrialModels()).some((model) => model.id === id && model.activeRevision === revision))
 			throw new Error("REVISION_CHANGED");
-		console.info("panel-hpl", { batches: batches.length, pages, serialMs, parents: parents.length, parentMs, descendantMs, durationMs: Date.now() - started });
-		const value = { panels, syncedAt: new Date().toISOString() };
-		if (cache.size >= 500) cache.delete(cache.keys().next().value!);
-		cache.set(key, { expires: Date.now() + 60_000, value });
-		if (!panelId) for (const panel of panels) {
-			const panelKey = JSON.stringify([...scope, panel.room, panel.id]);
-			const existing = cache.get(panelKey);
-			if ((!existing || existing.expires - 60_000 <= started) && !pending.has(panelKey)) {
-				if (cache.size >= 500) cache.delete(cache.keys().next().value!);
-				cache.set(panelKey, { expires: Date.now() + 60_000, value: { panels: [panel], syncedAt: value.syncedAt } });
-			}
-		}
-		return value;
+		await saveHpl(id, revision, panels, allTasks, new Date(started).toISOString());
+		const stored = await readHpl(id, revision);
+		const selected = new Set(selection.map(({ room, panel }) => JSON.stringify([room, panel.id])));
+		return { panels: stored.filter((panel) => selected.has(JSON.stringify([panel.room, panel.id]))), syncedAt: new Date().toISOString() };
 		})();
 		pending.set(key, work);
 		work.finally(() => pending.delete(key)).catch(() => {});

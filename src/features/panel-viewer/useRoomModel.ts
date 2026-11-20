@@ -3,7 +3,7 @@ import type { PublicRoomGeometry } from "@/types/publicModel";
 export function useRoomModel(
 	id: string,
 	room: string,
-	trialRevision?: string,
+	trialRevision: string,
 	locationViewer = false,
 ) {
 	const [parts, setParts] = useState<PublicRoomGeometry | null>(null);
@@ -16,9 +16,7 @@ export function useRoomModel(
 		setParts(null);
 		setStatus({ kind: "loading" });
 		fetch(
-			trialRevision
-				? `${locationViewer ? "/api/panel/trial-model" : "/api/admin/trial-3d-import"}?${new URLSearchParams({ id, revision: trialRevision, room })}`
-				: `/api/public-models/${encodeURIComponent(id)}/${encodeURIComponent(room)}`,
+			`${locationViewer ? "/api/panel/trial-model" : "/api/admin/trial-3d-import"}?${new URLSearchParams({ id, revision: trialRevision, room })}`,
 			{ signal: abort.signal },
 		)
 			.then((response) => {

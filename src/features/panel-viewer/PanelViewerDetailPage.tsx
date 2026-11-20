@@ -47,7 +47,7 @@ export function PanelViewerDetailPage({
 	selectedPanel?: string;
 	initialSerial?: string;
 	initialNumber?: string;
-	trialRevision?: string;
+	trialRevision: string;
 	hideRoomSelector?: boolean;
 	locationViewer?: boolean;
 	canvasBehindNavigation?: boolean;
@@ -70,70 +70,63 @@ export function PanelViewerDetailPage({
 	);
 	const [hpl, setHpl] = useState<{
 		key: string;
-		panels: (PanelHpl & { room: string; id: string })[];
+		panels: (PanelHpl & { room: string; id: string; syncedAt: string })[];
 		syncedAt: string;
 	} | null>(null);
 	const [hplState, setHplState] = useState<
-		"loading" | "ready" | "login" | "error"
+		"loading" | "ready" | "login" | "denied" | "error"
 	>("loading");
-	const [hplRefresh, setHplRefresh] = useState(0);
-	const refreshMode = useRef<"panel" | "all" | null>(null);
-	const prefetchedRooms = useRef(new Set<string>());
+	const hplRequest = useRef<AbortController | null>(null);
 	const selectedId =
 		pickedPanel?.room === room
 			? pickedPanel.id
 			: room === initialRoom
 				? selectedPanel
 				: undefined;
-	const hplKey = `${id}:${trialRevision}:${room}:${selectedId}`;
-	useEffect(() => {
-		if (!locationViewer || !trialRevision || !selectedId) return;
-		const mode = refreshMode.current;
-		refreshMode.current = null;
+	const hplKey = `${id}:${trialRevision}`;
+	function loadHpl(mode?: "panel") {
+		hplRequest.current?.abort();
 		const abort = new AbortController();
+		hplRequest.current = abort;
 		setHplState("loading");
 		fetch(
-			`/api/panel/hpl?${new URLSearchParams({ id, revision: trialRevision, ...(mode === "all" ? {} : { roomId: room, panelId: selectedId }), ...(mode ? { refresh: "1" } : {}) })}`,
-			{ signal: abort.signal },
+			`/api/panel/hpl?${new URLSearchParams({ id, revision: trialRevision, ...(mode === "panel" && selectedId ? { roomId: room, panelId: selectedId } : {}) })}`,
+			{ signal: abort.signal, ...(mode ? { method: "POST" } : {}) },
 		)
 			.then(async (response) => {
 				if (response.status === 401) {
 					if (!abort.signal.aborted) {
-						setHpl(null);
 						setHplState("login");
 					}
 					return;
 				}
+				if (response.status === 403) {
+					if (!abort.signal.aborted) setHplState("denied");
+					return;
+				}
 				if (!response.ok) throw new Error("HPL unavailable");
 				const data = (await response.json()) as {
-					panels: (PanelHpl & { room: string; id: string })[];
-					syncedAt: string;
+					panels: (PanelHpl & { room: string; id: string; syncedAt?: string })[];
+					syncedAt: string | null;
 				};
 				if (!abort.signal.aborted) {
-					setHpl({ key: hplKey, ...data });
+					const panels = data.panels.map((panel) => ({ ...panel, syncedAt: panel.syncedAt ?? data.syncedAt ?? "" }));
+					setHpl((previous) => mode === "panel" && previous?.key === hplKey
+						? { key: hplKey, syncedAt: previous.syncedAt, panels: [...previous.panels.filter((panel) => !panels.some((updated) => updated.room === panel.room && updated.id === panel.id)), ...panels] }
+						: { key: hplKey, syncedAt: data.syncedAt ?? "", panels });
 					setHplState("ready");
-					const roomKey = JSON.stringify([id, trialRevision, room]);
-					if (!mode && !prefetchedRooms.current.has(roomKey)) {
-						prefetchedRooms.current.add(roomKey);
-						fetch(`/api/panel/hpl?${new URLSearchParams({ id, revision: trialRevision, roomId: room })}`)
-							.then((response) => { if (!response.ok) prefetchedRooms.current.delete(roomKey); })
-							.catch(() => prefetchedRooms.current.delete(roomKey));
-					}
 				}
 			})
 			.catch(() => {
 				if (!abort.signal.aborted) setHplState("error");
 			});
-		return () => abort.abort();
-	}, [
-		id,
-		trialRevision,
-		locationViewer,
-		selectedId,
-		room,
-		hplRefresh,
-		hplKey,
-	]);
+	}
+	useEffect(() => {
+		if (!locationViewer || !trialRevision) return;
+		loadHpl();
+		return () => hplRequest.current?.abort();
+	// The lookup belongs to the model revision, not the selected panel.
+	}, [id, trialRevision, locationViewer]);
 	const selectedHpl =
 		hpl?.key === hplKey
 			? hpl.panels.find(
@@ -469,12 +462,14 @@ export function PanelViewerDetailPage({
 							{hplState === "loading"
 								? "Memuat kode HPL…"
 								: hplState === "login"
-									? "Login untuk melihat kode HPL."
+									? "Login untuk memperbarui kode HPL."
+								: hplState === "denied"
+									? "Refresh hanya tersedia untuk pengguna yang memiliki izin import model."
 									: hplState === "error"
-										? `Kode HPL gagal diperbarui.${selectedHpl && hpl ? ` Data lama dari ${new Date(hpl.syncedAt).toLocaleString("id-ID")}.` : ""}`
+									? `Kode HPL gagal diperbarui.${selectedHpl ? ` Data lama dari ${new Date(selectedHpl.syncedAt).toLocaleString("id-ID")}.` : ""}`
 										: selectedHpl && hpl
-											? `Diperbarui: ${new Date(hpl.syncedAt).toLocaleString("id-ID")}`
-											: "Data panel tidak tersedia."}
+											? `Diperbarui: ${new Date(selectedHpl.syncedAt).toLocaleString("id-ID")}`
+												: "HPL belum disinkronkan untuk panel ini."}
 						</p>
 						<div className="flex flex-wrap gap-2">
 							{selectedHpl?.source &&
@@ -493,13 +488,10 @@ export function PanelViewerDetailPage({
 							<button
 								type="button"
 								className="min-h-9 rounded-full bg-muted px-3 font-medium disabled:opacity-50"
-								onClick={() => { refreshMode.current = "panel"; setHplRefresh((value) => value + 1); }}
+								onClick={() => loadHpl("panel")}
 								disabled={hplState === "loading"}
 							>
 								Refresh kode HPL
-							</button>
-							<button type="button" className="min-h-9 rounded-full bg-muted px-3 font-medium disabled:opacity-50" onClick={() => { refreshMode.current = "all"; setHplRefresh((value) => value + 1); }} disabled={hplState === "loading"}>
-								Refresh seluruh model
 							</button>
 						</div>
 					</section>

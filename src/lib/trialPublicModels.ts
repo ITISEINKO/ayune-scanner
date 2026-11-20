@@ -2,6 +2,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { gzipSync, gunzipSync } from "node:zlib";
 import { db } from "@/lib/db";
+import type { TrialPublicModel } from "@/types/publicModel";
 
 // Trial tables are deliberately separate from the live ppic_public_* tables.
 let schema: Promise<unknown> | undefined;
@@ -16,14 +17,17 @@ export function ensureTrialSchema() {
 	], "write").catch((error) => { schema = undefined; throw error; });
 }
 
-export async function listTrialModels() {
+export async function listTrialModels(includeStats = false) {
 	await ensureTrialSchema();
-	const result = await db.execute("SELECT m.id, m.name, m.active_revision, r.revision, r.version_number, r.imported_at FROM ppic_trial_model m LEFT JOIN ppic_trial_revision r ON r.model_id = m.id ORDER BY m.name, r.version_number DESC");
-	const models = new Map<string, { id: string; name: string; activeRevision: string | null; versions: { revision: string; number: number; importedAt: string }[] }>();
+	const result = await db.execute(`SELECT m.id, m.name, m.active_revision, r.revision, r.version_number, r.imported_at${includeStats ? `,
+		(SELECT count(*) FROM ppic_trial_panel_search p WHERE p.model_id = r.model_id AND p.revision = r.revision) AS panel_count,
+		(SELECT count(DISTINCT p.room_id) FROM ppic_trial_panel_search p WHERE p.model_id = r.model_id AND p.revision = r.revision) AS group_count` : ""}
+		FROM ppic_trial_model m LEFT JOIN ppic_trial_revision r ON r.model_id = m.id ORDER BY m.name, r.version_number DESC`);
+	const models = new Map<string, TrialPublicModel>();
 	for (const row of result.rows) {
 		const id = String(row.id);
 		if (!models.has(id)) models.set(id, { id, name: String(row.name), activeRevision: row.active_revision ? String(row.active_revision) : null, versions: [] });
-		if (row.revision) models.get(id)!.versions.push({ revision: String(row.revision), number: Number(row.version_number), importedAt: String(row.imported_at) });
+		if (row.revision) models.get(id)!.versions.push({ revision: String(row.revision), number: Number(row.version_number), importedAt: String(row.imported_at), ...(includeStats ? { panelCount: Number(row.panel_count), groupCount: Number(row.group_count) } : {}) });
 	}
 	return [...models.values()];
 }

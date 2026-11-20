@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1795142169582,
+      "tag": "0000_gigantic_fabian_cortez",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1795142901207,
+      "tag": "0001_drop_public_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1795144282605,
+      "tag": "0002_hpl_results",
+      "breakpoints": true
+    }
+  ]
+}

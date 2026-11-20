@@ -18,7 +18,7 @@ export type TrialPublicModel = {
 	id: string;
 	name: string;
 	activeRevision: string | null;
-	versions: { revision: string; number: number; importedAt: string }[];
+	versions: { revision: string; number: number; importedAt: string; panelCount?: number; groupCount?: number }[];
 };
 export type TrialPanelMatch = {
 	modelId: string;

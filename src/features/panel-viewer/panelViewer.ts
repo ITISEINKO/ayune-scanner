@@ -3,7 +3,7 @@ export async function createPanelViewer(
 	target: HTMLDivElement,
 	parts: PublicRoomGeometry,
 	modelId: string,
-	trialRevision?: string,
+	trialRevision: string,
 	locationViewer = false,
 	onSelect?: (id: string, number: string) => void,
 ) {
@@ -218,9 +218,7 @@ export async function createPanelViewer(
 		(id) =>
 			new Promise<void>((resolve) => {
 				const texture = new THREE.TextureLoader().load(
-					trialRevision
-						? `${locationViewer ? "/api/panel/trial-model" : "/api/admin/trial-3d-import"}?${new URLSearchParams({ id: modelId, revision: trialRevision, texture: id })}`
-						: `/api/public-textures/${encodeURIComponent(id)}`,
+					`${locationViewer ? "/api/panel/trial-model" : "/api/admin/trial-3d-import"}?${new URLSearchParams({ id: modelId, revision: trialRevision, texture: id })}`,
 					(loaded) => {
 						if (!disposed) {
 							loaded.colorSpace = THREE.SRGBColorSpace;

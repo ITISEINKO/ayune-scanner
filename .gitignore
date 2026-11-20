@@ -24,6 +24,9 @@
 /postman
 
 # misc
+/trackerprod-panel.db*
+/trackerprod-panel.db-wal*
+/trackerprod-panel.db-shm*
 /.local-backups/
 /AGENTS.md
 .DS_Store
