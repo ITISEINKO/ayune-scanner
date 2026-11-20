@@ -18,7 +18,7 @@ export type TrialPublicModel = {
 	id: string;
 	name: string;
 	activeRevision: string | null;
-	versions: { revision: string; number: number; importedAt: string }[];
+	versions: { revision: string; number: number; importedAt: string; panelCount?: number; groupCount?: number }[];
 };
 export type TrialPanelMatch = {
 	modelId: string;
@@ -28,4 +28,12 @@ export type TrialPanelMatch = {
 	panelId: string;
 	number: string;
 	revision: string;
+};
+
+export type PanelHpl = {
+	serial: string;
+	side1: string | null;
+	side2: string | null;
+	status: "matched" | "partial" | "missing_hpl" | "panel_not_found" | "ambiguous" | "conflict" | "missing_parent" | "missing_production_serial";
+	source: string | null;
 };

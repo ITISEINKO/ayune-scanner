@@ -6,6 +6,7 @@ import {
 	FolderKanban,
 	History,
 	House,
+	LoaderCircle,
 	ScanLine,
 	Search,
 	User,
@@ -54,19 +55,13 @@ function NavigationItemContent({
 
 	return (
 		<>
-			{pending && (
-				<span
-					aria-hidden="true"
-					data-navigation-pending
-					className="pointer-events-none absolute inset-0 rounded-md bg-white/15"
-				/>
-			)}
+			{pending && <LoaderCircle data-navigation-pending aria-hidden="true" className="absolute top-1 right-2 size-3 motion-safe:animate-spin" />}
 			<Icon
 				aria-hidden="true"
-				className={`relative size-4 shrink-0 ${pending ? "motion-safe:animate-pulse" : ""}`}
-				strokeWidth={active || pending ? 3 : 2}
+				className="relative size-4 shrink-0"
+				strokeWidth={active ? 3 : 2}
 			/>
-			<span className={`relative ${pending ? "font-bold" : ""}`}>{label}</span>
+			<span className="relative">{label}</span>
 		</>
 	);
 }

@@ -167,7 +167,8 @@ async function fetchPublicModel(source, signal, hasTexture = () => false, onProg
 	else { const url = new URL(value); assert(url.protocol === 'https:' && !url.username && !url.password && ['www.lbyerp.com', 'ali-oss-lby.oss-cn-hangzhou.aliyuncs.com'].includes(url.hostname), 'Unexpected download host'); raw = unzipModel(await read(url, signal), id); }
 	onProgress('panels');
 	const panelResponse = JSON.parse(await read(`https://www.lbyerp.com/api/erp/anyTenant/app/getPlankByOrderId/${id}`, signal));
-	assert(panelResponse.code === 0 && Array.isArray(panelResponse.data) && panelResponse.data.length, 'Invalid panel response');
+	assert(panelResponse.code === 0 && Array.isArray(panelResponse.data), 'Invalid panel response');
+	assert(panelResponse.data.length, 'NO_PANEL_SERIAL');
 	onProgress('rooms');
 	const rooms = prepare(JSON.parse(raw), id, panelResponse.data);
 	assert(rooms.length && rooms.some((room) => JSON.parse(require('node:zlib').gunzipSync(room.data)).length), 'No panel geometry');

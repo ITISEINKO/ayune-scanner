@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type CSSProperties } from "react";
-import { Check, Search } from "lucide-react";
+import { Check, Info, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -45,6 +45,7 @@ export const SettingPage = ({
 		lbyImporters,
 		loading,
 		error,
+		refreshError,
 		updateRole,
 		updatePermission,
 		updateLbyPermission,
@@ -200,6 +201,12 @@ export const SettingPage = ({
 				<p className="relative z-10 my-2 text-sm text-muted-foreground">
 					Ringkasan aktivitas scan dan pengaturan akses pengguna.
 				</p>
+				<details className="relative z-10 mb-2 text-xs text-muted-foreground">
+					<summary className="flex min-h-10 w-fit cursor-pointer list-none items-center gap-1.5 [&::-webkit-details-marker]:hidden">
+						<Info aria-hidden="true" className="size-4" /> Info akses ClickUp
+					</summary>
+					<p>Daftar pengguna diperbarui dari channel ClickUp saat halaman dibuka. Pastikan pengguna memiliki akses ke channel tersebut.</p>
+				</details>
 
 				<div className="mx-auto pb-2">
 					<div className="relative">
@@ -258,6 +265,7 @@ export const SettingPage = ({
 				<p className="mt-3 mb-2 text-sm text-muted-foreground">
 					{filteredMembers.length} pengguna
 				</p>
+				{refreshError && <p role="alert" className="mb-2 text-sm text-destructive">Daftar ClickUp gagal diperbarui. Data lama ditampilkan; muat ulang halaman untuk mencoba lagi.</p>}
 				{saveError && (
 					<p className="mb-2 text-sm text-destructive" role="alert">
 						Could not save access. Try again.
@@ -283,7 +291,7 @@ export const SettingPage = ({
 								<Button
 									type="button"
 									variant="ghost"
-									className="absolute inset-0 size-full rounded-2xl"
+									className="absolute inset-0 size-full cursor-pointer rounded-2xl hover:bg-transparent! dark:hover:bg-transparent! aria-expanded:bg-transparent!"
 									aria-label={`Lihat detail ${member.name}`}
 									aria-haspopup="dialog"
 									disabled={

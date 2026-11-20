@@ -46,7 +46,7 @@ export async function GET(request: Request) {
 		}
 		return NextResponse.json({ name: snapshot.name, rooms: snapshot.rooms.map(({ id, name }) => ({ id, name })) });
 	}
-	return NextResponse.json({ models: await listTrialModels() }, { headers: { "Cache-Control": "no-store" } });
+	return NextResponse.json({ models: await listTrialModels(true) }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(request: Request) {
@@ -78,7 +78,8 @@ async function importModel(request: Request, progress: (stage: string) => void, 
 		const { rooms, textures } = await fetchPublicModel(source, AbortSignal.any([signal, AbortSignal.timeout(240000)]), () => false, (stage) => { if (stage) progress(stage); });
 		const textureIds = new Set(textures.map((texture: { id: string }) => texture.id));
 		const referencedTextures = new Set(rooms.flatMap((room: { data: Buffer }) => JSON.parse(gunzipSync(room.data, { maxOutputLength: 64 * 1024 * 1024 }).toString("utf8")).map((part: { texture?: string }) => part.texture).filter(Boolean)));
-		if ([...referencedTextures].some((id) => !textureIds.has(String(id))) || !rooms.some((room: { matches: { serial: string }[] }) => room.matches.some((panel) => panel.serial))) throw new Error("INCOMPLETE_MODEL");
+		if (!rooms.some((room: { matches: { serial: string }[] }) => room.matches.some((panel) => panel.serial))) throw new Error("NO_PANEL_SERIAL");
+		if ([...referencedTextures].some((id) => !textureIds.has(String(id)))) throw new Error("INCOMPLETE_MODEL");
 		if (!(await allowed())) return NextResponse.json({ error: "Akses ditolak." }, { status: 403 });
 		signal.throwIfAborted();
 		progress("saving");
@@ -86,6 +87,7 @@ async function importModel(request: Request, progress: (stage: string) => void, 
 		return NextResponse.json({ ok: true, id: source.orderId, ...result });
 	} catch (error) {
 		const message = error instanceof Error ? error.message : "";
+		if (message === "NO_PANEL_SERIAL") return NextResponse.json({ error: "Serial panel belum tersedia untuk model ini. Periksa data di LBY, lalu coba import kembali. Model aktif tetap digunakan." }, { status: 422 });
 		if (message === "MODEL_TOO_LARGE") return NextResponse.json({ error: "Model terlalu besar untuk penyimpanan Ver2." }, { status: 413 });
 		if (message.includes("MISSING_RENDER_MAPPING:")) return NextResponse.json({ error: `${message.split("MISSING_RENDER_MAPPING:")[1]} serial tidak memiliki panel 3D. Model aktif tidak berubah.` }, { status: 422 });
 		if (message.includes("DUPLICATE_SERIAL_MAPPING") || message.includes("DUPLICATE_RENDER_MAPPING")) return NextResponse.json({ error: "Mapping serial atau panel 3D duplikat. Model aktif tidak berubah." }, { status: 422 });

@@ -13,6 +13,10 @@ const originalFetch = global.fetch;
 	assert.deepEqual(stages, ['downloading', 'panels', 'rooms', 'textures']);
 	assert.equal(result.rooms[0].matches[0].serial, '000123');
 	assert.equal(JSON.parse(gunzipSync(result.rooms[0].data))[0].id, 'panel');
+	global.fetch = async (url) => new Response(JSON.stringify(url.includes('getByOrderId')
+		? { code: 0, data: { model: JSON.stringify(model) } }
+		: { code: 0, data: [] }));
+	await assert.rejects(fetchPublicModel({ orderId: '123' }, AbortSignal.timeout(5000)), /NO_PANEL_SERIAL/);
 	global.fetch = async () => new Response('', { status: 429 });
 	await assert.rejects(fetchPublicModel({ orderId: '123' }, AbortSignal.timeout(5000)), /HTTP 429/);
 	console.log('Public model fetch and mapping checks passed');

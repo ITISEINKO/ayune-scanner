@@ -78,7 +78,7 @@ const loadCurrentStatusDuration = async (
 	};
 };
 
-const loadDescendantTasks = async (
+export const loadDescendantTasks = async (
 	token: string,
 	parentId: string,
 	signal: AbortSignal,

@@ -10,8 +10,8 @@ const ts = require("typescript");
 		"next/server": { NextResponse: { json: (body, init) => Response.json(body, init) } },
 		"@/lib/db": { canImportLby: async () => allowed },
 		"@/lib/session": { ppicSession: async () => ({ user_id: "user" }), clickUpToken: async () => "token" },
-		"../../../../../scripts/import-lby-project.cjs": {},
-		"../../../../../scripts/public-model-import.cjs": {},
+		"../../../../../scripts/import-lby-project.cjs": { parseShareLink: () => ({}) },
+		"../../../../../scripts/public-model-import.cjs": { fetchPublicModel: async () => { throw new Error("NO_PANEL_SERIAL"); } },
 		"@/lib/trialPublicModels": {
 			readTrialModel: async () => ({}),
 			activateTrialModel: async (_id, next, expected) => {
@@ -25,6 +25,10 @@ const ts = require("typescript");
 	const moduleResult = { exports: {} };
 	runInNewContext(ts.transpileModule(readFileSync("src/app/api/admin/trial-3d-import/route.ts", "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, { module: moduleResult, exports: moduleResult.exports, Buffer, Error, Response, URL, AbortSignal, require: (id) => modules[id] || require(id) });
 	const patch = (body) => moduleResult.exports.PATCH(new Request("http://localhost/api/admin/trial-3d-import", { method: "PATCH", body: JSON.stringify(body) }));
+	const noSerial = await moduleResult.exports.POST(new Request("http://localhost/api/admin/trial-3d-import", { method: "POST", body: JSON.stringify({ url: "example" }) }));
+	assert.equal(noSerial.status, 422);
+	assert.match((await noSerial.json()).error, /Serial panel belum tersedia/);
+	assert.equal(active, revision);
 	assert.equal((await patch({ id: "123", revision: null, expected: "b".repeat(64) })).status, 409);
 	assert.equal(active, revision);
 	assert.equal((await patch({ id: "123", revision: null, expected: revision })).status, 200);

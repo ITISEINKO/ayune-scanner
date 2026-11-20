@@ -8,6 +8,10 @@ import {
 	Hash,
 	Bone,
 	DoorClosed,
+	ChevronDown,
+	ChevronUp,
+	TriangleAlert,
+	X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -21,12 +25,15 @@ import {
 } from "@/components/ui/select";
 import { useRoomModel } from "./useRoomModel";
 import { createPanelViewer } from "./panelViewer";
+import type { PanelHpl } from "@/types/publicModel";
 
 export function PanelViewerDetailPage({
 	id,
 	rooms,
 	initialRoom,
 	selectedPanel,
+	initialSerial,
+	initialNumber,
 	trialRevision,
 	hideRoomSelector = false,
 	locationViewer = false,
@@ -38,7 +45,9 @@ export function PanelViewerDetailPage({
 	rooms: { id: string; name: string }[];
 	initialRoom?: string;
 	selectedPanel?: string;
-	trialRevision?: string;
+	initialSerial?: string;
+	initialNumber?: string;
+	trialRevision: string;
 	hideRoomSelector?: boolean;
 	locationViewer?: boolean;
 	canvasBehindNavigation?: boolean;
@@ -50,6 +59,80 @@ export function PanelViewerDetailPage({
 			? initialRoom!
 			: (rooms[0]?.id ?? ""),
 	);
+	const [pickedPanel, setPickedPanel] = useState<{
+		room: string;
+		id: string;
+		number: string;
+	} | null>(null);
+	const [detailsOpen, setDetailsOpen] = useState(false);
+	const [dismissedHingesRoom, setDismissedHingesRoom] = useState<string | null>(
+		null,
+	);
+	const [hpl, setHpl] = useState<{
+		key: string;
+		panels: (PanelHpl & { room: string; id: string; syncedAt: string })[];
+		syncedAt: string;
+	} | null>(null);
+	const [hplState, setHplState] = useState<
+		"loading" | "ready" | "login" | "denied" | "error"
+	>("loading");
+	const hplRequest = useRef<AbortController | null>(null);
+	const selectedId =
+		pickedPanel?.room === room
+			? pickedPanel.id
+			: room === initialRoom
+				? selectedPanel
+				: undefined;
+	const hplKey = `${id}:${trialRevision}`;
+	function loadHpl(mode?: "panel") {
+		hplRequest.current?.abort();
+		const abort = new AbortController();
+		hplRequest.current = abort;
+		setHplState("loading");
+		fetch(
+			`/api/panel/hpl?${new URLSearchParams({ id, revision: trialRevision, ...(mode === "panel" && selectedId ? { roomId: room, panelId: selectedId } : {}) })}`,
+			{ signal: abort.signal, ...(mode ? { method: "POST" } : {}) },
+		)
+			.then(async (response) => {
+				if (response.status === 401) {
+					if (!abort.signal.aborted) {
+						setHplState("login");
+					}
+					return;
+				}
+				if (response.status === 403) {
+					if (!abort.signal.aborted) setHplState("denied");
+					return;
+				}
+				if (!response.ok) throw new Error("HPL unavailable");
+				const data = (await response.json()) as {
+					panels: (PanelHpl & { room: string; id: string; syncedAt?: string })[];
+					syncedAt: string | null;
+				};
+				if (!abort.signal.aborted) {
+					const panels = data.panels.map((panel) => ({ ...panel, syncedAt: panel.syncedAt ?? data.syncedAt ?? "" }));
+					setHpl((previous) => mode === "panel" && previous?.key === hplKey
+						? { key: hplKey, syncedAt: previous.syncedAt, panels: [...previous.panels.filter((panel) => !panels.some((updated) => updated.room === panel.room && updated.id === panel.id)), ...panels] }
+						: { key: hplKey, syncedAt: data.syncedAt ?? "", panels });
+					setHplState("ready");
+				}
+			})
+			.catch(() => {
+				if (!abort.signal.aborted) setHplState("error");
+			});
+	}
+	useEffect(() => {
+		if (!locationViewer || !trialRevision) return;
+		loadHpl();
+		return () => hplRequest.current?.abort();
+	// The lookup belongs to the model revision, not the selected panel.
+	}, [id, trialRevision, locationViewer]);
+	const selectedHpl =
+		hpl?.key === hplKey
+			? hpl.panels.find(
+					(panel) => panel.room === room && panel.id === selectedId,
+				)
+			: undefined;
 	const {
 		parts,
 		status,
@@ -110,6 +193,10 @@ export function PanelViewerDetailPage({
 			id,
 			trialRevision,
 			locationViewer,
+			locationViewer
+				? (id, number) =>
+						setPickedPanel({ room: latest.current.room, id, number })
+				: undefined,
 		)
 			.then(async (result) => {
 				if (cancelled) {
@@ -144,9 +231,13 @@ export function PanelViewerDetailPage({
 	}, [parts, id, trialRevision, locationViewer]);
 	useEffect(() => {
 		viewer.current?.setSelected(
-			room === initialRoom ? selectedPanel : undefined,
+			pickedPanel?.room === room
+				? pickedPanel.id
+				: room === initialRoom
+					? selectedPanel
+					: undefined,
 		);
-	}, [room, initialRoom, selectedPanel]);
+	}, [room, initialRoom, selectedPanel, pickedPanel]);
 	useEffect(() => {
 		viewer.current?.setDoorsOpen(doorsOpen);
 	}, [doorsOpen]);
@@ -255,15 +346,26 @@ export function PanelViewerDetailPage({
 					</Button>
 				))}
 			</div>
+			{missingHinges > 0 && dismissedHingesRoom !== room && (
+				<div
+					role="status"
+					className={`absolute left-3 ${hideRoomSelector ? "top-16" : "top-32"} flex max-w-[calc(100%-1.5rem)] items-center gap-2 rounded-full border border-amber-300 bg-amber-50 py-1 pl-3 pr-1 text-xs text-amber-800 shadow-sm sm:left-5`}
+				>
+					<TriangleAlert className="size-4" aria-hidden="true" />
+					<span>{missingHinges} pintu tanpa engsel, periksa kembali</span>
+					<button
+						type="button"
+						aria-label="Tutup peringatan engsel"
+						className="flex size-7 items-center justify-center"
+						onClick={() => setDismissedHingesRoom(room)}
+					>
+						<X className="size-4" />
+					</button>
+				</div>
+			)}
 			<div
 				className={`absolute inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] max-h-[45%] overflow-y-auto rounded-xl border bg-card/95 shadow-sm ${hideRoomSelector ? "p-2" : "p-3 sm:left-5 sm:right-auto sm:w-96"}`}
 			>
-				{missingHinges > 0 && (
-					<p role="status" className="mb-2 text-xs text-amber-700">
-						{missingHinges} pintu belum memiliki engsel dalam data desain
-						(ditandai kuning; panel terpilih tetap merah). Tanyakan Tim.
-					</p>
-				)}
 				{hingeCheckUnavailable && (
 					<p role="status" className="mb-2 text-xs text-muted-foreground">
 						Data engsel belum dapat dipastikan. Periksa model sumber atau import
@@ -276,6 +378,35 @@ export function PanelViewerDetailPage({
 						dapat dipastikan.
 					</p>
 				)}
+				{locationViewer && selectedId && (
+					<div className="mb-1 flex min-w-0 items-center gap-2">
+						<strong className="text-sm">
+							{(pickedPanel?.room === room ? pickedPanel.number : initialNumber)
+								? `Panel ${pickedPanel?.room === room ? pickedPanel.number : initialNumber}`
+								: "Panel dipilih"}
+						</strong>
+						<span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+							{selectedHpl?.serial ||
+								(pickedPanel?.room === room && pickedPanel.id !== selectedPanel
+									? ""
+									: initialSerial)}
+						</span>
+						<Button
+							type="button"
+							variant="outline"
+							size="icon"
+							className="size-10 shrink-0 rounded-xl"
+							aria-label={
+								detailsOpen ? "Tutup detail panel" : "Buka detail panel"
+							}
+							aria-expanded={detailsOpen}
+							aria-controls="panel-viewer-details"
+							onClick={() => setDetailsOpen((open) => !open)}
+						>
+							{detailsOpen ? <ChevronDown /> : <ChevronUp />}
+						</Button>
+					</div>
+				)}
 				<div className="flex items-center gap-3">
 					<span className="text-sm font-semibold">Explode</span>
 					<Slider
@@ -286,15 +417,100 @@ export function PanelViewerDetailPage({
 					/>
 					<output className="text-sm">{explode}%</output>
 				</div>
-				{footer && (
-					<div
-						className={
-							hideRoomSelector ? "mt-1 border-t pt-2" : "mt-3 border-t pt-3"
-						}
+				{locationViewer && trialRevision && selectedId && detailsOpen && (
+					<section
+						id="panel-viewer-details"
+						aria-label="Kode HPL"
+						className="mt-3 space-y-3 border-t pt-3 text-xs"
 					>
-						{footer}
-					</div>
+						{selectedHpl && (
+							<>
+								{["matched", "partial", "missing_hpl"].includes(
+									selectedHpl.status,
+								) ? (
+									<>
+										<dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 leading-5">
+											<dt className="text-muted-foreground">HPL sisi 1</dt>
+											<dd className="wrap-break-word font-semibold">
+												{selectedHpl.side1 ?? "Belum diisi di BOM"}
+											</dd>
+											<dt className="text-muted-foreground">HPL sisi 2</dt>
+											<dd className="wrap-break-word font-semibold">
+												{selectedHpl.side2 ?? "Belum diisi di BOM"}
+											</dd>
+										</dl>
+										<p className="leading-5 text-muted-foreground">
+											Dicocokkan berdasarkan serial
+										</p>
+									</>
+								) : (
+									<p>
+										{selectedHpl.status === "ambiguous"
+											? "Serial ambigu atau bukan task paling bawah."
+											: selectedHpl.status === "conflict"
+												? "Kode panel dan parent berbeda; perlu diperiksa."
+												: selectedHpl.status === "missing_parent"
+													? "Parent BOM tidak ditemukan."
+													: selectedHpl.status === "missing_production_serial"
+														? "Serial produksi tidak tersedia."
+														: "Serial tidak ditemukan di ClickUp."}
+									</p>
+								)}
+							</>
+						)}
+						<p role="status" className="leading-5 text-muted-foreground">
+							{hplState === "loading"
+								? "Memuat kode HPL…"
+								: hplState === "login"
+									? "Login untuk memperbarui kode HPL."
+								: hplState === "denied"
+									? "Refresh hanya tersedia untuk pengguna yang memiliki izin import model."
+									: hplState === "error"
+									? `Kode HPL gagal diperbarui.${selectedHpl ? ` Data lama dari ${new Date(selectedHpl.syncedAt).toLocaleString("id-ID")}.` : ""}`
+										: selectedHpl && hpl
+											? `Diperbarui: ${new Date(selectedHpl.syncedAt).toLocaleString("id-ID")}`
+												: "HPL belum disinkronkan untuk panel ini."}
+						</p>
+						<div className="flex flex-wrap gap-2">
+							{selectedHpl?.source &&
+								["matched", "partial", "missing_hpl"].includes(
+									selectedHpl.status,
+								) && (
+									<a
+										href={selectedHpl.source}
+										target="_blank"
+										rel="noreferrer"
+										className="inline-flex min-h-9 items-center rounded-full bg-muted px-3 font-medium"
+									>
+										Sumber ClickUp
+									</a>
+								)}
+							<button
+								type="button"
+								className="min-h-9 rounded-full bg-muted px-3 font-medium disabled:opacity-50"
+								onClick={() => loadHpl("panel")}
+								disabled={hplState === "loading"}
+							>
+								Refresh kode HPL
+							</button>
+						</div>
+					</section>
 				)}
+				{footer &&
+					(!locationViewer || detailsOpen) &&
+					!(pickedPanel?.room === room && pickedPanel.id !== selectedPanel) && (
+						<div
+							className={
+								locationViewer
+									? "mt-2"
+									: hideRoomSelector
+										? "mt-1 border-t pt-2"
+										: "mt-3 border-t pt-3"
+							}
+						>
+							{footer}
+						</div>
+					)}
 			</div>
 		</section>
 	);

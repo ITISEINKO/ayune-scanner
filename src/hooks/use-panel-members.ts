@@ -1,7 +1,7 @@
 "use client";
 
 import * as Ably from "ably";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
 	queryOptions,
 	useMutation,
@@ -44,6 +44,7 @@ const panelMembersQuery = queryOptions({
 
 export function usePanelMembers() {
 	const queryClient = useQueryClient();
+	const [refreshError, setRefreshError] = useState(false);
 	const query = useQuery(panelMembersQuery);
 	const update = useMutation({
 		mutationFn: async (
@@ -86,6 +87,10 @@ export function usePanelMembers() {
 
 	useEffect(() => {
 		let closed = false;
+		void fetch("/api/panel/members?refresh=1", { cache: "no-store" }).then((response) => {
+			if (!response.ok) throw new Error("members refresh");
+			if (!closed) return queryClient.invalidateQueries({ queryKey: panelMembersQuery.queryKey });
+		}).catch((error) => { if (!closed) { setRefreshError(true); console.error(error); } });
 		const realtime = new Ably.Realtime({ authUrl: "/api/ably/token" });
 		const channel = realtime.channels.get("ppic:settings");
 		const onMemberUpdated = (message: Ably.InboundMessage) => {
@@ -141,6 +146,7 @@ export function usePanelMembers() {
 		lbyImporters: query.data?.lbyImporters ?? {},
 		loading: query.isLoading,
 		error: query.isError,
+		refreshError,
 		updateRole: (userId: string, role: PpicRole) =>
 			update.mutateAsync({ user_id: userId, role }),
 		updatePermission: (userId: string, allowedStatus: PpicStatuses | null) =>

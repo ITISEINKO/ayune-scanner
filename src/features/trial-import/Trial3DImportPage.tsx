@@ -8,12 +8,14 @@ import {
 	type FormEvent,
 } from "react";
 import Link from "next/link";
-import { Check, Circle, EllipsisVertical, LoaderCircle, Search, Upload } from "lucide-react";
+import { Check, Circle, EllipsisVertical, Info, LoaderCircle, RotateCcw, Search, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { PanelViewerDetailPage } from "@/features/panel-viewer/PanelViewerDetailPage";
@@ -53,11 +55,14 @@ export function Trial3DImportPage({ workspace = "Admin" }: { workspace?: "Admin"
 	const [ready, setReady] = useState(false);
 	const [loading, setLoading] = useState(true);
 	const [busy, setBusy] = useState(false);
+	const [hplRefreshing, setHplRefreshing] = useState("");
 	const [previewButton, setPreviewButton] = useState("");
 	const [message, setMessage] = useState("");
 	const [importStage, setImportStage] = useState<
 		(typeof importSteps)[number]["stage"] | null
 	>(null);
+	const [deactivating, setDeactivating] = useState<TrialPublicModel | null>(null);
+	const [hplSyncedAt, setHplSyncedAt] = useState<Record<string, string | null>>({});
 	const importController = useRef<AbortController | null>(null);
 	const urlInput = useRef<HTMLInputElement>(null);
 	useEffect(() => () => importController.current?.abort(), []);
@@ -217,13 +222,46 @@ export function Trial3DImportPage({ workspace = "Admin" }: { workspace?: "Admin"
 			setBusy(false);
 		}
 	}
-	async function deactivate(model: TrialPublicModel) {
-		if (!model.activeRevision || busy || !window.confirm(`Nonaktifkan model 3D ${model.name}? Model tidak lagi muncul dalam pencarian aktif. Viewer old hanya tersedia jika data old ada. Versi yang belum diverifikasi harus diimport ulang sebelum dapat diaktifkan kembali.`)) return;
+	async function refreshHpl(model: TrialPublicModel) {
+		if (!model.activeRevision || busy) return;
 		setBusy(true);
+		setHplRefreshing(model.id);
+		setMessage("");
+		try {
+			const response = await fetch(`/api/panel/hpl?${new URLSearchParams({ id: model.id, revision: model.activeRevision })}`, { method: "POST" });
+			if (!response.ok) throw new Error("Kode HPL gagal diperbarui. Coba lagi.");
+			const data = await response.json() as { panels: { syncedAt?: string }[] };
+			const syncedAt = data.panels.reduce<string | null>((latest, panel) => panel.syncedAt && (!latest || panel.syncedAt > latest) ? panel.syncedAt : latest, null);
+			setHplSyncedAt((previous) => ({ ...previous, [`${model.id}:${model.activeRevision}`]: syncedAt }));
+			toast.success("Kode HPL model aktif berhasil diperbarui.");
+		} catch (error) {
+			setMessage(error instanceof Error ? error.message : "Kode HPL gagal diperbarui.");
+		} finally {
+			setHplRefreshing("");
+			setBusy(false);
+		}
+	}
+	async function loadHplSyncTime(model: TrialPublicModel) {
+		if (!model.activeRevision) return;
+		const key = `${model.id}:${model.activeRevision}`;
+		try {
+			const response = await fetch(`/api/panel/hpl?${new URLSearchParams({ id: model.id, revision: model.activeRevision })}`);
+			if (!response.ok) throw new Error("HPL unavailable");
+			const data = await response.json() as { syncedAt: string | null };
+			setHplSyncedAt((previous) => ({ ...previous, [key]: previous[key] && previous[key] !== "error" && (!data.syncedAt || previous[key]! > data.syncedAt) ? previous[key] : data.syncedAt }));
+		} catch {
+			setHplSyncedAt((previous) => key in previous ? previous : { ...previous, [key]: "error" });
+		}
+	}
+	async function deactivate(model: TrialPublicModel) {
+		if (!model.activeRevision || busy) return;
+		setBusy(true);
+		setMessage("");
 		try {
 			const response = await fetch("/api/admin/trial-3d-import", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: model.id, revision: null, expected: model.activeRevision }) });
 			const result = await response.json();
 			if (!response.ok) throw new Error(result.error);
+			setDeactivating(null);
 			setMessage("Model 3D dinonaktifkan. Data dan riwayat tetap tersimpan; gunakan viewer old bila diperlukan.");
 			await load();
 		} catch (error) { setMessage(error instanceof Error ? error.message : "Gagal menonaktifkan model."); }
@@ -363,9 +401,10 @@ export function Trial3DImportPage({ workspace = "Admin" }: { workspace?: "Admin"
 					</form>
 				)}
 				{message && (
-					<p role="status" className="text-sm">
-						{message}
-					</p>
+					<Alert role="status" className="border border-border">
+						<Info aria-hidden="true" />
+						<AlertDescription className="text-foreground">{message}</AlertDescription>
+					</Alert>
 				)}
 				<section className="space-y-3" aria-busy={loading}>
 					<div className="flex items-center justify-between">
@@ -404,7 +443,7 @@ export function Trial3DImportPage({ workspace = "Admin" }: { workspace?: "Admin"
 									style={candidate ? previewStatusStyle : activeStatusStyle}
 									className={`overflow-hidden rounded-2xl border bg-card text-card-foreground ${candidate ? "border-[color-mix(in_srgb,var(--status-color)_40%,transparent)]" : "border-border/60"}`}
 								>
-									<details className="group/model">
+									<details className="group/model" onToggle={(event) => { if (event.currentTarget.open) void loadHplSyncTime(model); }}>
 										<summary className="flex cursor-pointer list-none items-center gap-3 p-4 transition-colors hover:bg-muted/40 group-open/model:bg-muted/30 focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
 											<span
 												style={
@@ -426,8 +465,8 @@ export function Trial3DImportPage({ workspace = "Admin" }: { workspace?: "Admin"
 												>
 													{model.name}
 												</h3>
-												<p className="mt-0.5 truncate text-xs text-muted-foreground">
-													V{latest.number} ·{" "}
+														<p className="mt-0.5 text-xs text-muted-foreground">
+															V{latest.number} ·{" "}
 													{new Date(latest.importedAt).toLocaleString("id-ID", {
 														timeZone: "Asia/Jakarta",
 														day: "2-digit",
@@ -457,7 +496,7 @@ export function Trial3DImportPage({ workspace = "Admin" }: { workspace?: "Admin"
 											</span>
 										</summary>
 										<div className="space-y-4 border-t border-border/50 p-4">
-											{model.activeRevision && <Button type="button" variant="outline" disabled={busy} className="w-full" onClick={() => void deactivate(model)}>Nonaktifkan model 3D (gunakan old)</Button>}
+											{latest.panelCount != null && <p className="text-xs text-muted-foreground">{latest.panelCount} panel terpetakan · {latest.groupCount} grup</p>}
 											<div className="grid grid-cols-2 gap-2">
 												<Button
 													type="button"
@@ -484,6 +523,16 @@ export function Trial3DImportPage({ workspace = "Admin" }: { workspace?: "Admin"
 												>
 													Update model
 												</Button>
+											</div>
+											<div className="rounded-xl bg-muted/50 px-3">
+												<div className="flex items-center justify-between gap-3 py-3">
+													<div><p className="text-sm font-medium">Dipakai untuk pencarian</p><p className="text-xs text-muted-foreground">{model.activeRevision ? "Model 3D ini aktif" : "Model 3D belum aktif"}</p></div>
+													<Checkbox role="switch" aria-label={`Dipakai untuk pencarian: ${model.name}`} checked={Boolean(model.activeRevision)} disabled={busy} onCheckedChange={() => model.activeRevision ? (setMessage(""), setDeactivating(model)) : void openPreview(model, latest.revision, `${model.id}:latest`)} className="h-7 w-12 justify-start rounded-full border-input bg-muted p-1 before:size-5 before:rounded-full before:bg-card before:shadow-sm before:transition-transform data-checked:bg-green-500 data-checked:border-green-500 data-checked:before:translate-x-5 **:data-[slot=checkbox-indicator]:hidden" />
+												</div>
+												{model.activeRevision && <div className="border-t py-3">
+															<div className="flex items-center justify-between gap-3"><div><p className="text-sm font-medium">Kode HPL</p><p className="text-xs text-muted-foreground">{hplRefreshing === model.id ? "Memperbarui HPL…" : hplSyncedAt[`${model.id}:${model.activeRevision}`] === "error" ? "Waktu sinkronisasi tidak tersedia" : hplSyncedAt[`${model.id}:${model.activeRevision}`] ? `Terakhir sinkron: ${new Date(hplSyncedAt[`${model.id}:${model.activeRevision}`]!).toLocaleString("id-ID", { timeZone: "Asia/Jakarta", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}` : `${model.id}:${model.activeRevision}` in hplSyncedAt ? "Belum disinkronkan" : "Memuat waktu sinkronisasi…"}</p></div><Button type="button" variant="outline" size="sm" className="bg-accent/30" disabled={busy} aria-label="Refresh HPL model aktif" onClick={() => void refreshHpl(model)}><RotateCcw aria-hidden="true" className="size-4" />Refresh</Button></div>
+													{hplRefreshing === model.id && <Progress value={null} aria-label="Memperbarui HPL" className="mt-3 [&_[data-slot=progress-indicator]]:w-1/3 [&_[data-slot=progress-indicator]]:motion-safe:animate-[hpl-loading_1.4s_ease-in-out_infinite_alternate]" />}
+												</div>}
 											</div>
 											<section
 												aria-label="Riwayat versi"
@@ -574,6 +623,14 @@ export function Trial3DImportPage({ workspace = "Admin" }: { workspace?: "Admin"
 					)}
 				</section>
 			</div>
+			<Dialog open={Boolean(deactivating)} onOpenChange={(open) => { if (!open && !busy) setDeactivating(null); }}>
+				<DialogContent showCloseButton={!busy}>
+					<DialogTitle className="pr-8">Nonaktifkan model 3D?</DialogTitle>
+					<DialogDescription>{deactivating?.name} tidak lagi muncul dalam pencarian aktif. Viewer old hanya tersedia jika data old ada. Versi yang belum diverifikasi harus diimport ulang sebelum dapat diaktifkan kembali.</DialogDescription>
+					{message && <p role="alert" className="text-sm text-destructive">{message}</p>}
+					<DialogFooter><Button type="button" variant="outline" disabled={busy} onClick={() => setDeactivating(null)}>Batal</Button><Button type="button" disabled={busy} onClick={() => { if (deactivating) void deactivate(deactivating); }}>{busy ? "Memproses…" : "Nonaktifkan"}</Button></DialogFooter>
+				</DialogContent>
+			</Dialog>
 			{preview && (
 				<section
 					className="fixed inset-x-0 top-0 bottom-(--bottom-navigation-height) z-40 bg-background"
