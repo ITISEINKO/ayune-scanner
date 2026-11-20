@@ -90,6 +90,8 @@ const { chromium, expect } = require("@playwright/test");
 					const navigation = profileLink.click();
 					await expect(profileLink.locator("[data-navigation-pending]")).toBeVisible();
 					await expect(profileLink).not.toHaveAttribute("aria-current", "page");
+					await expect(page.getByRole("navigation").getByRole("link", { name: "Member", exact: true })).toHaveAttribute("aria-current", "page");
+					assert(!await profileLink.evaluate((link) => link.className.includes("bg-white/10")), "pending destination must not look active");
 					releaseProfile();
 					await navigation;
 					await expect(page).toHaveURL(`${base}/admin/profile`);

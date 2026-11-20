@@ -8,7 +8,7 @@ const { QueryClient, QueryObserver } = require("@tanstack/react-query");
 const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
 const key = ["panel-members"];
 let serverData = { members: [{ id: "member", name: "Member" }], roles: {}, permissions: {} };
-let reads = 0;
+let reads = 0, refreshes = 0;
 let attach;
 let cleanup;
 let unobserve;
@@ -29,13 +29,13 @@ runInNewContext(transpileModule(readFileSync("src/hooks/use-panel-members.ts", "
 	exports: moduleUnderTest.exports,
 	console,
 	performance: { getEntriesByType: () => [] },
-	fetch: async () => { reads++; return { ok: true, json: async () => serverData }; },
+	fetch: async (url) => { if (url.includes('refresh=1')) refreshes++; else reads++; return { ok: true, json: async () => serverData }; },
 	require(id) {
 		if (id === "ably") return { Realtime: class {
 			channels = { get: () => channel };
 			close() { closed = true; }
 		} };
-		if (id === "react") return { useEffect: (effect) => { cleanup = effect(); } };
+		if (id === "react") return { useEffect: (effect) => { cleanup = effect(); }, useState: (value) => [value, () => {}] };
 		if (id === "@tanstack/react-query") return {
 			queryOptions: (options) => options,
 			useQueryClient: () => client,
@@ -61,14 +61,17 @@ const unmount = () => { cleanup(); unobserve(); };
 	client.setQueryData(key, serverData);
 	mount();
 	assert.equal(reads, 0, "cached data stays visible until the subscription attaches");
+	assert.equal(refreshes, 1, "opening Settings refreshes ClickUp members");
+	await settle();
+	assert.equal(reads, 1, "completed member refresh reloads the snapshot");
 	serverData = { ...serverData, permissions: { member: ["BARANG_DITERIMA"] } };
 	attach();
 	await settle();
-	assert.equal(reads, 1, "attachment refreshes the cached permission snapshot");
+	assert.equal(reads, 2, "attachment refreshes the cached permission snapshot");
 	assert.deepEqual(JSON.parse(JSON.stringify(client.getQueryData(key))), { ...serverData, lbyImporters: serverData.lbyImporters ?? {} });
 	listener({ data: { userId: "member", allowedStatus: ["SEDANG_DIPACKING"] } });
 	assert.equal(client.getQueryData(key).permissions.member[0], "SEDANG_DIPACKING");
-	assert.equal(reads, 1, "live events still patch the cache without a fetch");
+	assert.equal(reads, 2, "live events still patch the cache without a fetch");
 	listener({ data: { userId: "member", canImportLby: true } });
 	assert.equal(client.getQueryData(key).lbyImporters.member, true);
 	assert.equal(client.getQueryData(key).permissions.member[0], "SEDANG_DIPACKING", "LBY events must preserve scan permissions");
@@ -79,16 +82,18 @@ const unmount = () => { cleanup(); unobserve(); };
 	assert.equal(closed, true);
 	serverData = { ...serverData, permissions: { member: ["TERPASANG_DIGUNAKAN"] } };
 	mount();
+	assert.equal(refreshes, 2, "returning to Settings refreshes ClickUp members");
 	attach();
 	await settle();
-	assert.equal(reads, 2, "returning to Settings refreshes changes missed while away");
+	assert(reads >= 3, "returning to Settings refreshes changes missed while away");
 	assert.deepEqual(JSON.parse(JSON.stringify(client.getQueryData(key))), serverData);
 	unmount();
+	const readsBeforeUnmount = reads;
 	mount();
 	unmount();
 	attach();
 	await settle();
-	assert.equal(reads, 2, "late attachment after unmount does not refresh");
+	assert.equal(reads, readsBeforeUnmount, "late completion after unmount does not reload the snapshot");
 	client.clear();
 	console.log("PASS: Settings attachment refresh, missed changes, live events and unmount cleanup.");
 })().catch((error) => { client.clear(); console.error(error); process.exitCode = 1; });

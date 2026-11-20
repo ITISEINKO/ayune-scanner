@@ -24,3 +24,16 @@ export const hplResults = sqliteTable("ppic_hpl_result", {
 	leafTaskId: text("leaf_task_id"),
 	syncedAt: text("synced_at").notNull(),
 }, (table) => [primaryKey({ columns: [table.modelId, table.revision, table.roomId, table.panelId] })]);
+
+export const hplSnapshots = sqliteTable("ppic_hpl_snapshot", {
+	modelId: text("model_id").notNull(),
+	revision: text("revision").notNull(),
+	roomId: text("room_id").notNull(),
+	panelId: text("panel_id").notNull(),
+	serial: text("serial").notNull(),
+	status: text("status").notNull(),
+	side1: text("side_1"),
+	side2: text("side_2"),
+	parentId: text("parent_id"),
+	syncedAt: text("synced_at").notNull(),
+}, (table) => [primaryKey({ columns: [table.modelId, table.revision, table.roomId, table.panelId] })]);

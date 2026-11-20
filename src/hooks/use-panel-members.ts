@@ -1,7 +1,7 @@
 "use client";
 
 import * as Ably from "ably";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
 	queryOptions,
 	useMutation,
@@ -14,8 +14,6 @@ import {
 	ppicStatuses,
 } from "@/types/ppic";
 import type { PpicRole, PpicStatuses } from "@/types/ppic";
-
-let reloadSynced = false;
 
 const loadMembers = async () => {
 	const response = await fetch("/api/panel/members", { cache: "no-store" });
@@ -46,6 +44,7 @@ const panelMembersQuery = queryOptions({
 
 export function usePanelMembers() {
 	const queryClient = useQueryClient();
+	const [refreshError, setRefreshError] = useState(false);
 	const query = useQuery(panelMembersQuery);
 	const update = useMutation({
 		mutationFn: async (
@@ -88,14 +87,10 @@ export function usePanelMembers() {
 
 	useEffect(() => {
 		let closed = false;
-		const navigation = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
-		if (navigation?.type === "reload" && !reloadSynced) {
-			reloadSynced = true;
-			void fetch("/api/panel/members?refresh=1", { cache: "no-store" }).then((response) => {
-				if (!response.ok) throw new Error("members refresh");
-				if (!closed) return queryClient.invalidateQueries({ queryKey: panelMembersQuery.queryKey });
-			}).catch(console.error);
-		}
+		void fetch("/api/panel/members?refresh=1", { cache: "no-store" }).then((response) => {
+			if (!response.ok) throw new Error("members refresh");
+			if (!closed) return queryClient.invalidateQueries({ queryKey: panelMembersQuery.queryKey });
+		}).catch((error) => { if (!closed) { setRefreshError(true); console.error(error); } });
 		const realtime = new Ably.Realtime({ authUrl: "/api/ably/token" });
 		const channel = realtime.channels.get("ppic:settings");
 		const onMemberUpdated = (message: Ably.InboundMessage) => {
@@ -151,6 +146,7 @@ export function usePanelMembers() {
 		lbyImporters: query.data?.lbyImporters ?? {},
 		loading: query.isLoading,
 		error: query.isError,
+		refreshError,
 		updateRole: (userId: string, role: PpicRole) =>
 			update.mutateAsync({ user_id: userId, role }),
 		updatePermission: (userId: string, allowedStatus: PpicStatuses | null) =>
