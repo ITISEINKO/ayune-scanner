@@ -338,7 +338,7 @@ async function main() {
 		await page.emulateMedia({ media: "screen" });
 		await page.reload();
 		await expect(
-			page.getByText(/kondisi item saat project selesai tidak tersedia/),
+			page.getByText(/Kondisi item saat project selesai tidak diketahui/),
 		).toBeVisible();
 		await expect(
 			page.getByText("Selesai · tanggal tidak tercatat", { exact: true }),

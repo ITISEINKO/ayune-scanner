@@ -1118,7 +1118,7 @@ async function main() {
 		await context.addCookies([{ ...refreshedCookie, secure: false }]);
 		await page.goto(`${base}/drafter`);
 		await expect(
-			page.getByRole("heading", { name: "Model LBY", exact: true }),
+			page.getByRole("heading", { name: "Model LBY 3D Ver2", exact: true }),
 		).toBeVisible();
 		const nav = page.getByRole("navigation", { name: "Main navigation" });
 		await expect(nav.getByRole("link")).toHaveCount(3);

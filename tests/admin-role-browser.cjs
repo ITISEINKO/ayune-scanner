@@ -72,7 +72,7 @@ const { chromium, expect } = require("@playwright/test");
 				await page.goto(`${base}/admin/import-3d`);
 				await expect(page).toHaveURL(`${base}/unauthorized`);
 				await page.goto(`${base}/drafter`);
-				await expect(page.getByRole("heading", { name: "Model LBY", exact: true })).toBeVisible();
+				await expect(page.getByRole("heading", { name: "Model LBY 3D Ver2", exact: true })).toBeVisible();
 				assert.deepEqual(await page.getByRole("navigation").getByRole("link").allTextContents(), ["Models", "Cari", "Profile"]);
 			} else {
 				await expect(page.getByRole("heading", { name: "Pengguna & aktivitas" })).toBeVisible();
@@ -124,12 +124,12 @@ const { chromium, expect } = require("@playwright/test");
 				await expect(page.getByRole("link", { name: "Kelola model LBY", exact: true })).toBeVisible();
 				await page.getByRole("link", { name: "Kelola model LBY", exact: true }).click();
 				await expect(page).toHaveURL(`${base}/admin/import-3d`);
-				await expect(page.getByRole("heading", { name: "Model LBY", exact: true })).toBeVisible();
+				await expect(page.getByRole("heading", { name: "Model LBY 3D Ver2", exact: true })).toBeVisible();
 				await expect(page.locator("header").getByText("Admin", { exact: true })).toBeVisible();
 				assert.deepEqual(await page.getByRole("navigation").getByRole("link").allTextContents(), ["Home", "Projects", "Scan", "Member", "Profile"]);
 				await page.goto(`${base}/panel-location?project=z96buhry4p&barcode=15370046376`);
 				await page.getByRole("link", { name: "Kembali ke model", exact: true }).click();
-				await expect(page).toHaveURL(`${base}/admin/import-3d`);
+				await expect(page).toHaveURL(`${base}/admin/import-3d/old`);
 				if (role === "SUPER_ADMIN") {
 					await db.execute("UPDATE ppic_permissions SET can_import_lby=0 WHERE clickup_user_id='test-user'");
 					await page.reload();
