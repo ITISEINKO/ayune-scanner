@@ -178,7 +178,9 @@ export const postLoginPath = async () => {
 	const session = await getAppSession();
 	if (session) return hasPpicAdminAccess(session.role) ? "/admin" : session.can_import_lby ? "/drafter" : "/projects";
 	const userId = await clickUpUserId();
-	return userId ? postLoginPathForUser(userId) : "/login";
+	if (!userId) return "/login";
+	const path = await postLoginPathForUser(userId);
+	return path === "/unauthorized" ? "/profile" : path;
 };
 
 export const requireFreshSuperAdmin = async () => {

@@ -74,6 +74,15 @@ pnpm dev
 
 Installation runs `next build` through `postinstall`, so configure the environment before installing. Open `http://localhost:3000` after starting the dev server.
 
+To migrate a local SQLite copy of the legacy user permissions, prepare a private JSON file with ClickUp workspace members in this format: `[{"id":"123","name":"Name","email":"name@example.com"}]`. IDs must come from the trusted ClickUp workspace, not name matching. Active members, importers, and admins without a matching email stop the migration; inactive members without one receive an `example.invalid` placeholder.
+
+```sh
+pnpm db:migrate-auth-local --database ./copy.db --members ./members.json
+pnpm db:migrate-auth-local --database ./copy.db --members ./members.json --apply
+```
+
+The first command previews and rolls back the transaction. Stop application writes before applying. The second creates and checks a backup beside the database, then creates the Better Auth tables, moves permissions, and drops `ppic_permissions` in a transaction. Keep the backup private: it can contain user data and tokens. This command supports local SQLite files only and does not update Drizzle's migration history; reconcile that history before running `pnpm db:migrate`. Test on a copy before planning a remote migration.
+
 | Command                              | Purpose                                               |
 | ------------------------------------ | ----------------------------------------------------- |
 | `pnpm build`                         | Create a production build                             |

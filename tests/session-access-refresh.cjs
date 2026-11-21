@@ -4,6 +4,7 @@ const { runInNewContext } = require("node:vm");
 const { transpileModule, ModuleKind } = require("typescript");
 
 const values = new Map();
+let validSession = true;
 let access = { role: "ADMIN", active: 1, allowed_status: ["BARANG_DITERIMA"] };
 let importer = false;
 let clickupCalls = 0;
@@ -15,13 +16,14 @@ function load(file) {
 		module: mod, exports: mod.exports, Buffer, Date, Response, process: { env: { CLICKUP_CLIENT_SECRET: "test-secret" } },
 		fetch: async () => { clickupCalls++; throw new Error("unexpected ClickUp request"); },
 		require(id) {
-			if (id === "next/headers") return { cookies: async () => ({ get: (key) => values.has(key) ? { value: values.get(key) } : undefined }) };
+			if (id === "next/headers") return { headers: async () => ({}), cookies: async () => ({ get: (key) => values.has(key) ? { value: values.get(key) } : undefined }) };
 			if (id === "next/cache") return { unstable_cache: (fn) => fn };
 			if (id === "next/navigation") return { redirect: (path) => { throw new Error(`redirect:${path}`); } };
 			if (id === "next/server") return require("next/server.js");
 			if (id === "react") return { cache: (fn) => fn };
 			if (id === "@/lib/clickup") return { clickUpHeaders: () => ({}) };
-			if (id === "@/lib/db") return { getPpicAccess: async () => access, canImportLby: async () => importer, isPpicSuperAdmin: async () => access?.role === "ADMIN", isPpicStatus: (value) => value === "BARANG_DITERIMA" };
+			if (id === "@/lib/db") return { db: { execute: async () => ({ rows: [{ id: "account", accountId: "user" }] }) }, getPpicAccess: async () => access, canImportLby: async () => importer, isPpicSuperAdmin: async () => access?.role === "ADMIN", isPpicStatus: (value) => value === "BARANG_DITERIMA" };
+			if (id === "@/lib/auth") return { auth: { api: { getSession: async () => validSession ? { user: { id: "u" }, session: { updatedAt: new Date() } } : null } } };
 			if (id === "@/lib/produksiPanel") return {};
 			if (id === "@/types/ppic") return { hasPpicAdminAccess: (value) => value === "ADMIN" || value === "SUPER_ADMIN" };
 			if (id === "@/lib/session") return load("src/lib/session.ts");
@@ -35,7 +37,6 @@ function load(file) {
 (async () => {
 	const session = load("src/lib/session.ts");
 	const refresh = load("src/app/api/auth/refresh/route.ts");
-	values.set("ppic_session", session.encodePpicSession("user", "ADMIN", null));
 	assert.equal((await session.getAppSession()).role, "ADMIN");
 	access = { role: "MEMBER", active: 1, allowed_status: ["BARANG_DITERIMA"] };
 	assert.equal((await session.getAppSession()).role, "MEMBER");
@@ -51,7 +52,7 @@ function load(file) {
 	await assert.rejects(session.requireFreshSuperAdmin(), /redirect:\/profile/);
 	await assert.rejects(session.requireFreshPpicStatusAccess("BARANG_DITERIMA"), /redirect:\/profile/);
 	await assert.rejects(session.requireSelectedMemberProject(), /redirect:\/profile/);
-	values.set("ppic_session", "invalid");
+	validSession = false;
 	assert.equal((await refresh.GET()).status, 401);
 	assert.equal(clickupCalls, 0);
 })().catch((error) => { console.error(error); process.exitCode = 1; });

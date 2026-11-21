@@ -1,5 +1,5 @@
 "use client";
-import { ThemeColor } from "@/components/themeColor";
+import { PageHeader } from "@/components/pageHeader";
 
 import {
 	useEffect,
@@ -353,50 +353,23 @@ export function Trial3DImportPage({
 	);
 	return (
 		<main className="mx-auto min-h-dvh max-w-lg bg-background pb-28">
-			<header className="relative overflow-hidden rounded-b-[2.5rem] bg-accent/30 px-6 pt-6 pb-8 text-accent-foreground">
-				<ThemeColor color="color-mix(in srgb, var(--accent) 30%, var(--background))" />
-				<img
-					src="/ayune-14.svg"
-					alt=""
-					aria-hidden="true"
-					className="pointer-events-none absolute -top-20 -right-16 size-70 opacity-10"
-				/>
-				<div className="relative pr-12">
+			<PageHeader
+				eyebrow={workspace}
+				title="Model LBY 3D Ver2"
+				action={
 					<DropdownMenu>
-						<DropdownMenuTrigger
-							aria-label="Menu model"
-							className="absolute right-0 top-0 flex size-11 items-center justify-center rounded-full hover:bg-background/50 focus-visible:outline-2 focus-visible:outline-ring"
-						>
+						<DropdownMenuTrigger aria-label="Menu model" className="flex size-11 items-center justify-center rounded-full hover:bg-background/50 focus-visible:outline-2 focus-visible:outline-ring">
 							<EllipsisVertical aria-hidden="true" className="size-5" />
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end">
-							<DropdownMenuItem render={<Link href="/cari-lokasi" />}>
-								Buka pencarian lokasi
-							</DropdownMenuItem>
-							<DropdownMenuItem
-								render={
-									<Link
-										href={
-											workspace === "Admin"
-												? "/admin/import-3d/old"
-												: "/drafter/old"
-										}
-									/>
-								}
-							>
-								Kelola model LBY old
-							</DropdownMenuItem>
+							<DropdownMenuItem render={<Link href="/cari-lokasi" />}>Buka pencarian lokasi</DropdownMenuItem>
+							<DropdownMenuItem render={<Link href={workspace === "Admin" ? "/admin/import-3d/old" : "/drafter/old"} />}>Kelola model LBY old</DropdownMenuItem>
 						</DropdownMenuContent>
 					</DropdownMenu>
-					<p className="text-md text-muted-foreground/80">{workspace}</p>
-					<h1 className="text-2xl font-extrabold tracking-tight">
-						Model LBY 3D Ver2
-					</h1>
-					<p className="mt-2 text-sm text-muted-foreground">
-						Kelola model aktif untuk pencarian lokasi panel.
-					</p>
-				</div>
-			</header>
+				}
+			>
+				<p className="relative mt-2 text-sm text-muted-foreground">Kelola model aktif untuk pencarian lokasi panel.</p>
+			</PageHeader>
 			<div className="space-y-6 px-4 pt-5">
 				{importStage ? (
 					<section

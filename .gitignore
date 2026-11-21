@@ -22,6 +22,15 @@
 /docs/
 /user-flow
 /postman
+!/postman/
+/postman/*
+!/postman/mocks/
+/postman/mocks/*
+!/postman/mocks/better-auth-clickup/
+!/postman/simulations/
+/postman/simulations/*
+!/postman/simulations/better-auth-clickup.sim.yaml
+!/postman/simulations/better-auth-clickup.context.yaml
 
 # misc
 /trackerprod-panel.db*

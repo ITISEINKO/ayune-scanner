@@ -48,8 +48,10 @@ const {
 const project = { task_id: "project", name: null, custom_id: null };
 
 async function main() {
-	await db.execute("CREATE TABLE ppic_permissions (clickup_user_id TEXT PRIMARY KEY, role TEXT)");
-	await db.execute("INSERT INTO ppic_permissions VALUES ('local-admin', 'SUPER_ADMIN')");
+	await db.execute('CREATE TABLE "user" (id TEXT PRIMARY KEY, role TEXT)');
+	await db.execute('CREATE TABLE account ("userId" TEXT, "accountId" TEXT, "providerId" TEXT)');
+	await db.execute("INSERT INTO user VALUES ('local-admin', 'SUPER_ADMIN')");
+	await db.execute("INSERT INTO account VALUES ('local-admin', 'local-admin', 'clickup')");
 	await db.execute(`CREATE TABLE ppic_scan_history (
 		id INTEGER PRIMARY KEY, clickup_user_id TEXT, serial_number TEXT, status TEXT,
 		task_name TEXT, scanned_at TEXT, project_task_id TEXT, component_task_id TEXT
@@ -92,10 +94,10 @@ async function main() {
 	assert.deepEqual(await getProjectDashboard("another-admin-token", project), raced);
 	assert.equal(calls, beforeNewScope, "another admin reuses the same project without any ClickUp reads");
 	assert.equal((await db.execute("SELECT COUNT(*) AS count FROM ppic_admin_project_snapshot")).rows[0].count, 1);
-	await db.execute("UPDATE ppic_permissions SET role = 'MEMBER'");
+	await db.execute("UPDATE user SET role = 'MEMBER'");
 	await assert.rejects(getProjectDashboard("another-admin-token", project, true), /DASHBOARD_SERVICE_UNAUTHORIZED/);
 	assert.equal((await getProjectDashboard("test-token", project)).syncedAt, raced.syncedAt, "failed service authorization preserves the shared result");
-	await db.execute("UPDATE ppic_permissions SET role = 'SUPER_ADMIN'");
+	await db.execute("UPDATE user SET role = 'SUPER_ADMIN'");
 
 	assert.equal(await claimAdminProjectRefresh("lease-test", "owner"), true);
 	assert.equal(await claimAdminProjectRefresh("lease-test", "other"), false);

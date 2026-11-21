@@ -1,7 +1,6 @@
 import { PageHeader } from "@/components/pageHeader";
 import Link from "next/link";
 import {
-	Bell,
 	Box,
 	ChevronRight,
 	Info,
@@ -39,11 +38,6 @@ export default function Settings() {
 			title: "Preferensi",
 			items: [
 				{
-					title: "Notifikasi",
-					description: "Retur dan barang baru diterima",
-					icon: Bell,
-				},
-				{
 					title: "Tampilan",
 					description: "Ganti mode terang / gelap",
 					icon: Moon,
@@ -52,7 +46,6 @@ export default function Settings() {
 					title: "Info akses ClickUp",
 					description: "Cara panel dicocokkan",
 					icon: Info,
-					href: "/admin/users",
 				},
 			],
 		},

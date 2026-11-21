@@ -2,7 +2,7 @@
 const assert = require("node:assert/strict");
 const { createHash, createHmac } = require("node:crypto");
 const { spawn } = require("node:child_process");
-const { mkdtempSync, mkdirSync } = require("node:fs");
+const { mkdtempSync, mkdirSync, readFileSync } = require("node:fs");
 const { tmpdir } = require("node:os");
 const { join } = require("node:path");
 const { createClient } = require("@libsql/client");
@@ -13,10 +13,15 @@ const { chromium, expect } = require("@playwright/test");
 	const databaseUrl = `file:${join(directory, "dashboard.db").replaceAll("\\", "/")}`;
 	const db = createClient({ url: databaseUrl });
 	const token = "local-complete-test";
-	const secret = "local-complete-secret";
+	const secret = "local-complete-secret-at-least-32-characters";
 	const baseURL = "http://127.0.0.1:3349";
-	await db.execute("CREATE TABLE ppic_permissions (clickup_user_id TEXT PRIMARY KEY, role TEXT)");
-	await db.execute("INSERT INTO ppic_permissions VALUES ('local-admin', 'SUPER_ADMIN')");
+	const statements = (path) => readFileSync(path, "utf8").split("--> statement-breakpoint").map(sql => sql.trim()).filter(Boolean);
+	await db.batch(statements("drizzle/0004_mean_carlie_cooper.sql"), "write");
+	await db.batch(statements("drizzle/0006_absurd_redwing.sql").slice(0, 6), "write");
+	const now = Date.now();
+	await db.execute({ sql: 'INSERT INTO "user" (id,name,email,"emailVerified",role,active,"createdAt","updatedAt") VALUES (?,?,?,?,?,?,?,?)', args: ["local-admin", "Admin", "admin@example.test", 0, "SUPER_ADMIN", 1, now, now] });
+	await db.execute({ sql: 'INSERT INTO account (id,"userId","accountId","providerId","accessToken","createdAt","updatedAt") VALUES (?,?,?,?,?,?,?)', args: ["account", "local-admin", "local-admin", "clickup", token, now, now] });
+	await db.execute({ sql: 'INSERT INTO session (id,token,"userId","expiresAt","createdAt","updatedAt") VALUES (?,?,?,?,?,?)', args: ["session", "session-token", "local-admin", now + 3600000, now, now] });
 	const dashboard = {
 		project: { task_id: "complete-project", name: "Rak Buku · Kantor Contoh", custom_id: "DEMO-001", startDate: null, dueDate: null, status: "in progress" },
 		items: [{ id: "group", name: "Plywood", components: [null, null, null, "DALAM_PROSES_RETUR"].map((status, i) => ({ id: `panel-${i}`, name: `Panel ${i}`, serialNumber: `SERIAL-${i}`, status, history: [] })) },
@@ -27,7 +32,7 @@ const { chromium, expect } = require("@playwright/test");
 	await db.execute("CREATE TABLE ppic_admin_project_snapshot (scope_key TEXT PRIMARY KEY, dashboard_json TEXT, refresh_id TEXT, refresh_until INTEGER NOT NULL DEFAULT 0)");
 	await db.execute({ sql: "INSERT INTO ppic_admin_project_snapshot (scope_key, dashboard_json) VALUES (?, ?)", args: [scopeKey, JSON.stringify(dashboard)] });
 	const server = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start", "-p", "3349"], {
-		windowsHide: true, stdio: "pipe", env: { ...process.env, CLICKUP_TOKEN: token, TURSO_DATABASE_URL: databaseUrl, TURSO_AUTH_TOKEN: "local-only", CLICKUP_CLIENT_SECRET: secret, CLICKUP_PPIC_PANEL_LIST_ID: "1100830000000087", ABLY_API_KEY: "" },
+		windowsHide: true, stdio: "pipe", env: { ...process.env, CLICKUP_TOKEN: token, TURSO_DATABASE_URL: databaseUrl, TURSO_AUTH_TOKEN: "local-only", CLICKUP_CLIENT_SECRET: secret, BETTER_AUTH_SECRET: secret, BETTER_AUTH_URL: baseURL, CLICKUP_PPIC_PANEL_LIST_ID: "1100830000000087", ABLY_API_KEY: "" },
 	});
 	let logs = "";
 	server.stdout.on("data", chunk => { logs += chunk; });
@@ -41,10 +46,9 @@ const { chromium, expect } = require("@playwright/test");
 		}
 		browser = await chromium.launch({ headless: true });
 		const context = await browser.newContext({ viewport: { width: 350, height: 750 } });
-		const payload = Buffer.from(JSON.stringify({ user_id: "local-admin", role: "SUPER_ADMIN", allowed_status: null, refreshed_at: Date.now() })).toString("base64url");
+		const signature = createHmac("sha256", secret).update("session-token").digest("base64");
 		await context.addCookies([
-			{ name: "clickup_access_token", value: token, url: baseURL },
-			{ name: "ppic_session", value: `${payload}.${createHmac("sha256", secret).update(payload).digest("base64url")}`, url: baseURL },
+			{ name: "better-auth.session_token", value: encodeURIComponent(`session-token.${signature}`), url: baseURL },
 		]);
 		let writes = 0;
 		let completedReads = 0;
@@ -86,12 +90,10 @@ const { chromium, expect } = require("@playwright/test");
 		});
 		const page = await context.newPage();
 		await page.goto(`${baseURL}/admin/projects`);
-		await page.getByRole("combobox", { name: "Status project" }).click();
-		await page.getByRole("option", { name: "Completed", exact: true }).click();
+		await page.getByRole("group", { name: "Status project" }).getByRole("button", { name: "Selesai" }).click();
 		await expect(page.getByRole("heading", { name: "Belum ada project selesai", exact: true })).toBeVisible();
 		assert.equal(completedReads, 1);
-		await page.getByRole("combobox", { name: "Status project" }).click();
-		await page.getByRole("option", { name: "In progress", exact: true }).click();
+		await page.getByRole("group", { name: "Status project" }).getByRole("button", { name: "In progress" }).click();
 		await page.getByRole("link", { name: /Rak Buku/ }).click();
 		await expect(page.getByText("Masih ada 3 barang belum discan.")).toBeVisible();
 		await page.getByRole("button", { name: "Tandai selesai", exact: true }).click();
@@ -133,8 +135,7 @@ const { chromium, expect } = require("@playwright/test");
 		await expect(page.getByRole("button", { name: "Tandai selesai", exact: true })).toHaveCount(0);
 		assert.equal(writes, 3);
 		await page.locator("main").getByRole("link", { name: "Projects", exact: true }).click();
-		await page.getByRole("combobox", { name: "Status project" }).click();
-		await page.getByRole("option", { name: "Completed", exact: true }).click();
+		await page.getByRole("group", { name: "Status project" }).getByRole("button", { name: "Selesai" }).click();
 		await expect(page.getByRole("link", { name: /Rak Buku/ })).toHaveAttribute("href", "/admin/project?task_id=complete-project&review=completed");
 		assert.equal(completedReads, 2, "completion clears the previously loaded Completed list");
 		console.log("Completion UI: mobile/desktop, missing serial blocker, non-serial exclusion, retur warning, cancel, stale conflict, upstream failure, pending state and success passed.");

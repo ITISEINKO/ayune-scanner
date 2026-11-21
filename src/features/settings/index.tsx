@@ -142,7 +142,11 @@ export const SettingPage = ({
 
 	return (
 		<main className="mx-auto min-h-dvh max-w-120 bg-background pb-[calc(100px+env(safe-area-inset-bottom,0px))]">
-			<PageHeader eyebrow="Settings" title="Pengguna & aktivitas" backHref="/admin/settings" />
+			<PageHeader
+				eyebrow="Settings"
+				title="Pengguna & aktivitas"
+				backHref="/admin/settings"
+			/>
 			<section className="px-4 pt-4" aria-label="Pengguna dan aktivitas">
 				<p className="mb-5 text-sm text-muted-foreground">
 					Ringkasan aktivitas scan dan akses pengguna.
@@ -161,7 +165,7 @@ export const SettingPage = ({
 					<Button
 						type="button"
 						size="sm"
-						variant={statusFilter === null ? "default" : "outline"}
+						variant={statusFilter === null ? "secondary" : "outline"}
 						className="min-h-10 shrink-0 rounded-full"
 						onClick={() => setStatusFilter(null)}
 						aria-pressed={statusFilter === null}
@@ -173,7 +177,7 @@ export const SettingPage = ({
 							key={option.status}
 							type="button"
 							size="sm"
-							variant={statusFilter === option.status ? "default" : "outline"}
+							variant={statusFilter === option.status ? "secondary" : "outline"}
 							className="min-h-10 shrink-0 rounded-full"
 							onClick={() => setStatusFilter(option.status)}
 							aria-pressed={statusFilter === option.status}
@@ -184,7 +188,7 @@ export const SettingPage = ({
 					<Button
 						type="button"
 						size="sm"
-						variant={statusFilter === "inactive" ? "default" : "outline"}
+						variant={statusFilter === "inactive" ? "secondary" : "outline"}
 						className="min-h-10 shrink-0 rounded-full"
 						onClick={() => setStatusFilter("inactive")}
 						aria-pressed={statusFilter === "inactive"}
@@ -214,7 +218,7 @@ export const SettingPage = ({
 						))}
 					</div>
 				) : filteredMembers.length ? (
-					<div className="mt-4 divide-y overflow-hidden rounded-[20px] border bg-card">
+					<div className="mt-4 divide-y overflow-hidden rounded-[20px] border border-border/60 bg-card">
 						{filteredMembers.map((member) => {
 							const role = roles[member.id] ?? "MEMBER";
 							const selectedStatuses = permissions[member.id] ?? [];

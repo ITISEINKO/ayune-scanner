@@ -1,0 +1,16 @@
+purpose:
+  stands_in_for: ClickUp OAuth and the workspace, channel, and task APIs used by authentication.
+  unblocks: Local end-to-end verification of Better Auth without writing to ClickUp.
+assumptions:
+  - id: oauth-response-shape
+    status: unknown
+    claim: ClickUp returns the token, identity, workspace, and channel member fields represented by this synthetic fixture.
+    reason: The mock is based on the existing application and provider documentation; it is not evidence of live behavior.
+    verification: On 2026-11-21 tests/better-auth-flow.cjs completed OAuth, token use, role change, logout, and revocation against this mock. Request logs showed the token, user, team, channel, and task paths were exercised. The registered callback path was checked in both the authorization URL and token exchange. Live OAuth was not tested; owner mock search was skipped because CLI login status could not be determined.
+    source: https://developer.clickup.com/docs/authentication; postman/mocks/better-auth-clickup/default.js
+    updated_at: "2026-11-21"
+fingerprints:
+  - id: local-better-auth
+    date: "2026-11-21"
+    commit: 7ba9c63
+    cli: "1.73.0"

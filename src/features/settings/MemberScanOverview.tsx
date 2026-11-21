@@ -70,7 +70,7 @@ export function MemberScanOverview({ memberId }: { memberId?: string }) {
 						<Button
 							key={value}
 							size="sm"
-							variant={period === value ? "default" : "outline"}
+							variant={period === value ? "secondary" : "outline"}
 							className="rounded-full"
 							aria-pressed={period === value}
 							onClick={() => setPeriod(value)}

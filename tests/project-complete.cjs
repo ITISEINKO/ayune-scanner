@@ -36,8 +36,10 @@ const request = (body) => new Request("http://localhost/api/project/complete", {
 	const { POST: scan } = require("../src/app/api/panel/scan/route.ts");
 	const { inProgressProjects, projectsByStatus } = require("../src/lib/projects.ts");
 	const { db, claimAdminProjectRefresh, finishAdminProjectRefresh, getAdminProjectSnapshot } = require("../src/lib/db.ts");
-	await db.execute("CREATE TABLE ppic_permissions (clickup_user_id TEXT PRIMARY KEY, display_name TEXT)");
-	await db.execute("INSERT INTO ppic_permissions VALUES ('admin', 'Admin Contoh'), ('kris', 'Krisdianto')");
+	await db.execute('CREATE TABLE "user" (id TEXT PRIMARY KEY, name TEXT)');
+	await db.execute('CREATE TABLE account ("userId" TEXT, "accountId" TEXT, "providerId" TEXT)');
+	await db.execute("INSERT INTO user VALUES ('admin', 'Admin Contoh'), ('kris', 'Krisdianto')");
+	await db.execute("INSERT INTO account VALUES ('admin', 'admin', 'clickup'), ('kris', 'kris', 'clickup')");
 	await db.execute("CREATE TABLE ppic_scan_history (id INTEGER PRIMARY KEY, clickup_user_id TEXT, serial_number TEXT, status TEXT, task_name TEXT, scanned_at TEXT, project_task_id TEXT, component_task_id TEXT)");
 	await db.execute("INSERT INTO ppic_scan_history VALUES (1, 'kris', 'one', 'BARANG_DITERIMA', 'Panel one', '2026-10-12 02:00:00', 'complete-project', 'one')");
 	global.testAdmin = false;

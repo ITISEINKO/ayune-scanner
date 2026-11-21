@@ -1,0 +1,6 @@
+simulation: better-auth-clickup
+routing: path
+mocks:
+  - routeKey: clickup
+    origin: api.clickup.com
+    path: ../mocks/better-auth-clickup/config.yaml

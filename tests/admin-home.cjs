@@ -50,11 +50,11 @@ async function main() {
 	setMode("home");
 	const databaseUrl = `file:${join(directory, "home.db").replaceAll("\\", "/")}`;
 	const db = createClient({ url: databaseUrl });
-	const secret = "local-home-secret";
+	const secret = "local-home-secret-at-least-32-characters";
 	const baseURL = "http://127.0.0.1:3355";
-	await db.execute(
-		"CREATE TABLE ppic_permissions (clickup_user_id TEXT PRIMARY KEY, role TEXT, allowed_status TEXT, active INTEGER, updated_by TEXT, updated_at TEXT)",
-	);
+	const statements = (path) => readFileSync(path, "utf8").split("--> statement-breakpoint").map((sql) => sql.trim()).filter(Boolean);
+	await db.batch(statements("drizzle/0004_mean_carlie_cooper.sql"), "write");
+	await db.batch(statements("drizzle/0006_absurd_redwing.sql").slice(0, 6), "write");
 	for (const id of [
 		"local-admin",
 		"slow-admin",
@@ -64,15 +64,9 @@ async function main() {
 		"agus",
 		"sari",
 	]) {
-		await db.execute({
-			sql: "INSERT INTO ppic_permissions VALUES (?, ?, ?, ?, 'local-admin', datetime('now'))",
-			args: [
-				id,
-				id.endsWith("admin") ? "SUPER_ADMIN" : "MEMBER",
-				id === "sari" ? null : '["BARANG_DITERIMA"]',
-				id === "sari" ? 0 : 1,
-			],
-		});
+		const now = Date.now();
+		await db.execute({ sql: 'INSERT INTO "user" (id,name,email,"emailVerified",role,allowed_status,active,can_import_lby,"createdAt","updatedAt") VALUES (?,?,?,?,?,?,?,?,?,?)', args: [id, id, `${id}@example.test`, 0, id.endsWith("admin") ? "SUPER_ADMIN" : "MEMBER", id === "sari" ? null : '["BARANG_DITERIMA"]', id === "sari" ? 0 : 1, 0, now, now] });
+		await db.execute({ sql: 'INSERT INTO account (id,"userId","accountId","providerId","createdAt","updatedAt") VALUES (?,?,?,?,?,?)', args: [id, id, id, "clickup", now, now] });
 	}
 	await db.execute(
 		"CREATE TABLE ppic_scan_history (id INTEGER PRIMARY KEY, clickup_user_id TEXT, serial_number TEXT, status TEXT, task_name TEXT, scanned_at TEXT, project_task_id TEXT, component_task_id TEXT)",
@@ -178,6 +172,8 @@ async function main() {
 				CLICKUP_TOKEN: "home",
 				CRON_SECRET: "local-cron-secret",
 				CLICKUP_CLIENT_SECRET: secret,
+				BETTER_AUTH_SECRET: secret,
+				BETTER_AUTH_URL: baseURL,
 				TURSO_DATABASE_URL: databaseUrl,
 				TURSO_AUTH_TOKEN: "local-only",
 				CLICKUP_PPIC_PANEL_LIST_ID: "1100830000000087",
@@ -211,22 +207,11 @@ async function main() {
 				: route.abort(),
 		);
 		async function session(role, token = "home", userId = "local-admin") {
-			const payload = Buffer.from(
-				JSON.stringify({
-					user_id: userId,
-					role,
-					allowed_status: role === "MEMBER" ? ["BARANG_DITERIMA"] : null,
-					refreshed_at: Date.now(),
-				}),
-			).toString("base64url");
-			await context.addCookies([
-				{ name: "clickup_access_token", value: token, url: baseURL },
-				{
-					name: "ppic_session",
-					value: `${payload}.${createHmac("sha256", secret).update(payload).digest("base64url")}`,
-					url: baseURL,
-				},
-			]);
+			const now = Date.now();
+			await db.execute({ sql: 'UPDATE account SET "accessToken" = ? WHERE "userId" = ?', args: [token, userId] });
+			await db.execute({ sql: 'INSERT OR REPLACE INTO session (id,token,"userId","expiresAt","createdAt","updatedAt") VALUES (?,?,?,?,?,?)', args: [userId, userId, userId, now + 3600000, now, now] });
+			const signature = createHmac("sha256", secret).update(userId).digest("base64");
+			await context.addCookies([{ name: "better-auth.session_token", value: encodeURIComponent(`${userId}.${signature}`), url: baseURL }]);
 		}
 		await session("SUPER_ADMIN");
 		const page = await context.newPage();
@@ -353,7 +338,7 @@ async function main() {
 		);
 		assert.equal((await fetch(`${baseURL}/api/admin/dashboard`)).status, 401);
 		await db.execute(
-			"UPDATE ppic_permissions SET role = 'MEMBER' WHERE clickup_user_id = 'local-admin'",
+			"UPDATE user SET role = 'MEMBER' WHERE id = 'local-admin'",
 		);
 		assert.equal(
 			(
@@ -372,7 +357,7 @@ async function main() {
 		await page.reload();
 		await expect(page).toHaveURL(`${baseURL}/unauthorized`);
 		await db.execute(
-			"UPDATE ppic_permissions SET role = 'SUPER_ADMIN' WHERE clickup_user_id = 'local-admin'",
+			"UPDATE user SET role = 'SUPER_ADMIN' WHERE id = 'local-admin'",
 		);
 		await page.goto(`${baseURL}/admin`);
 		const warmStartedAt = performance.now();
@@ -913,6 +898,7 @@ async function main() {
 		const slowApi = page.waitForResponse(
 			(response) => new URL(response.url()).pathname === "/api/admin/dashboard",
 		);
+		slowApi.catch(() => {});
 		await page.setViewportSize({ width: 390, height: 844 });
 		await page.goto(`${baseURL}/admin`);
 		await expect(
@@ -927,7 +913,7 @@ async function main() {
 			"Memuat dashboard admin",
 		);
 		await expect(page.locator("main .grid-cols-3 > div")).toHaveCount(3);
-		await expect(page.locator("main header")).toHaveCSS("padding-left", "24px");
+		await expect(page.locator("main header")).toHaveCSS("padding-left", "20px");
 		await page.screenshot({
 			path: "test-results/admin-home-skeleton.png",
 			fullPage: true,
@@ -941,10 +927,17 @@ async function main() {
 		const previousInventory = await page
 			.getByRole("link", { name: /Barang tercatat/ })
 			.innerText();
-		await db.execute("DROP TABLE ppic_permissions");
+		await db.execute("UPDATE user SET role = 'MEMBER' WHERE id = 'local-admin'");
+		await session("MEMBER");
+		await page.goto(`${baseURL}/admin`);
+		await expect(page).toHaveURL(`${baseURL}/unauthorized`);
+		await db.execute("UPDATE user SET role = 'SUPER_ADMIN' WHERE id = 'slow-admin'");
+		await session("SUPER_ADMIN", "home-slow", "slow-admin");
+		await page.goto(`${baseURL}/admin`);
+		await db.execute("DROP TABLE user");
 		assert.equal(
 			(await context.request.get(`${baseURL}/api/admin/dashboard`)).status(),
-			502,
+			401,
 			"database authorization failures fail closed even with a cached response",
 		);
 		await page.getByRole("button", { name: "Perbarui dashboard" }).click();
@@ -958,9 +951,6 @@ async function main() {
 			previousInventory,
 			"failed refresh keeps the existing snapshot visible",
 		);
-		await session("MEMBER");
-		await page.goto(`${baseURL}/admin`);
-		await expect(page).toHaveURL(`${baseURL}/unauthorized`);
 		assert.deepEqual(errors, []);
 		console.log(
 			"Admin home passed: cron prewarm, shared five-minute freshness/cooldown, concurrent refresh lease and fencing, visible-tab polling, hidden-tab pause and focus refresh, data retained until ready/on failure, manual refresh, authorization, skeleton, charts, drawer and responsive layout. ClickUp calls used the local Postman simulation.",

@@ -159,7 +159,7 @@ export const AdminProjects = () => {
 						<Button
 							key={value}
 							type="button"
-							variant={status === value ? "default" : "outline"}
+							variant={status === value ? "secondary" : "outline"}
 							className="min-h-11 rounded-full"
 							aria-pressed={status === value}
 							onClick={() => setStatus(value)}
