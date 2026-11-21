@@ -41,11 +41,13 @@ export default function Settings() {
 					title: "Tampilan",
 					description: "Ganti mode terang / gelap",
 					icon: Moon,
+					href: undefined,
 				},
 				{
 					title: "Info akses ClickUp",
 					description: "Cara panel dicocokkan",
 					icon: Info,
+					href: undefined,
 				},
 			],
 		},
