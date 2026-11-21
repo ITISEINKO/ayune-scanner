@@ -1,5 +1,7 @@
 "use client";
 
+import { PageHeader } from "@/components/pageHeader";
+
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -279,8 +281,8 @@ export const UbahManualPage = ({ serialNumber }: { serialNumber?: string }) => {
 		<main
 			className={
 				serialNumber
-					? "relative mx-auto flex h-dvh max-w-lg flex-col overflow-hidden bg-neutral-50 pb-(--bottom-navigation-height) dark:bg-background"
-					: "mx-auto min-h-dvh max-w-lg p-4 pb-28"
+					? "relative mx-auto flex h-dvh max-w-lg flex-col overflow-hidden bg-neutral-50 pb-(--bottom-navigation-height) md:max-w-none dark:bg-background"
+					: "mx-auto min-h-dvh max-w-[480px] bg-background pb-28"
 			}
 		>
 			{serialNumber ? (
@@ -311,27 +313,10 @@ export const UbahManualPage = ({ serialNumber }: { serialNumber?: string }) => {
 				</header>
 			) : (
 				<>
-					<header className="mb-7">
-						<div className="flex items-center gap-4">
-							<div className="size-19 shrink-0 overflow-hidden">
-								<img src="/icon.svg" alt="" className="size-full" />
-							</div>
-							<div>
-								<p className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
-									Produksi Panel admin
-								</p>
-								<h1 className="text-xl font-black capitalize tracking-tight">
-									Ubah status barang
-								</h1>
-							</div>
-						</div>
-						<p className="mt-2 text-sm text-muted-foreground">
-							Scan Serial Number untuk menampilkan lokasi item dan mengubah
-							statusnya secara manual.
-						</p>
-					</header>
+					<PageHeader eyebrow="Admin" title="Ubah status barang" />
+					<p className="px-4 pt-4 pb-5 text-sm text-muted-foreground">Scan Serial Number untuk menampilkan lokasi item dan mengubah statusnya secara manual.</p>
 
-					<Scanner onDetected={findItem} disabled={loading} />
+					<div className="px-4"><Scanner onDetected={findItem} disabled={loading} /></div>
 				</>
 			)}
 			{loading && serialNumber && (

@@ -15,18 +15,12 @@ import {
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { PageHeader } from "@/components/pageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProjects } from "@/hooks/use-projects";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
 import {
 	Dialog,
 	DialogContent,
@@ -40,8 +34,7 @@ import type { ProjectListStatus } from "@/types/project";
 const projectStatuses = {
 	"in progress": {
 		label: "In progress",
-		description:
-			"Project yang sedang dikerjakan. Pilih project untuk melihat detail dan progresnya.",
+		description: "Project yang sedang dikerjakan. ",
 		emptyTitle: "Belum ada project berjalan",
 		emptyDescription:
 			"Project yang sudah dimulai akan muncul di sini. Pilih project di Todo untuk mulai bekerja.",
@@ -49,17 +42,15 @@ const projectStatuses = {
 	},
 	"to do": {
 		label: "Todo",
-		description:
-			"Project yang belum dimulai. Klik Mulai agar petugas bisa memilih project dan mulai scan.",
+		description: "Project yang belum dimulai. ",
 		emptyTitle: "Belum ada project Todo",
 		emptyDescription:
 			"Belum ada project yang menunggu dimulai. Gunakan Sync untuk memeriksa daftar terbaru.",
 		emptyIcon: FolderClock,
 	},
 	complete: {
-		label: "Completed",
-		description:
-			"Project yang sudah selesai. Pilih project untuk melihat detail dan riwayatnya.",
+		label: "Selesai",
+		description: "Project yang sudah selesai.",
 		emptyTitle: "Belum ada project selesai",
 		emptyDescription:
 			"Project yang ditandai selesai akan muncul di sini, lengkap dengan ringkasan dan riwayatnya.",
@@ -127,21 +118,10 @@ export const AdminProjects = () => {
 
 	return (
 		<main className="mx-auto min-h-dvh max-w-lg bg-background pb-24">
-			<header className="relative overflow-hidden rounded-b-[2.5rem] bg-accent/30 px-6 pt-6 pb-8 text-accent-foreground">
-				<img
-					src="/ayune-14.svg"
-					alt=""
-					aria-hidden="true"
-					className="pointer-events-none absolute -top-20 -right-16 z-0 size-70  opacity-10"
-				/>
-				<div className="relative z-10 flex items-center gap-3">
-					<div className="mr-auto">
-						<p className="text-md text-muted-foreground/80">Daftar pekerjaan</p>
-
-						<h1 className="text-2xl text- font-extrabold tracking-tight">
-							Pilih project
-						</h1>
-					</div>
+			<PageHeader
+				eyebrow="Daftar pekerjaan"
+				title="Pilih project"
+				action={
 					<Button
 						variant="secondary"
 						size="sm"
@@ -151,48 +131,42 @@ export const AdminProjects = () => {
 						<RefreshCw className={isFetching ? "animate-spin" : ""} />
 						Sync
 					</Button>
-				</div>
+				}
+			>
 				<div className="relative z-10 mt-4">
 					<Search
 						aria-hidden="true"
-						className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-muted-foreground"
+						className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
 					/>
 					<Input
 						type="search"
 						aria-label="Cari project"
 						placeholder="Cari kode / nama project"
-						className="h-11 rounded-2xl border-border bg-card pl-10 shadow-sm"
+						className="min-h-10 rounded-xl border-border bg-card pl-9 text-base shadow-sm"
 						value={search}
 						onChange={(event) => setSearch(event.target.value)}
 					/>
 				</div>
-			</header>
+			</PageHeader>
 
 			<section className="space-y-4 px-4 pt-5" aria-label="Daftar project">
-				<div className="space-y-2">
-					<label htmlFor="project-status" className="text-sm font-semibold">
-						Status project
-					</label>
-					<Select
-						value={status}
-						onValueChange={(value) => {
-							if (value) setStatus(value);
-						}}
-					>
-						<SelectTrigger
-							id="project-status"
-							className="min-h-11 w-full rounded-xl border-border bg-card"
+				<div
+					className="flex flex-wrap gap-2"
+					role="group"
+					aria-label="Status project"
+				>
+					{(["to do", "in progress", "complete"] as const).map((value) => (
+						<Button
+							key={value}
+							type="button"
+							variant={status === value ? "default" : "outline"}
+							className="min-h-11 rounded-full"
+							aria-pressed={status === value}
+							onClick={() => setStatus(value)}
 						>
-							<SelectValue>{projectStatuses[status].label}</SelectValue>
-						</SelectTrigger>
-						<SelectContent alignItemWithTrigger={false}>
-							{Object.entries(projectStatuses).map(([value, { label }]) => (
-								<SelectItem key={value} value={value}>
-									{label}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
+							{projectStatuses[value].label}
+						</Button>
+					))}
 				</div>
 				<div>
 					<p className="mb-4 text-sm text-muted-foreground">

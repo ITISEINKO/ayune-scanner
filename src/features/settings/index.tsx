@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties } from "react";
-import { Check, Info, Search } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Info } from "lucide-react";
+import { PageHeader } from "@/components/pageHeader";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -21,10 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MemberScanOverview } from "./MemberScanOverview";
 import { usePanelMembers } from "@/hooks/use-panel-members";
 import { hasPpicAdminAccess, PPIC_STATUSES, PPIC_ROLES } from "@/types/ppic";
-import {
-	STATUS_BADGE_CLASS_NAME,
-	STATUS_COLOR_CONFIG,
-} from "@/lib/colorStatusConfig";
+import { STATUS_COLOR_CONFIG } from "@/lib/colorStatusConfig";
 import type { PanelMember } from "@/types/clickup";
 import type { PpicRole, PpicStatus, PpicStatuses } from "@/types/ppic";
 
@@ -79,8 +76,9 @@ export const SettingPage = ({
 				!lbyImporters[member.id];
 			return statusFilter === "inactive"
 				? inactive
-				: !inactive &&
-						(!statusFilter || permissions[member.id]?.includes(statusFilter));
+				: !statusFilter ||
+						hasPpicAdminAccess(roles[member.id]) ||
+						!!permissions[member.id]?.includes(statusFilter);
 		}) ?? [];
 	const editingMember = members?.find(
 		(member) => member.id === editingMemberId,
@@ -141,157 +139,102 @@ export const SettingPage = ({
 			</main>
 		);
 
-	if (loading || !members)
-		return (
-			<main
-				className="mx-auto min-h-dvh max-w-lg bg-background pb-28"
-				aria-busy="true"
-			>
-				<header className="relative overflow-hidden rounded-b-[2.5rem] bg-accent/30 px-6 pt-6 pb-8 text-accent-foreground">
-					<img
-						src="/ayune-14.svg"
-						alt=""
-						aria-hidden="true"
-						className="pointer-events-none absolute -top-20 -right-16 z-0 size-70 opacity-10"
-					/>
-					<div className="relative z-10 flex items-center gap-4">
-						<div className="size-19 shrink-0 overflow-hidden">
-							<img src="/icon.svg" alt="" className="size-full" />
-						</div>
-						<div>
-							<p className="text-md text-muted-foreground/80">Pengaturan</p>
-							<h1 className="text-2xl font-extrabold tracking-tight">
-								Pengguna & aktivitas
-							</h1>
-						</div>
-					</div>
-					<p className="relative z-10 mt-2 text-sm text-muted-foreground">
-						Ringkasan aktivitas scan dan pengaturan akses pengguna.
-					</p>
-				</header>
-				<div
-					className="space-y-3 p-4"
-					role="status"
-					aria-label="Loading members"
-				>
-					{Array.from({ length: 5 }, (_, index) => (
-						<Skeleton key={index} className="h-32 rounded-2xl" />
-					))}
-				</div>
-			</main>
-		);
-
 	return (
-		<main className="mx-auto min-h-dvh max-w-lg bg-background pb-28">
-			<header className="relative overflow-hidden rounded-b-[2.5rem] bg-accent/30 px-6 pt-6 pb-4 text-accent-foreground">
-				<img
-					src="/ayune-14.svg"
-					alt=""
-					aria-hidden="true"
-					className="pointer-events-none absolute -top-20 -right-16 z-0 size-70 opacity-10"
-				/>
-				<div className="relative z-10 flex items-center gap-4">
-					<div>
-						<p className="text-md text-muted-foreground/80">Pengaturan</p>
-						<h1 className="text-2xl font-extrabold tracking-tight">
-							Pengguna & aktivitas
-						</h1>
-					</div>
-				</div>
-				<p className="relative z-10 my-2 text-sm text-muted-foreground">
-					Ringkasan aktivitas scan dan pengaturan akses pengguna.
+		<main className="mx-auto min-h-dvh max-w-120 bg-background pb-[calc(100px+env(safe-area-inset-bottom,0px))]">
+			<PageHeader eyebrow="Settings" title="Pengguna & aktivitas" backHref="/admin/settings" />
+			<section className="px-4 pt-4" aria-label="Pengguna dan aktivitas">
+				<p className="mb-5 text-sm text-muted-foreground">
+					Ringkasan aktivitas scan dan akses pengguna.
 				</p>
-				<details className="relative z-10 mb-2 text-xs text-muted-foreground">
-					<summary className="flex min-h-10 w-fit cursor-pointer list-none items-center gap-1.5 [&::-webkit-details-marker]:hidden">
-						<Info aria-hidden="true" className="size-4" /> Info akses ClickUp
-					</summary>
-					<p>Daftar pengguna diperbarui dari channel ClickUp saat halaman dibuka. Pastikan pengguna memiliki akses ke channel tersebut.</p>
-				</details>
-
-				<div className="mx-auto pb-2">
-					<div className="relative">
-						<Search
-							aria-hidden="true"
-							className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-						/>
-						<Input
-							aria-label="Search by name"
-							value={search}
-							onChange={(event) => setSearch(event.target.value)}
-							placeholder="Search by name"
-							className="pl-10"
-						/>
-					</div>
-				</div>
-			</header>
-
-			<section className="p-4">
-				<div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+				<Input
+					aria-label="Cari nama"
+					value={search}
+					onChange={(event) => setSearch(event.target.value)}
+					placeholder="Cari nama"
+					className="h-12 rounded-[14px] bg-card px-3.5 text-sm"
+				/>
+				<div
+					className="no-scrollbar mt-3 flex gap-2 overflow-x-auto pb-1"
+					aria-label="Filter akses"
+				>
 					<Button
 						type="button"
 						size="sm"
-						variant={statusFilter === null ? "secondary" : "outline"}
-						className="rounded-full font-medium"
+						variant={statusFilter === null ? "default" : "outline"}
+						className="min-h-10 shrink-0 rounded-full"
 						onClick={() => setStatusFilter(null)}
 						aria-pressed={statusFilter === null}
 					>
 						Semua
-					</Button>
-					<Button
-						type="button"
-						size="sm"
-						variant={statusFilter === "inactive" ? "secondary" : "outline"}
-						className="rounded-full font-medium"
-						onClick={() => setStatusFilter("inactive")}
-						aria-pressed={statusFilter === "inactive"}
-					>
-						Nonaktif
 					</Button>
 					{statusOptions.map((option) => (
 						<Button
 							key={option.status}
 							type="button"
 							size="sm"
-							variant={statusFilter === option.status ? "secondary" : "outline"}
-							className="rounded-full font-medium"
+							variant={statusFilter === option.status ? "default" : "outline"}
+							className="min-h-10 shrink-0 rounded-full"
 							onClick={() => setStatusFilter(option.status)}
 							aria-pressed={statusFilter === option.status}
 						>
 							{option.shortLabel}
 						</Button>
 					))}
+					<Button
+						type="button"
+						size="sm"
+						variant={statusFilter === "inactive" ? "default" : "outline"}
+						className="min-h-10 shrink-0 rounded-full"
+						onClick={() => setStatusFilter("inactive")}
+						aria-pressed={statusFilter === "inactive"}
+					>
+						Nonaktif
+					</Button>
 				</div>
-
-				<p className="mt-3 mb-2 text-sm text-muted-foreground">
-					{filteredMembers.length} pengguna
-				</p>
-				{refreshError && <p role="alert" className="mb-2 text-sm text-destructive">Daftar ClickUp gagal diperbarui. Data lama ditampilkan; muat ulang halaman untuk mencoba lagi.</p>}
+				{refreshError && (
+					<p role="alert" className="mt-3 text-sm text-destructive">
+						Daftar ClickUp gagal diperbarui. Data lama ditampilkan; muat ulang
+						halaman untuk mencoba lagi.
+					</p>
+				)}
 				{saveError && (
-					<p className="mb-2 text-sm text-destructive" role="alert">
+					<p role="alert" className="mt-3 text-sm text-destructive">
 						Could not save access. Try again.
 					</p>
 				)}
-
-				<div className="space-y-3">
-					{filteredMembers.map((member) => {
-						const selectedStatuses = permissions[member.id] ?? [];
-						const role = roles[member.id] ?? "MEMBER";
-						const initials = member.name
-							.split(/\s+/)
-							.slice(0, 2)
-							.map((part) => part[0])
-							.join("")
-							.toUpperCase();
-
-						return (
-							<article
-								key={member.id}
-								className="relative rounded-2xl border bg-card p-4 shadow-sm"
-							>
-								<Button
+				{loading || !members ? (
+					<div
+						role="status"
+						aria-label="Loading members"
+						className="mt-4 space-y-2"
+					>
+						{Array.from({ length: 5 }, (_, index) => (
+							<Skeleton key={index} className="h-17 rounded-[20px]" />
+						))}
+					</div>
+				) : filteredMembers.length ? (
+					<div className="mt-4 divide-y overflow-hidden rounded-[20px] border bg-card">
+						{filteredMembers.map((member) => {
+							const role = roles[member.id] ?? "MEMBER";
+							const selectedStatuses = permissions[member.id] ?? [];
+							const initials = member.name
+								.trim()
+								.split(/\s+/)
+								.slice(0, 2)
+								.map((part) => part[0])
+								.join("")
+								.toUpperCase();
+							const roleLabel =
+								role === "ADMIN"
+									? "Admin"
+									: role === "SUPER_ADMIN"
+										? "Super Admin"
+										: "Member";
+							return (
+								<button
+									key={member.id}
 									type="button"
-									variant="ghost"
-									className="absolute inset-0 size-full cursor-pointer rounded-2xl hover:bg-transparent! dark:hover:bg-transparent! aria-expanded:bg-transparent!"
+									className="flex min-h-17 w-full items-center gap-3 px-3.5 py-2.75 text-left hover:bg-muted focus-visible:relative focus-visible:outline-2 focus-visible:outline-primary disabled:cursor-not-allowed"
 									aria-label={`Lihat detail ${member.name}`}
 									aria-haspopup="dialog"
 									disabled={
@@ -299,70 +242,72 @@ export const SettingPage = ({
 										(role === "ADMIN" && !canManageAdmin)
 									}
 									onClick={() => openEditor(member)}
-								/>
-								<div className="flex items-center gap-3">
-									<div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-muted font-medium">
+								>
+									<span className="grid size-10 shrink-0 place-items-center rounded-[13px] bg-muted text-[13px] font-bold">
 										{initials}
-									</div>
-									<div className="min-w-0 flex-1">
-										<h2 className="truncate capitalize font-bold">
+									</span>
+									<span className="min-w-0 flex-1">
+										<span className="block truncate text-sm font-semibold">
 											{member.name}
-										</h2>
-										<div className="mt-0.5 flex items-center gap-2 text-sm text-muted-foreground">
-											<span>
-												{role === "ADMIN"
-													? "Admin"
-													: role === "SUPER_ADMIN"
-														? "Super Admin"
-														: "Member"}
-											</span>
-											{role !== "ADMIN" && lbyImporters[member.id] && (
-												<Badge variant="outline">Drafter</Badge>
-											)}
+										</span>
+										<span className="block truncate text-xs text-muted-foreground">
+											{roleLabel}
+											{role !== "ADMIN" && lbyImporters[member.id]
+												? " · Drafter"
+												: ""}
 											{role === "MEMBER" &&
-												!selectedStatuses.length &&
-												!lbyImporters[member.id] && (
-													<Badge
-														variant="destructive"
-														className="h-5 px-2 text-xs"
-													>
-														Nonaktif
-													</Badge>
-												)}
-										</div>
-									</div>
-								</div>
-								<div className="mt-3 flex flex-wrap gap-2">
-									{statusOptions.map((option) => {
-										const active = selectedStatuses.includes(option.status);
-										return (
-											<Badge
+											!selectedStatuses.length &&
+											!lbyImporters[member.id]
+												? " · Nonaktif"
+												: ""}
+										</span>
+									</span>
+									<span
+										className="flex shrink-0 gap-1"
+										aria-label={`Akses: ${
+											statusOptions
+												.filter(
+													(option) =>
+														hasPpicAdminAccess(role) ||
+														selectedStatuses.includes(option.status),
+												)
+												.map((option) => option.shortLabel)
+												.join(", ") || "tidak ada"
+										}`}
+									>
+										{statusOptions.map((option) => (
+											<span
 												key={option.status}
-												variant="outline"
+												aria-hidden="true"
+												className="size-2 rounded-full bg-border"
 												style={
-													{
-														"--status-color": option.color,
-														"--status-text-color": option.textColor,
-													} as CSSProperties
+													hasPpicAdminAccess(role) ||
+													selectedStatuses.includes(option.status)
+														? { backgroundColor: option.color }
+														: undefined
 												}
-												className={
-													active
-														? STATUS_BADGE_CLASS_NAME
-														: "border-dashed text-muted-foreground"
-												}
-											>
-												{active && <Check />}
-												{option.shortLabel}
-											</Badge>
-										);
-									})}
-								</div>
-							</article>
-						);
-					})}
-				</div>
+											/>
+										))}
+									</span>
+								</button>
+							);
+						})}
+					</div>
+				) : (
+					<p className="mt-4 text-sm text-muted-foreground">
+						Tidak ada pengguna yang cocok dengan filter.
+					</p>
+				)}
+				<details className="mt-3 text-xs text-muted-foreground">
+					<summary className="flex min-h-10 w-fit cursor-pointer items-center gap-1.5">
+						<Info aria-hidden="true" size={15} /> Info akses ClickUp
+					</summary>
+					<p>
+						Daftar pengguna diperbarui dari channel ClickUp saat halaman dibuka.
+						Pastikan pengguna memiliki akses ke channel tersebut.
+					</p>
+				</details>
 			</section>
-
 			<Drawer
 				open={Boolean(editingMember)}
 				onOpenChange={(open) => !open && setEditingMemberId(null)}

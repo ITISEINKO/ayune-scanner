@@ -364,7 +364,7 @@ export function PanelViewerDetailPage({
 				</div>
 			)}
 			<div
-				className={`absolute inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] max-h-[45%] overflow-y-auto rounded-xl border bg-card/95 shadow-sm ${hideRoomSelector ? "p-2" : "p-3 sm:left-5 sm:right-auto sm:w-96"}`}
+				className={`absolute inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] max-h-[45%] overflow-y-auto rounded-xl border bg-card/95 shadow-sm ${hideRoomSelector ? "p-2 md:left-5 md:right-auto md:w-96" : "p-3 sm:left-5 sm:right-auto sm:w-96"}`}
 			>
 				{hingeCheckUnavailable && (
 					<p role="status" className="mb-2 text-xs text-muted-foreground">
