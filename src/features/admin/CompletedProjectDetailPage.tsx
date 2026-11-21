@@ -65,7 +65,7 @@ export const CompletedProjectDetailPage = ({
 							<dt>Mulai</dt>
 							<dd>
 								{formatDate(review.startAt)}
-								<p>{review.startSource ?? "Scan pertama dan tanggal mulai tidak tersedia dalam laporan."}</p>
+								<p>{review.startSource ?? "Tanggal mulai tidak tersedia di ClickUp."}</p>
 							</dd>
 						</div>
 						<div className="review-stat">

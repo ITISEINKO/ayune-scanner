@@ -40,6 +40,8 @@ export function PanelViewerDetailPage({
 	canvasBehindNavigation = false,
 	onReady,
 	footer,
+	footerAlwaysVisible = false,
+	keepSelectedPanel = false,
 }: {
 	id: string;
 	rooms: { id: string; name: string }[];
@@ -53,6 +55,8 @@ export function PanelViewerDetailPage({
 	canvasBehindNavigation?: boolean;
 	onReady?: (ready: boolean) => void;
 	footer?: ReactNode;
+	footerAlwaysVisible?: boolean;
+	keepSelectedPanel?: boolean;
 }) {
 	const [room, setRoom] = useState(
 		rooms.some((item) => item.id === initialRoom)
@@ -236,8 +240,9 @@ export function PanelViewerDetailPage({
 				: room === initialRoom
 					? selectedPanel
 					: undefined,
+			keepSelectedPanel && room === initialRoom ? selectedPanel : undefined,
 		);
-	}, [room, initialRoom, selectedPanel, pickedPanel]);
+	}, [room, initialRoom, selectedPanel, pickedPanel, keepSelectedPanel]);
 	useEffect(() => {
 		viewer.current?.setDoorsOpen(doorsOpen);
 	}, [doorsOpen]);
@@ -497,8 +502,8 @@ export function PanelViewerDetailPage({
 					</section>
 				)}
 				{footer &&
-					(!locationViewer || detailsOpen) &&
-					!(pickedPanel?.room === room && pickedPanel.id !== selectedPanel) && (
+					(!locationViewer || detailsOpen || footerAlwaysVisible) &&
+					(footerAlwaysVisible || !(pickedPanel?.room === room && pickedPanel.id !== selectedPanel)) && (
 						<div
 							className={
 								locationViewer

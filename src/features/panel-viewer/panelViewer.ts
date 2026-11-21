@@ -50,6 +50,7 @@ export async function createPanelViewer(
 		opacity: 0.65,
 		depthTest: false,
 	});
+	const inspectedOutlineMaterial = new THREE.LineBasicMaterial({ color: 0x2563eb, transparent: true, opacity: 0.85, depthTest: false });
 	scene.add(new THREE.AmbientLight(0xffffff, 1.7));
 	const geometries: InstanceType<typeof THREE.BufferGeometry>[] = [];
 	const sprites: InstanceType<typeof THREE.Sprite>[] = [];
@@ -245,12 +246,12 @@ export async function createPanelViewer(
 			Math.round(doorProgress * 100),
 		);
 		for (const [key, material] of materials) {
-			const transparent = s.xray || key === "selected-panel";
+			const transparent = s.xray || key === "selected-panel" || key === "inspected-panel";
 			if (material.transparent !== transparent) {
 				material.transparent = transparent;
 				material.needsUpdate = true;
 			}
-			material.opacity = key === "selected-panel" ? 0.3 : transparent ? 0.28 : 1;
+			material.opacity = key === "selected-panel" || key === "inspected-panel" ? 0.3 : transparent ? 0.28 : 1;
 			material.depthWrite = !transparent;
 		}
 		for (const panel of panels) {
@@ -315,6 +316,7 @@ export async function createPanelViewer(
 		hingeMaterial.dispose();
 		outlineMaterial.dispose();
 		selectedOutlineMaterial.dispose();
+		inspectedOutlineMaterial.dispose();
 		renderer.dispose();
 		renderer.domElement.remove();
 	};
@@ -325,17 +327,25 @@ export async function createPanelViewer(
 			update();
 			render();
 		},
-		setSelected(id?: string) {
+		setSelected(id?: string, pinnedId?: string) {
 			for (const panel of panels) {
-				panel.selectedOutline.visible = Boolean(id && panel.part.id === id);
-				if (id && panel.part.id === id) {
-					let selected = materials.get("selected-panel");
+				const pinned = Boolean(pinnedId && panel.part.id === pinnedId);
+				const inspected = Boolean(id && panel.part.id === id && !pinned);
+				panel.selectedOutline.visible = pinned || inspected;
+				panel.selectedOutline.material = pinned || !pinnedId ? selectedOutlineMaterial : inspectedOutlineMaterial;
+				if (pinned || inspected) {
+					const key = pinnedId && inspected ? "inspected-panel" : "selected-panel";
+					let selected = materials.get(key);
 					if (!selected) {
 						selected = new THREE.MeshLambertMaterial({
-							color: 0xef4444,
+							color: key === "inspected-panel" ? 0x2563eb : 0xef4444,
 							side: THREE.DoubleSide,
+							polygonOffset: true,
+							polygonOffsetFactor: -2,
+							polygonOffsetUnits: -2,
+							forceSinglePass: true,
 						});
-						materials.set("selected-panel", selected);
+						materials.set(key, selected);
 					}
 					panel.mesh.material = selected;
 					panel.mesh.renderOrder = 1;
