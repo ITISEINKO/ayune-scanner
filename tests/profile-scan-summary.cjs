@@ -9,7 +9,7 @@ registerHooks({
 		if (specifier === "next/server") return nextResolve("next/server.js", context);
 		if (specifier === "@/lib/session") return {
 			url: "data:text/javascript," + encodeURIComponent(`
-				export const ppicSession = async () => globalThis.profileSession ?? null;
+				export const getAppSession = async () => globalThis.profileSession ?? null;
 				export const clickUpUserId = async () => {
 					globalThis.identityCalls++;
 					return globalThis.profileActor ?? null;
@@ -30,8 +30,10 @@ const { GET: adminSummary } = require("../src/app/api/panel/members/summary/rout
 
 (async () => {
 	try {
-		await db.execute("CREATE TABLE ppic_permissions (clickup_user_id TEXT, role TEXT, allowed_status TEXT, active INTEGER)");
-		await db.execute("INSERT INTO ppic_permissions VALUES ('member', 'MEMBER', '[\"BARANG_DITERIMA\"]', 1), ('admin', 'SUPER_ADMIN', NULL, 1)");
+		await db.execute('CREATE TABLE "user" (id TEXT PRIMARY KEY, role TEXT, allowed_status TEXT, active INTEGER)');
+		await db.execute('CREATE TABLE account ("userId" TEXT, "accountId" TEXT, "providerId" TEXT)');
+		await db.execute("INSERT INTO user VALUES ('member', 'MEMBER', '[\"BARANG_DITERIMA\"]', 1), ('admin', 'SUPER_ADMIN', NULL, 1)");
+		await db.execute("INSERT INTO account VALUES ('member','member','clickup'), ('admin','admin','clickup')");
 		await db.execute("CREATE TABLE ppic_scan_history (clickup_user_id TEXT, status TEXT, scanned_at TEXT)");
 		await db.execute(`INSERT INTO ppic_scan_history VALUES
 			('member', 'BARANG_DITERIMA', datetime('now', '-100 days')),

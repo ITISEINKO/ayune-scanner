@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { gunzipSync } from "node:zlib";
 import { canImportLby } from "@/lib/db";
-import { clickUpToken, ppicSession } from "@/lib/session";
+import { clickUpToken, getAppSession } from "@/lib/session";
 import { parseShareLink } from "../../../../../scripts/import-lby-project.cjs";
 import { fetchPublicModel } from "../../../../../scripts/public-model-import.cjs";
 import { activateTrialModel, listTrialModels, readTrialModel, saveTrialModel, searchTrialPanels } from "@/lib/trialPublicModels";
@@ -10,7 +10,7 @@ export const runtime = "nodejs";
 export const maxDuration = 300;
 
 async function allowed() {
-	const session = await ppicSession();
+	const session = await getAppSession();
 	return Boolean(session && await clickUpToken() && await canImportLby(session.user_id));
 }
 

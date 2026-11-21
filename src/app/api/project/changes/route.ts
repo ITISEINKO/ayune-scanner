@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { getPpicProjectStatusChanges, isPpicSuperAdmin } from "@/lib/db";
-import { clickUpToken, ppicSession } from "@/lib/session";
+import { clickUpToken, getAppSession } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
-	const userId = (await ppicSession())?.user_id;
+	const userId = (await getAppSession())?.user_id;
 	if (!userId || !(await clickUpToken()))
 		return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
 	if (!(await isPpicSuperAdmin(userId)))

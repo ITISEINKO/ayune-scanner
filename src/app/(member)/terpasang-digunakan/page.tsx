@@ -1,6 +1,6 @@
 import { MemberScannerPage } from "@/features/member/MemberScannerPage";
 import {
-	ppicSession,
+	getAppSession,
 	requirePpicStatusAccess,
 	requireSelectedMemberProject,
 } from "@/lib/session";
@@ -8,7 +8,7 @@ import {
 const TerpasangDigunakan = async () => {
 	const project = await requireSelectedMemberProject();
 	await requirePpicStatusAccess("TERPASANG_DIGUNAKAN");
-	const allowedStatuses = (await ppicSession())?.allowed_status ?? [];
+	const allowedStatuses = (await getAppSession())?.allowed_status ?? [];
 	return <MemberScannerPage project={project} allowedStatuses={allowedStatuses} />;
 };
 

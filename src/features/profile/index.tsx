@@ -1,5 +1,4 @@
 "use client";
-import { ThemeColor } from "@/components/themeColor";
 
 import { hasPpicAdminAccess } from "@/types/ppic";
 import { PageHeader } from "@/components/pageHeader";
@@ -11,7 +10,6 @@ import {
 	LogOut,
 	Mail,
 	ShieldCheck,
-	UserRound,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,60 +20,52 @@ import {
 	STATUS_COLOR_CONFIG,
 } from "@/lib/colorStatusConfig";
 import type { PpicRole } from "@/types/ppic";
+import type { getProfile } from "@/features/profile/getProfile";
 
 export function ProfileLayout({
 	role,
 	roleLabel,
 	children,
+	initialProfile,
 }: {
 	role: PpicRole;
 	roleLabel?: string;
 	children?: ReactNode;
+	initialProfile: Awaited<ReturnType<typeof getProfile>>;
 }) {
-	const { data: profile, isPending, isError, refetch } = useProfile();
+	const { data: profile, isPending, isError, refetch } = useProfile(initialProfile);
 	const allowedStatuses = profile?.allowedStatuses ?? [];
 
 	return (
 		<main className="mx-auto min-h-dvh max-w-[480px] bg-background pb-28">
-			{hasPpicAdminAccess(role) ? (<><PageHeader eyebrow="Akun" title="Profil" /><div className="mx-4 mt-5 flex items-center gap-3"><div className="grid size-14 shrink-0 place-items-center rounded-[18px] bg-muted text-lg font-bold">{profile?.displayName?.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "?"}</div><div className="min-w-0">{isPending ? <Skeleton role="status" aria-label="Memuat nama profil" className="h-6 w-40" /> : <p className="text-[17px] font-bold">{profile?.displayName ?? "Akun"}</p>}<Badge className="mt-1 h-auto rounded-full bg-muted px-2 py-0.5 text-xs text-foreground">{roleLabel ?? role.replaceAll("_", " ")}</Badge></div></div></>) : (
-			<header className="relative isolate overflow-hidden rounded-b-4xl bg-primary px-5 pt-7 pb-6 text-primary-foreground">
-				<ThemeColor color="var(--primary)" />
-				<img
-					src="/ayune-14.svg"
-					alt=""
-					aria-hidden="true"
-					className="pointer-events-none absolute -top-14 -right-20 -z-10 size-64 opacity-10"
-				/>
-				<h1 className="text-xs font-bold tracking-[0.18em] uppercase text-primary-foreground/70">
-					Profil
-				</h1>
-				<div className="mt-5 flex items-start gap-4">
-					<div className="flex size-16 shrink-0 items-center justify-center rounded-2xl border border-primary-foreground/20 bg-primary-foreground/10">
-						<UserRound aria-hidden="true" className="size-8" />
-					</div>
-					<div className="min-w-0 flex-1">
-						{isPending ? (
-							<Skeleton
-								role="status"
-								aria-label="Memuat nama profil"
-								className="mt-1 h-7 w-40 max-w-full bg-primary-foreground/15"
-							/>
-						) : (
-							<p
-								className="text-2xl leading-tight font-bold wrap-break-word capitalize tracking-tight"
-								title={profile?.displayName ?? undefined}
-							>
-								{profile?.displayName ?? "Akun"}
-							</p>
-						)}
-						<Badge className="mt-3 h-auto rounded-full border-primary-foreground/20 bg-primary-foreground/10 px-2.5 py-1 text-[10px] font-bold tracking-wider text-primary-foreground">
-							<ShieldCheck aria-hidden="true" />
-							{roleLabel ?? role.replaceAll("_", " ")}
-						</Badge>
-					</div>
+			<PageHeader eyebrow="Akun" title="Profil" />
+			<div className="mx-4 mt-5 flex items-center gap-3">
+				<div className="grid size-14 shrink-0 place-items-center rounded-[18px] bg-muted text-lg font-bold">
+					{profile?.displayName
+						?.trim()
+						.split(/\s+/)
+						.slice(0, 2)
+						.map((part) => part[0])
+						.join("")
+						.toUpperCase() || "?"}
 				</div>
-			</header>
-			)}
+				<div className="min-w-0">
+					{isPending ? (
+						<Skeleton
+							role="status"
+							aria-label="Memuat nama profil"
+							className="h-6 w-40"
+						/>
+					) : (
+						<p className="text-[17px] font-bold wrap-break-word">
+							{profile?.displayName ?? "Akun"}
+						</p>
+					)}
+					<Badge className="mt-1 h-auto rounded-full bg-muted px-2 py-0.5 text-xs text-foreground">
+						{roleLabel ?? role.replaceAll("_", " ")}
+					</Badge>
+				</div>
+			</div>
 
 			{!hasPpicAdminAccess(role) && children}
 

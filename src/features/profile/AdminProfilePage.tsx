@@ -1,10 +1,8 @@
 import { ProfileLayout } from "@/features/profile";
-import { ppicSession } from "@/lib/session";
-import { canImportLby } from "@/lib/db";
-import Link from "next/link";
-import { buttonVariants } from "@/components/ui/button";
+import { getAppSession } from "@/lib/session";
+import { getProfile } from "@/features/profile/getProfile";
 
 export async function AdminProfilePage() {
-	const session = await ppicSession();
-	return <ProfileLayout role={session?.role ?? "SUPER_ADMIN"}></ProfileLayout>;
+	const session = await getAppSession();
+	return <ProfileLayout role={session?.role ?? "SUPER_ADMIN"} initialProfile={await getProfile()} />;
 }

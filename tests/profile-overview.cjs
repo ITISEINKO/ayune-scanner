@@ -14,8 +14,10 @@ const { STATUS_COLOR_CONFIG } = require("../src/lib/colorStatusConfig.ts");
 	const secret = "local-profile-check";
 	const databaseUrl = `file:${join(mkdtempSync(join(tmpdir(), "trackerprod-profile-")), "profile.db").replaceAll("\\", "/")}`;
 	const db = createClient({ url: databaseUrl });
-	await db.execute("CREATE TABLE ppic_permissions (clickup_user_id TEXT PRIMARY KEY, role TEXT, active INTEGER, allowed_status TEXT, can_import_lby INTEGER NOT NULL DEFAULT 0)");
-	await db.execute("INSERT INTO ppic_permissions (clickup_user_id, role, active) VALUES ('local-member', 'SUPER_ADMIN', 1)");
+	await db.execute('CREATE TABLE "user" (id TEXT PRIMARY KEY, name TEXT, email TEXT, role TEXT, active INTEGER, allowed_status TEXT, can_import_lby INTEGER NOT NULL DEFAULT 0)');
+	await db.execute('CREATE TABLE account ("userId" TEXT, "accountId" TEXT, "providerId" TEXT)');
+	await db.execute("INSERT INTO user VALUES ('u', 'nickia habibi', 'member@example.test', 'MEMBER', 1, '[\"TERPASANG_DIGUNAKAN\",\"DALAM_PROSES_RETUR\"]', 0)");
+	await db.execute("INSERT INTO account VALUES ('u', 'local-member', 'clickup')");
 	const server = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start", "-p", "3352"], {
 		windowsHide: true,
 		env: { ...process.env, CLICKUP_CLIENT_SECRET: secret, TURSO_DATABASE_URL: databaseUrl, TURSO_AUTH_TOKEN: "local-only", ABLY_API_KEY: "" },
@@ -35,23 +37,14 @@ const { STATUS_COLOR_CONFIG } = require("../src/lib/colorStatusConfig.ts");
 		const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
 		let role = "MEMBER";
 		let mode = "normal";
-		let profileMode = "normal";
 		let displayName = "nickia habibi";
 		let email = "member@example.test";
 		let requests = 0;
-		let releaseProfile, releaseSummary;
-		let profileGate = new Promise((done) => { releaseProfile = done; });
+		let releaseSummary;
 		const summaryGate = new Promise((done) => { releaseSummary = done; });
 		await context.route("**/*", async (route) => {
 			const url = new URL(route.request().url());
 			if (url.origin !== baseURL) return route.abort();
-			if (url.pathname === "/api/profile") {
-				await profileGate;
-				if (profileMode === "error") return route.fulfill({ status: 502, json: {} });
-				return route.fulfill({ json: {
-					email, displayName, role, allowedStatuses: profileMode === "no-access" ? [] : ["TERPASANG_DIGUNAKAN", "DALAM_PROSES_RETUR"],
-				} });
-			}
 			if (url.pathname === "/api/profile/scan-summary") {
 				requests++;
 				assert.equal(url.search, "");
@@ -85,8 +78,7 @@ const { STATUS_COLOR_CONFIG } = require("../src/lib/colorStatusConfig.ts");
 		const page = await context.newPage();
 		await page.goto(`${baseURL}/profile`);
 		const overview = page.getByRole("region", { name: "Overview kamu", exact: true });
-		await expect(page.getByRole("status", { name: "Memuat detail akun" })).toBeVisible();
-		await expect(page.getByRole("status", { name: "Memuat nama profil" })).toBeVisible();
+		await expect(page.getByText("member@example.test", { exact: true })).toBeVisible();
 		await expect(overview.getByRole("status", { name: "Memuat ringkasan scan" })).toBeVisible();
 		assert.equal(requests, 1, "summary starts while profile request is still blocked");
 		await expect(page.getByText("Email unavailable", { exact: true })).toHaveCount(0);
@@ -95,8 +87,6 @@ const { STATUS_COLOR_CONFIG } = require("../src/lib/colorStatusConfig.ts");
 		await page.screenshot({ path: "test-results/profile-overview-loading.png", fullPage: true });
 		releaseSummary();
 		await expect(overview.getByText("1.248", { exact: true }).first()).toBeVisible();
-		await expect(page.getByRole("status", { name: "Memuat detail akun" })).toBeVisible();
-		releaseProfile();
 		await expect(page.getByText("member@example.test", { exact: true })).toBeVisible();
 		await expect(page.getByRole("heading", { name: "Akses administrator" })).toHaveCount(0);
 		const accountDetails = page.getByRole("region", { name: "Account details" });
@@ -172,27 +162,17 @@ const { STATUS_COLOR_CONFIG } = require("../src/lib/colorStatusConfig.ts");
 		mode = "normal";
 		await overview.getByRole("button", { name: "Coba lagi" }).click();
 		await expect(overview.getByText("1.248", { exact: true }).first()).toBeVisible();
-		profileMode = "error";
-		await page.reload();
 		const account = page.getByRole("region", { name: "Account details" });
-		await expect(account.getByRole("alert")).toContainText("Gagal memuat detail akun.");
-		await expect(overview.getByText("1.248", { exact: true }).first()).toBeVisible();
-		profileMode = "normal";
-		await account.getByRole("button", { name: "Coba lagi" }).click();
-		await expect(account.getByText("member@example.test", { exact: true })).toBeVisible();
-		profileMode = "no-access";
+		await db.execute("UPDATE user SET active = 0 WHERE id = 'u'");
 		await page.reload();
 		await expect(account.getByText("No scan access", { exact: true })).toBeVisible();
-		profileMode = "normal";
 		role = "SUPER_ADMIN";
 		displayName = "Dharma Ayomi Ramadhani";
+		await db.execute({ sql: "UPDATE user SET role = ?, name = ? WHERE id = 'u'", args: [role, displayName] });
 		await setSession();
 		const before = requests;
-		profileGate = new Promise((done) => { releaseProfile = done; });
 		await page.goto(`${baseURL}/admin/profile`);
-		await expect(page.getByRole("status", { name: "Memuat detail akun" })).toBeVisible();
 		await expect(page.getByRole("status", { name: "Memuat ringkasan scan" })).toHaveCount(0);
-		releaseProfile();
 		await expect(page.getByText("member@example.test", { exact: true })).toBeVisible();
 		await expect(page.getByText("SUPER ADMIN", { exact: true })).toHaveCount(1);
 		await expect(page.getByRole("heading", { name: "Akses administrator" })).toBeVisible();
@@ -202,6 +182,7 @@ const { STATUS_COLOR_CONFIG } = require("../src/lib/colorStatusConfig.ts");
 		await page.screenshot({ path: "test-results/profile-admin-mobile.png", fullPage: true });
 		displayName = "NamaPenggunaTanpaSpasi".repeat(5);
 		email = `${"long-email".repeat(7)}@example.test`;
+		await db.execute({ sql: "UPDATE user SET name = ?, email = ? WHERE id = 'u'", args: [displayName, email] });
 		await page.reload();
 		await expect(page.getByText(email, { exact: true })).toBeVisible();
 		for (const width of [320, 1280]) {
@@ -214,7 +195,7 @@ const { STATUS_COLOR_CONFIG } = require("../src/lib/colorStatusConfig.ts");
 		await page.goto(`${baseURL}/profile`);
 		await expect(page).toHaveURL(`${baseURL}/admin/profile`);
 		assert.equal(requests, before, "admin entering the member URL must not fetch member scan history");
-		console.log("Profile overview passed: compact mobile/desktop layout, independent requests, account/summary skeletons, empty/error/retry and separate member/admin routes.");
+		console.log("Profile overview passed: server-rendered account, summary states and separate member/admin routes.");
 	} finally {
 		await browser?.close();
 		server.kill();

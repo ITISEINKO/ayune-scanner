@@ -11,7 +11,7 @@ const modules = {
 	"@/features/member/SearchPanelLocationPage": { SearchPanelLocationPage: "page" },
 	"next/navigation": { notFound: () => { throw new Error("not found"); }, redirect: () => { throw new Error("redirect"); } },
 	"@/lib/db": { getPpicAccess: async () => ({ role: "MEMBER", active: 1 }), canImportLby: async () => false },
-	"@/lib/session": { ppicSession: async () => session },
+	"@/lib/session": { getAppSession: async () => session },
 	"@/types/ppic": { hasPpicAdminAccess: () => false },
 	"@/lib/panelLocationSnapshot": { getPanelLocation: async () => { oldReads++; return { projectName: "Old", panels: [] }; } },
 	"@/lib/trialPublicModels": { listTrialModels: async () => models, searchTrialPanels: async () => { if (lookupFails) throw new Error("unavailable"); return []; }, readTrialModel: async () => ({ rooms: [{ id: "room", name: "Bedroom" }] }) },

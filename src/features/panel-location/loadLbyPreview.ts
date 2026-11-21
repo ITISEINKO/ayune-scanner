@@ -2,10 +2,10 @@
 
 import { canImportLby } from "@/lib/db";
 import { getPanelLocation } from "@/lib/panelLocationSnapshot";
-import { clickUpToken, ppicSession } from "@/lib/session";
+import { clickUpToken, getAppSession } from "@/lib/session";
 
 export async function loadLbyPreview(project: string, barcode: string, revision: string | null) {
-	const session = await ppicSession();
+	const session = await getAppSession();
 	if (!session || !(await clickUpToken()) || !(await canImportLby(session.user_id)))
 		throw new Error("Akses preview tidak tersedia. Silakan login kembali.");
 	if (typeof project !== "string" || !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$/.test(project) ||

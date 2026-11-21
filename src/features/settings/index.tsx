@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Info } from "lucide-react";
 import { PageHeader } from "@/components/pageHeader";
 import { toast } from "sonner";
@@ -20,7 +21,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MemberScanOverview } from "./MemberScanOverview";
 import { usePanelMembers } from "@/hooks/use-panel-members";
-import { hasPpicAdminAccess, PPIC_STATUSES, PPIC_ROLES } from "@/types/ppic";
+import { hasPpicAdminAccess, PPIC_ROLES, PPIC_STATUSES } from "@/types/ppic";
 import { STATUS_COLOR_CONFIG } from "@/lib/colorStatusConfig";
 import type { PanelMember } from "@/types/clickup";
 import type { PpicRole, PpicStatus, PpicStatuses } from "@/types/ppic";
@@ -48,7 +49,6 @@ export const SettingPage = ({
 		updateLbyPermission,
 		savingMemberId,
 	} = usePanelMembers();
-	const [saveError, setSaveError] = useState(false);
 	const [search, setSearch] = useState("");
 	const [debouncedSearch, setDebouncedSearch] = useState("");
 	const [statusFilter, setStatusFilter] = useState<
@@ -58,6 +58,7 @@ export const SettingPage = ({
 	const [draftRole, setDraftRole] = useState<PpicRole>("MEMBER");
 	const [draftStatuses, setDraftStatuses] = useState<PpicStatuses>([]);
 	const [draftLbyImport, setDraftLbyImport] = useState(false);
+	const [saveError, setSaveError] = useState(false);
 
 	useEffect(() => {
 		const timeout = window.setTimeout(
@@ -234,7 +235,7 @@ export const SettingPage = ({
 								<button
 									key={member.id}
 									type="button"
-									className="flex min-h-17 w-full items-center gap-3 px-3.5 py-2.75 text-left hover:bg-muted focus-visible:relative focus-visible:outline-2 focus-visible:outline-primary disabled:cursor-not-allowed"
+									className="flex min-h-17 w-full items-center gap-3 px-3.5 py-2.75 text-left hover:bg-muted focus-visible:relative focus-visible:outline-2 focus-visible:outline-primary"
 									aria-label={`Lihat detail ${member.name}`}
 									aria-haspopup="dialog"
 									disabled={
@@ -340,6 +341,12 @@ export const SettingPage = ({
 										</DrawerDescription>
 									</div>
 								</div>
+								<Link
+									href={`/admin/users/${encodeURIComponent(editingMember.id)}`}
+									className="mt-4 inline-flex min-h-10 items-center text-sm font-semibold text-primary underline-offset-4 hover:underline"
+								>
+									Lihat detail lengkap
+								</Link>
 							</DrawerHeader>
 
 							<Tabs

@@ -2,6 +2,7 @@
 
 import { queryOptions, useQuery } from "@tanstack/react-query";
 import type { PpicRole, PpicStatuses } from "@/types/ppic";
+import type { getProfile } from "@/features/profile/getProfile";
 
 const loadProfile = async () => {
 	const response = await fetch("/api/profile");
@@ -25,4 +26,5 @@ const profileQuery = queryOptions({
 	refetchOnWindowFocus: false,
 });
 
-export const useProfile = () => useQuery(profileQuery);
+export const useProfile = (initialData?: Awaited<ReturnType<typeof getProfile>>) =>
+	useQuery({ ...profileQuery, queryKey: ["profile", JSON.stringify(initialData)], initialData });

@@ -43,7 +43,17 @@ const messageFor = (error?: string) =>
 			"Lokasi panel belum dapat dimuat. Coba lagi sebentar.",
 	})[error ?? ""] ?? "Data barang tidak dapat diproses.";
 
-export const UbahManualPage = ({ serialNumber, initialModels = [], modelError = false }: { serialNumber?: string; initialModels?: (Omit<TrialPanelMatch, "roomName"> & { rooms: { id: string; name: string }[] })[]; modelError?: boolean }) => {
+export const UbahManualPage = ({
+	serialNumber,
+	initialModels = [],
+	modelError = false,
+}: {
+	serialNumber?: string;
+	initialModels?: (Omit<TrialPanelMatch, "roomName"> & {
+		rooms: { id: string; name: string }[];
+	})[];
+	modelError?: boolean;
+}) => {
 	const router = useRouter();
 	const finding = useRef(false);
 	const savingRef = useRef(false);
@@ -252,7 +262,7 @@ export const UbahManualPage = ({ serialNumber, initialModels = [], modelError = 
 			className={
 				serialNumber
 					? "relative mx-auto flex h-dvh max-w-lg flex-col overflow-hidden bg-neutral-50 pb-(--bottom-navigation-height) md:max-w-none dark:bg-background"
-					: "mx-auto min-h-dvh max-w-[480px] bg-background pb-28"
+					: "mx-auto min-h-dvh max-w-120 bg-background pb-28"
 			}
 		>
 			{serialNumber ? (
@@ -283,10 +293,15 @@ export const UbahManualPage = ({ serialNumber, initialModels = [], modelError = 
 				</header>
 			) : (
 				<>
-					<PageHeader eyebrow="Admin" title="Ubah status barang" />
-					<p className="px-4 pt-4 pb-5 text-sm text-muted-foreground">Scan Serial Number untuk menampilkan lokasi item dan mengubah statusnya secara manual.</p>
+					<PageHeader eyebrow="Produksi Panel" title="Ubah status barang" />
+					<p className="px-4 pt-4 pb-5 text-sm text-muted-foreground">
+						Scan Serial Number untuk menampilkan lokasi item dan mengubah
+						statusnya secara manual.
+					</p>
 
-					<div className="px-4"><Scanner onDetected={findItem} disabled={loading} /></div>
+					<div className="px-4">
+						<Scanner onDetected={findItem} disabled={loading} />
+					</div>
 				</>
 			)}
 			{loading && serialNumber && (
@@ -379,17 +394,19 @@ export const UbahManualPage = ({ serialNumber, initialModels = [], modelError = 
 									keepSelectedPanel
 									footer={
 										<div className="border-t pt-3">
-											<p className="mb-2 text-xs text-muted-foreground">Merah: panel yang diubah · Biru: panel yang dipilih</p>
+											<p className="mb-2 text-xs text-muted-foreground">
+												Merah: panel yang diubah · Biru: panel yang dipilih
+											</p>
 											<div className="flex min-w-0 items-center gap-2">
 												<span className="min-w-0 flex-1 truncate text-sm font-bold">
-														{item
-															? panelDisplayName(
-																	item.nama,
-																	locatedPanel?.panelNumber
-																		? `Panel ${locatedPanel.panelNumber}`
-																		: "Panel",
-																)
-															: "Panel"}
+													{item
+														? panelDisplayName(
+																item.nama,
+																locatedPanel?.panelNumber
+																	? `Panel ${locatedPanel.panelNumber}`
+																	: "Panel",
+															)
+														: "Panel"}
 												</span>
 												{item && (
 													<Badge className="max-w-[55%] truncate rounded-full bg-accent/20 px-2 py-1 text-[10px] font-bold text-foreground">
@@ -397,7 +414,9 @@ export const UbahManualPage = ({ serialNumber, initialModels = [], modelError = 
 													</Badge>
 												)}
 											</div>
-											<p className="mt-1 text-xs text-muted-foreground">Serial yang diubah: {serialNumber}</p>
+											<p className="mt-1 text-xs text-muted-foreground">
+												Serial yang diubah: {serialNumber}
+											</p>
 											{statusCard}
 										</div>
 									}
@@ -452,14 +471,14 @@ export const UbahManualPage = ({ serialNumber, initialModels = [], modelError = 
 							>
 								<p>
 									{modelError
-											? "Model 3D aktif belum dapat diperiksa."
-											: item?.location
-												? "Serial tidak ditemukan pada model 3D aktif."
-												: item?.location_error === "LOCATION_AMBIGUOUS"
-													? "Serial ditemukan di beberapa model aktif. Periksa model LBY di profil admin. Status barang tetap dapat diubah."
-													: item?.location_error
-														? "Lokasi panel belum dapat dimuat. Status barang tetap dapat diubah."
-														: "Lokasi panel belum tersedia. Hubungi drafter untuk mengunggah model LBY. Status barang tetap dapat diubah."}
+										? "Model 3D aktif belum dapat diperiksa."
+										: item?.location
+											? "Serial tidak ditemukan pada model 3D aktif."
+											: item?.location_error === "LOCATION_AMBIGUOUS"
+												? "Serial ditemukan di beberapa model aktif. Periksa model LBY di profil admin. Status barang tetap dapat diubah."
+												: item?.location_error
+													? "Lokasi panel belum dapat dimuat. Status barang tetap dapat diubah."
+													: "Lokasi panel belum tersedia. Hubungi drafter untuk mengunggah model LBY. Status barang tetap dapat diubah."}
 								</p>
 								{item?.location && (
 									<button

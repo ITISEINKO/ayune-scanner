@@ -9,7 +9,7 @@ const ts = require("typescript");
 	const modules = {
 		"next/server": { NextResponse: { json: (body, init) => Response.json(body, init) } },
 		"@/lib/db": { canImportLby: async () => allowed },
-		"@/lib/session": { ppicSession: async () => ({ user_id: "user" }), clickUpToken: async () => "token" },
+		"@/lib/session": { getAppSession: async () => ({ user_id: "user" }), clickUpToken: async () => "token" },
 		"../../../../../scripts/import-lby-project.cjs": { parseShareLink: () => ({}) },
 		"../../../../../scripts/public-model-import.cjs": { fetchPublicModel: async () => { throw new Error("NO_PANEL_SERIAL"); } },
 		"@/lib/trialPublicModels": {

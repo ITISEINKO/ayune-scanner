@@ -1,7 +1,7 @@
 import { SearchPanelLocationPage } from "@/features/member/SearchPanelLocationPage";
 import { notFound } from "next/navigation";
 import { getPanelLocation } from "@/lib/panelLocationSnapshot";
-import { ppicSession } from "@/lib/session";
+import { getAppSession } from "@/lib/session";
 import {
 	listTrialModels,
 	readTrialModel,
@@ -17,7 +17,7 @@ const CariLokasi = async ({
 }: {
 	searchParams: Promise<{ barcode?: string; model?: string; source?: string }>;
 }) => {
-	const session = await ppicSession();
+	const session = await getAppSession();
 	const { barcode = "", model, source } = await searchParams;
 	if (typeof barcode !== "string" || barcode.length > 100) notFound();
 	if (source !== undefined && source !== "old") notFound();

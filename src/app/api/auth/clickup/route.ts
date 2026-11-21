@@ -1,22 +1,16 @@
+import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
-import { clickUpAuthUrl } from "@/lib/clickup";
 
-export function GET() {
-	const clientId = process.env.CLICKUP_CLIENT_ID;
-	const redirectUri = process.env.CLICKUP_REDIRECT_URI;
-	if (!clientId || !redirectUri)
-		return new NextResponse("ClickUp OAuth is not configured.", { status: 500 });
-
-	const state = crypto.randomUUID();
-	const url = clickUpAuthUrl(clientId, redirectUri, state);
-
-	const response = NextResponse.redirect(url);
-	response.cookies.set("clickup_oauth_state", state, {
-		httpOnly: true,
-		secure: process.env.NODE_ENV === "production",
-		sameSite: "lax",
-		path: "/api/auth/clickup/callback",
-		maxAge: 600,
+export async function GET(request: Request) {
+	const result = await auth.api.signInSocial({
+		body: { provider: "clickup", callbackURL: "/", errorCallbackURL: "/login?error=clickup" },
+		headers: request.headers,
+		asResponse: true,
 	});
+	if (!result.ok) return NextResponse.redirect(new URL("/login?error=clickup", request.url));
+	const body = await result.json() as { url?: string };
+	if (!body.url) return NextResponse.redirect(new URL("/login?error=clickup", request.url));
+	const response = NextResponse.redirect(body.url);
+	for (const cookie of result.headers.getSetCookie()) response.headers.append("set-cookie", cookie);
 	return response;
 }

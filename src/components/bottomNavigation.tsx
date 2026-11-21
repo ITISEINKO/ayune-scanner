@@ -4,7 +4,7 @@ import { hasPpicAdminAccess } from "@/types/ppic";
 
 import {
 	FolderKanban,
-	History,
+	Activity,
 	House,
 	LoaderCircle,
 	ScanLine,
@@ -12,6 +12,7 @@ import {
 	Settings,
 	User,
 	Users,
+	Gauge,
 } from "lucide-react";
 import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
@@ -27,7 +28,7 @@ const superAdminItems = [
 const memberItems = [
 	{ href: "/projects", label: "Projects", icon: FolderKanban },
 	{ href: "/cari-lokasi", label: "Cari", icon: Search },
-	{ href: "/history", label: "History", icon: History },
+	{ href: "/activity", label: "Activity", icon: Gauge },
 	{ href: "/profile", label: "Profile", icon: User },
 ];
 const drafterItems = [

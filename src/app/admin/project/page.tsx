@@ -7,7 +7,7 @@ import {
 import { isPpicSuperAdmin } from "@/lib/db";
 import {
 	clickUpToken,
-	ppicSession,
+	getAppSession,
 	requireSelectedAdminProject,
 } from "@/lib/session";
 import type { SelectedProject } from "@/types/project";
@@ -33,7 +33,7 @@ export default async function ProjectDetail({
 		clickUpToken(),
 	]);
 	if (!token) redirect("/login");
-	const userId = (await ppicSession())?.user_id;
+	const userId = (await getAppSession())?.user_id;
 	if (!userId) redirect("/login");
 	if (!(await isPpicSuperAdmin(userId))) redirect("/unauthorized");
 	try {

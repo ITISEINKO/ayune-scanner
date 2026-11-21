@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { getProjectDashboard } from "@/lib/projectDashboard";
 import { isPpicSuperAdmin } from "@/lib/db";
-import { clickUpToken, ppicSession } from "@/lib/session";
+import { clickUpToken, getAppSession } from "@/lib/session";
 
 export const maxDuration = 60;
 
 async function loadProject(request: Request, refresh: boolean) {
 	try {
-		const userId = (await ppicSession())?.user_id;
+		const userId = (await getAppSession())?.user_id;
 		const token = await clickUpToken();
 		if (!userId || !token)
 			return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });

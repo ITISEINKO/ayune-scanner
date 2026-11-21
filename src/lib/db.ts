@@ -30,8 +30,16 @@ export const db = createClient({
 	authToken,
 });
 
+export const getPpicProfile = async (clickupUserId: string) => {
+	const result = await db.execute({
+		sql: `SELECT u.name, u.email FROM "user" u JOIN account a ON a."userId" = u.id WHERE a."providerId" = 'clickup' AND a."accountId" = ? LIMIT 1`,
+		args: [clickupUserId],
+	});
+	const row = result.rows[0];
+	return row ? { displayName: String(row.name), email: String(row.email).endsWith("@example.invalid") ? null : String(row.email) } : null;
+};
+
 let scanHistorySchema: Promise<void> | undefined;
-let permissionNamesSchema: Promise<void> | undefined;
 let projectStatusSchema: Promise<void> | undefined;
 let dashboardSnapshotSchema: Promise<void> | undefined;
 let panelMembersSnapshotSchema: Promise<void> | undefined;
@@ -53,22 +61,23 @@ export const savePanelMembersSnapshot = async (members: PanelMember[]) => {
 export const getLbyImportPermissions = async (userIds: string[]) => {
 	const permissions = Object.fromEntries(userIds.map((id) => [id, false]));
 	if (!userIds.length) return permissions;
-	const result = await db.execute({ sql: `SELECT clickup_user_id, can_import_lby FROM ppic_permissions
-		WHERE clickup_user_id IN (${userIds.map(() => "?").join(",")})`, args: userIds });
+	const result = await db.execute({ sql: `SELECT a."accountId" AS clickup_user_id, u.can_import_lby FROM "user" u JOIN account a ON a."userId" = u.id AND a."providerId" = 'clickup'
+		WHERE a."accountId" IN (${userIds.map(() => "?").join(",")})`, args: userIds });
 	for (const row of result.rows) permissions[String(row.clickup_user_id)] = Number(row.can_import_lby) === 1;
 	return permissions;
 };
 
 export const saveLbyImportPermission = async (userId: string, enabled: boolean, updatedBy: string) => {
 	if (!userId.trim() || !updatedBy.trim() || typeof enabled !== "boolean") throw new Error("Invalid LBY permission");
-	return db.execute({ sql: `INSERT INTO ppic_permissions (clickup_user_id, allowed_status, active, updated_by, can_import_lby)
-		VALUES (?, ?, 0, ?, ?) ON CONFLICT(clickup_user_id) DO UPDATE SET can_import_lby = excluded.can_import_lby,
-		updated_by = excluded.updated_by, updated_at = CURRENT_TIMESTAMP`, args: [userId, PPIC_STATUSES[0], updatedBy, Number(enabled)] });
+	const result = await db.execute({ sql: `UPDATE "user" SET can_import_lby = ?, permission_updated_by = ?, permission_updated_at = CURRENT_TIMESTAMP
+		WHERE id = (SELECT MIN("userId") FROM account WHERE "providerId" = 'clickup' AND "accountId" = ? HAVING COUNT(*) = 1)`, args: [Number(enabled), updatedBy, userId] });
+	if (result.rowsAffected !== 1) throw new Error("ClickUp user is not provisioned");
+	return result;
 };
 
 export const canImportLby = async (userId: string) => {
 	const result = await db.execute({
-		sql: "SELECT role, can_import_lby FROM ppic_permissions WHERE clickup_user_id = ? LIMIT 1",
+		sql: `SELECT u.role, u.can_import_lby FROM "user" u JOIN account a ON a."userId" = u.id WHERE a."providerId" = 'clickup' AND a."accountId" = ? LIMIT 1`,
 		args: [userId],
 	});
 	return result.rows[0]?.role === "ADMIN" || Number(result.rows[0]?.can_import_lby) === 1;
@@ -262,26 +271,15 @@ const ensureScanHistorySchema = () =>
 				await db.execute("ALTER TABLE ppic_scan_history ADD COLUMN component_task_id TEXT");
 		}));
 
-const ensurePermissionNamesSchema = () =>
-	(permissionNamesSchema ??= db
-		.execute("PRAGMA table_info(ppic_permissions)")
-		.then(async (result) => {
-			const columns = new Set(result.rows.map((row) => String(row.name)));
-			if (!columns.has("display_name"))
-				await db.execute("ALTER TABLE ppic_permissions ADD COLUMN display_name TEXT");
-		}));
-
 export { isPpicRole, isPpicStatus } from "@/types/ppic";
 
 export const savePpicMemberNames = async (members: PanelMember[]) => {
 	if (!members.length) return;
-	await ensurePermissionNamesSchema();
 	await db.batch(
 		members.map((member) => ({
 			sql: `
-					UPDATE ppic_permissions
-					SET display_name = ?
-					WHERE clickup_user_id = ?
+					UPDATE "user" SET name = ?
+					WHERE id IN (SELECT "userId" FROM account WHERE "providerId" = 'clickup' AND "accountId" = ?)
 				`,
 				args: [member.name, member.id],
 		})),
@@ -291,13 +289,11 @@ export const savePpicMemberNames = async (members: PanelMember[]) => {
 
 export const getPpicMemberNames = async (userIds: string[]) => {
 	if (!userIds.length) return {};
-	await ensurePermissionNamesSchema();
 	const result = await db.execute({
 		sql: `
-			SELECT clickup_user_id, display_name
-			FROM ppic_permissions
-			WHERE clickup_user_id IN (${userIds.map(() => "?").join(", ")})
-				AND display_name IS NOT NULL
+			SELECT a."accountId" AS clickup_user_id, u.name AS display_name
+			FROM "user" u JOIN account a ON a."userId" = u.id AND a."providerId" = 'clickup'
+			WHERE a."accountId" IN (${userIds.map(() => "?").join(", ")})
 		`,
 		args: userIds,
 	});
@@ -313,9 +309,9 @@ export const getPpicAccess = async (clickupUserId: string): Promise<{
 } | null> => {
 	const result = await db.execute({
 		sql: `
-			SELECT role, allowed_status, active
-			FROM ppic_permissions
-			WHERE clickup_user_id = ?
+			SELECT u.role, u.allowed_status, u.active
+			FROM "user" u JOIN account a ON a."userId" = u.id
+			WHERE a."providerId" = 'clickup' AND a."accountId" = ?
 			LIMIT 1
 		`,
 		args: [clickupUserId],
@@ -330,9 +326,9 @@ export const isPpicSuperAdmin = async (clickupUserId: string) => {
 	const result = await db.execute({
 		sql: `
 			SELECT 1
-			FROM ppic_permissions
-			WHERE clickup_user_id = ?
-			  AND role IN ('SUPER_ADMIN', 'ADMIN')
+			FROM "user" u JOIN account a ON a."userId" = u.id
+			WHERE a."providerId" = 'clickup' AND a."accountId" = ?
+			  AND u.role IN ('SUPER_ADMIN', 'ADMIN')
 			LIMIT 1
 		`,
 		args: [clickupUserId],
@@ -352,9 +348,9 @@ export const getPpicMemberAccess = async (userIds: string[]) => {
 
 	const result = await db.execute({
 		sql: `
-			SELECT clickup_user_id, role, allowed_status, active
-			FROM ppic_permissions
-			WHERE clickup_user_id IN (${userIds.map(() => "?").join(", ")})
+			SELECT a."accountId" AS clickup_user_id, u.role, u.allowed_status, u.active
+			FROM "user" u JOIN account a ON a."userId" = u.id AND a."providerId" = 'clickup'
+			WHERE a."accountId" IN (${userIds.map(() => "?").join(", ")})
 		`,
 		args: userIds,
 	});
@@ -379,23 +375,13 @@ export const savePpicPermission = async (
 	)
 		throw new Error("Invalid PPIC permission");
 
-	return db.execute({
-		sql: `
-			INSERT INTO ppic_permissions (
-				clickup_user_id,
-				allowed_status,
-				active,
-				updated_by
-			)
-			VALUES (?, ?, 1, ?)
-			ON CONFLICT(clickup_user_id) DO UPDATE SET
-				allowed_status = excluded.allowed_status,
-				active = excluded.active,
-				updated_by = excluded.updated_by,
-				updated_at = CURRENT_TIMESTAMP
-		`,
-		args: [userId, allowedStatus.length === 1 ? allowedStatus[0] : JSON.stringify(allowedStatus), updatedBy],
+	const result = await db.execute({
+		sql: `UPDATE "user" SET allowed_status = ?, active = 1, permission_updated_by = ?, permission_updated_at = CURRENT_TIMESTAMP
+			WHERE id = (SELECT MIN("userId") FROM account WHERE "providerId" = 'clickup' AND "accountId" = ? HAVING COUNT(*) = 1)`,
+		args: [allowedStatus.length === 1 ? allowedStatus[0] : JSON.stringify(allowedStatus), updatedBy, userId],
 	});
+	if (result.rowsAffected !== 1) throw new Error("ClickUp user is not provisioned");
+	return result;
 };
 
 export const deactivatePpicPermission = async (
@@ -405,16 +391,18 @@ export const deactivatePpicPermission = async (
 	if (!userId.trim() || !updatedBy.trim())
 		throw new Error("Invalid PPIC permission");
 
-	return db.execute({
+	const result = await db.execute({
 		sql: `
-			UPDATE ppic_permissions
+			UPDATE "user"
 			SET active = 0,
-				updated_by = ?,
-				updated_at = CURRENT_TIMESTAMP
-			WHERE clickup_user_id = ?
+				permission_updated_by = ?,
+				permission_updated_at = CURRENT_TIMESTAMP
+			WHERE id = (SELECT MIN("userId") FROM account WHERE "providerId" = 'clickup' AND "accountId" = ? HAVING COUNT(*) = 1)
 		`,
 		args: [updatedBy, userId],
 	});
+	if (result.rowsAffected !== 1) throw new Error("ClickUp user is not provisioned");
+	return result;
 };
 
 export const savePpicRole = async (
@@ -425,24 +413,16 @@ export const savePpicRole = async (
 	if (!userId.trim() || !updatedBy.trim() || !isPpicRole(role))
 		throw new Error("Invalid PPIC role");
 
-	return db.execute({
+	const result = await db.execute({
 		sql: `
-			INSERT INTO ppic_permissions (
-				clickup_user_id,
-				allowed_status,
-				active,
-				updated_by,
-				role
-			)
-			VALUES (?, ?, 0, ?, ?)
-			ON CONFLICT(clickup_user_id) DO UPDATE SET
-				role = excluded.role,
-				active = CASE WHEN excluded.role = 'MEMBER' THEN 0 ELSE active END,
-				updated_by = excluded.updated_by,
-				updated_at = CURRENT_TIMESTAMP
+			UPDATE "user" SET role = ?, active = CASE WHEN ? = 'MEMBER' THEN 0 ELSE active END,
+				permission_updated_by = ?, permission_updated_at = CURRENT_TIMESTAMP
+			WHERE id = (SELECT MIN("userId") FROM account WHERE "providerId" = 'clickup' AND "accountId" = ? HAVING COUNT(*) = 1)
 		`,
-		args: [userId, PPIC_STATUSES[0], updatedBy, role],
+		args: [role, role, updatedBy, userId],
 	});
+	if (result.rowsAffected !== 1) throw new Error("ClickUp user is not provisioned");
+	return result;
 };
 
 export const savePpicScanHistory = async (

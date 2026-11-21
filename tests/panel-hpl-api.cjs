@@ -14,7 +14,7 @@ const modules = {
 	'@/lib/projects': { panelListId: () => 'list' },
 	'@/lib/produksiPanel': { CF_PANEL: { SERIAL_NUMBER: 'serial' } },
 	'@/lib/projectDashboard': { loadDescendantTasks: async () => [] },
-	'@/lib/session': { clickUpToken: async () => authorized ? 'token' : null, ppicSession: async () => authorized ? { user_id: 'user' } : null },
+	'@/lib/session': { clickUpToken: async () => authorized ? 'token' : null, getAppSession: async () => authorized ? { user_id: 'user' } : null },
 	'@/lib/trialPublicModels': { listTrialModels: async () => [{ id: '123', activeRevision: active ? revision : null, versions: [{ revision }] }], readTrialModel: async () => { snapshotReads++; return { rooms: [{ id: 'room', matches: [{ id: 'panel', serial: '001' }] }] }; } },
 };
 const moduleResult = { exports: {} };

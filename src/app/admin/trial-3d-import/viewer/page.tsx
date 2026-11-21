@@ -2,13 +2,13 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { PanelViewerDetailPage } from "@/features/panel-viewer/PanelViewerDetailPage";
 import { canImportLby } from "@/lib/db";
-import { ppicSession } from "@/lib/session";
+import { getAppSession } from "@/lib/session";
 import { listTrialModels, readTrialModel, searchTrialPanels } from "@/lib/trialPublicModels";
 
 export const dynamic = "force-dynamic";
 
 export default async function TrialViewer({ searchParams }: { searchParams: Promise<{ id?: string; room?: string; panel?: string; q?: string }> }) {
-	const session = await ppicSession();
+	const session = await getAppSession();
 	if (!session || !(await canImportLby(session.user_id))) redirect("/unauthorized");
 	const query = await searchParams;
 	const models = await listTrialModels();

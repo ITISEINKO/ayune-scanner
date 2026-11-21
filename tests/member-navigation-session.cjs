@@ -17,7 +17,7 @@ const paths = [
 			'react/jsx-runtime': { jsx: (type, props) => ({ type, props }) },
 			'@/features/member/MemberScannerPage': { MemberScannerPage: 'scanner' },
 			'@/lib/session': {
-				ppicSession: async () => ({ allowed_status: [expected] }),
+				getAppSession: async () => ({ allowed_status: [expected] }),
 				requireSelectedMemberProject: async () => ({ task_id: 'project' }),
 				requirePpicStatusAccess: async (status) => { checked = status; },
 			},

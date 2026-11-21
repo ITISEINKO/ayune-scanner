@@ -10,7 +10,7 @@ registerHooks({ resolve(specifier, context, next) {
 		export const clickUpToken = async () => globalThis.noToken ? null : 'test-token';
 		export const requireFreshSuperAdmin = async () => { if (!globalThis.testAdmin) throw Error('UNAUTHORIZED'); return 'admin'; };
 		export const requireFreshPpicStatusAccess = async () => 'member';
-		export const ppicSession = async () => ({role: 'MEMBER'});
+		export const getAppSession = async () => ({role: 'MEMBER'});
 		export const clickUpUserIdForToken = async () => 'admin';
 		export const selectedProjectTaskId = async () => 'complete-project';
 	`), shortCircuit: true };

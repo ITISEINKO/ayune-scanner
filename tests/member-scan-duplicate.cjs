@@ -14,7 +14,7 @@ const modules = {
 	"@/lib/produksiPanel": { CF_PANEL: { SERIAL_NUMBER: "serial", STATUS_BARANG_SCAN: "status" }, PANEL_LIST_ID: "list", STATUS_BARANG_SCAN: { BARANG_DITERIMA: "received" } },
 	"@/lib/projectScope": { taskProjectScope: (task, parent) => task.parent === parent ? "MATCH" : task.parent ? "OTHER" : "INVALID" },
 	"@/lib/projects": { getPanelProject: async () => ({ status: { status: "in progress" } }) },
-	"@/lib/session": { clickUpToken: async () => "token", ppicSession: async () => ({ role: "MEMBER" }), requireFreshPpicStatusAccess: async () => "user", selectedProjectTaskId: async () => "selected" },
+	"@/lib/session": { clickUpToken: async () => "token", getAppSession: async () => ({ role: "MEMBER" }), requireFreshPpicStatusAccess: async () => "user", selectedProjectTaskId: async () => "selected" },
 };
 const result = { exports: {} };
 const source = ts.transpileModule(readFileSync("src/app/api/panel/scan/route.ts", "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
