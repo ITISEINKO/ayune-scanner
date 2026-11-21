@@ -1,6 +1,9 @@
 import { ProjectDetailPage } from "@/features/admin/ProjectDetailPage";
 import { CompletedProjectDetailPage } from "@/features/admin/CompletedProjectDetailPage";
-import { getCompletedProjectDashboard, getProjectDashboard } from "@/lib/projectDashboard";
+import {
+	getCompletedProjectDashboard,
+	getProjectDashboard,
+} from "@/lib/projectDashboard";
 import { isPpicSuperAdmin } from "@/lib/db";
 import {
 	clickUpToken,
@@ -21,7 +24,11 @@ export default async function ProjectDetail({
 	const taskId = params.task_id?.trim();
 	const [project, token] = await Promise.all([
 		taskId
-			? Promise.resolve<SelectedProject>({ task_id: taskId, name: null, custom_id: null })
+			? Promise.resolve<SelectedProject>({
+					task_id: taskId,
+					name: null,
+					custom_id: null,
+				})
 			: requireSelectedAdminProject(),
 		clickUpToken(),
 	]);
@@ -33,10 +40,15 @@ export default async function ProjectDetail({
 		const dashboard = await (params.review === "completed"
 			? getCompletedProjectDashboard(token, project)
 			: getProjectDashboard(token, project));
-		return dashboard.completion && dashboard.project.status?.toLowerCase() === "complete"
-			? <CompletedProjectDetailPage dashboard={dashboard} />
-			: <ProjectDetailPage dashboard={dashboard} />;
+		return dashboard.completion &&
+			dashboard.project.status?.toLowerCase() === "complete" ? (
+			<CompletedProjectDetailPage dashboard={dashboard} />
+		) : (
+			<ProjectDetailPage dashboard={dashboard} />
+		);
 	} catch {
-		return <ProjectDetailPage error="Dashboard project tidak dapat dimuat. Coba lagi." />;
+		return (
+			<ProjectDetailPage error="Dashboard project tidak dapat dimuat. Coba lagi." />
+		);
 	}
 }

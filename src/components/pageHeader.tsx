@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import type { ReactNode } from "react";
+import { ThemeColor } from "@/components/themeColor";
 
 export function PageHeader({
 	eyebrow,
@@ -17,6 +18,7 @@ export function PageHeader({
 }) {
 	return (
 		<header className="sticky top-0 z-6 overflow-hidden rounded-b-[26px] bg-[color-mix(in_srgb,var(--accent)_30%,var(--background))] px-5 pt-[calc(12px+env(safe-area-inset-top,0px))] pb-4.5 text-foreground">
+			<ThemeColor color="color-mix(in srgb, var(--accent) 30%, var(--background))" />
 			<img
 				src="/ayune-14.svg"
 				alt=""

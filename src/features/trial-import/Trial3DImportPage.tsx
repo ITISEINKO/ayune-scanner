@@ -1,4 +1,5 @@
 "use client";
+import { ThemeColor } from "@/components/themeColor";
 
 import {
 	useEffect,
@@ -273,6 +274,7 @@ export function Trial3DImportPage({ workspace = "Admin" }: { workspace?: "Admin"
 	return (
 		<main className="mx-auto min-h-dvh max-w-lg bg-background pb-28">
 			<header className="relative overflow-hidden rounded-b-[2.5rem] bg-accent/30 px-6 pt-6 pb-8 text-accent-foreground">
+				<ThemeColor color="color-mix(in srgb, var(--accent) 30%, var(--background))" />
 				<img
 					src="/ayune-14.svg"
 					alt=""

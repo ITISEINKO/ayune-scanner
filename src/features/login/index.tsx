@@ -1,9 +1,11 @@
 import { LoginForm } from "./LoginForm";
+import { ThemeColor } from "@/components/themeColor";
 
 export default function LoginPage({ error }: { error?: string }) {
 	return (
 		<main className="mx-auto h-dvh max-w-lg overflow-hidden bg-background text-primary-foreground">
 			<section className="relative flex h-[48%] min-h-0 flex-col justify-end overflow-visible bg-primary px-6 pt-10 pb-5">
+				<ThemeColor color="var(--primary)" />
 				<div
 					aria-hidden="true"
 					className="pointer-events-none absolute -top-32 -left-28 size-80 rounded-full bg-primary-foreground/10 blur-3xl"

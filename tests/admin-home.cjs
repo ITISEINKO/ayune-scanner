@@ -777,6 +777,13 @@ async function main() {
 		await expect(
 			page.getByRole("link", { name: "Kembali ke project" }),
 		).toHaveAttribute("href", "/admin/projects");
+		await page.setViewportSize({ width: 390, height: 500 });
+		const stickyBar = page.getByRole("link", { name: "Kembali ke project" }).locator("..");
+		await page.evaluate(() => window.scrollTo(0, 400));
+		await expect(stickyBar.locator("span[aria-hidden='true']")).toHaveCSS("opacity", "1");
+		assert.ok(Math.abs((await stickyBar.boundingBox()).y) < 1, "project controls stay at the top while scrolling");
+		await page.evaluate(() => window.scrollTo(0, 0));
+		await expect(stickyBar.locator("span[aria-hidden='true']")).toHaveCSS("opacity", "0");
 		await page.goto(`${baseURL}/admin/project`);
 		await expect(page).toHaveURL(`${baseURL}/admin/projects`);
 		await session("SUPER_ADMIN", "home-error");

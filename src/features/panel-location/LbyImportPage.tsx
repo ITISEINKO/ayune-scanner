@@ -1,4 +1,5 @@
 "use client";
+import { ThemeColor } from "@/components/themeColor";
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
@@ -332,6 +333,7 @@ export function LbyImportPage({
 	return (
 		<main className={`mx-auto min-h-dvh bg-background pb-28 ${preview ? "max-w-none" : "max-w-lg"}`}>
 			<header hidden={Boolean(preview)} className="relative overflow-hidden rounded-b-[2.5rem] bg-accent/30 px-6 pt-6 pb-8 text-accent-foreground">
+				{!preview && <ThemeColor color="color-mix(in srgb, var(--accent) 30%, var(--background))" />}
 				<img
 					src="/ayune-14.svg"
 					alt=""

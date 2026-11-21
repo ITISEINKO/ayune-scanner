@@ -14,6 +14,7 @@ export async function createPanelViewer(
 	let disposed = false,
 		doorProgress = 0,
 		frame = 0;
+	let hasSelection = false;
 	let settings = { hideDoors: false, xray: false, numbers: false, explode: 0 };
 	const box = new THREE.Box3();
 	for (const part of parts)
@@ -34,6 +35,7 @@ export async function createPanelViewer(
 		string,
 		InstanceType<typeof THREE.MeshLambertMaterial>
 	>();
+	const selectedMaterials = new Map<InstanceType<typeof THREE.MeshLambertMaterial>, InstanceType<typeof THREE.MeshLambertMaterial>>();
 	const textures = new Map<string, InstanceType<typeof THREE.Texture>>();
 	const hingeMaterial = new THREE.MeshLambertMaterial({
 		color: 0x737b85,
@@ -230,6 +232,12 @@ export async function createPanelViewer(
 									material.map = loaded;
 									material.color.set(0xffffff);
 									material.needsUpdate = true;
+									const selected = selectedMaterials.get(material);
+									if (selected) {
+										selected.map = loaded;
+										selected.color.set(0xffffff);
+										selected.needsUpdate = true;
+									}
 								}
 						} else loaded.dispose();
 						resolve();
@@ -245,15 +253,23 @@ export async function createPanelViewer(
 		renderer.domElement.dataset.doorProgress = String(
 			Math.round(doorProgress * 100),
 		);
-		for (const [key, material] of materials) {
-			const transparent = s.xray || key === "selected-panel" || key === "inspected-panel";
+		for (const material of materials.values()) {
+			const transparent = s.xray || hasSelection;
 			if (material.transparent !== transparent) {
 				material.transparent = transparent;
 				material.needsUpdate = true;
 			}
-			material.opacity = key === "selected-panel" || key === "inspected-panel" ? 0.3 : transparent ? 0.28 : 1;
+			material.opacity = hasSelection ? 0.1 : transparent ? 0.28 : 1;
 			material.depthWrite = !transparent;
 		}
+		const fadeHardware = s.xray || hasSelection;
+		outlineMaterial.opacity = hasSelection && !s.xray ? 0.15 : 0.55;
+		if (hingeMaterial.transparent !== fadeHardware) {
+			hingeMaterial.transparent = fadeHardware;
+			hingeMaterial.needsUpdate = true;
+		}
+		hingeMaterial.opacity = hasSelection ? 0.1 : fadeHardware ? 0.28 : 1;
+		hingeMaterial.depthWrite = !fadeHardware;
 		for (const panel of panels) {
 			panel.group.visible = !(s.hideDoors && panel.part.isDoor);
 			panel.group.position
@@ -312,6 +328,7 @@ export async function createPanelViewer(
 			sprite.material.dispose();
 		});
 		materials.forEach((material) => material.dispose());
+		selectedMaterials.forEach((material) => material.dispose());
 		textures.forEach((texture) => texture.dispose());
 		hingeMaterial.dispose();
 		outlineMaterial.dispose();
@@ -328,24 +345,23 @@ export async function createPanelViewer(
 			render();
 		},
 		setSelected(id?: string, pinnedId?: string) {
+			hasSelection = panels.some((panel) => panel.part.id && (panel.part.id === id || panel.part.id === pinnedId));
 			for (const panel of panels) {
 				const pinned = Boolean(pinnedId && panel.part.id === pinnedId);
 				const inspected = Boolean(id && panel.part.id === id && !pinned);
 				panel.selectedOutline.visible = pinned || inspected;
 				panel.selectedOutline.material = pinned || !pinnedId ? selectedOutlineMaterial : inspectedOutlineMaterial;
 				if (pinned || inspected) {
-					const key = pinnedId && inspected ? "inspected-panel" : "selected-panel";
-					let selected = materials.get(key);
+					let selected = selectedMaterials.get(panel.baseMaterial);
 					if (!selected) {
-						selected = new THREE.MeshLambertMaterial({
-							color: key === "inspected-panel" ? 0x2563eb : 0xef4444,
-							side: THREE.DoubleSide,
-							polygonOffset: true,
-							polygonOffsetFactor: -2,
-							polygonOffsetUnits: -2,
-							forceSinglePass: true,
-						});
-						materials.set(key, selected);
+						selected = panel.baseMaterial.clone();
+						selected.transparent = false;
+						selected.opacity = 1;
+						selected.depthWrite = true;
+						selected.polygonOffset = true;
+						selected.polygonOffsetFactor = -2;
+						selected.polygonOffsetUnits = -2;
+						selectedMaterials.set(panel.baseMaterial, selected);
 					}
 					panel.mesh.material = selected;
 					panel.mesh.renderOrder = 1;

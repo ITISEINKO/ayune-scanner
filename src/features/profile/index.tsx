@@ -1,4 +1,5 @@
 "use client";
+import { ThemeColor } from "@/components/themeColor";
 
 import { hasPpicAdminAccess } from "@/types/ppic";
 import { PageHeader } from "@/components/pageHeader";
@@ -38,6 +39,7 @@ export function ProfileLayout({
 		<main className="mx-auto min-h-dvh max-w-[480px] bg-background pb-28">
 			{hasPpicAdminAccess(role) ? (<><PageHeader eyebrow="Akun" title="Profil" /><div className="mx-4 mt-5 flex items-center gap-3"><div className="grid size-14 shrink-0 place-items-center rounded-[18px] bg-muted text-lg font-bold">{profile?.displayName?.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "?"}</div><div className="min-w-0">{isPending ? <Skeleton role="status" aria-label="Memuat nama profil" className="h-6 w-40" /> : <p className="text-[17px] font-bold">{profile?.displayName ?? "Akun"}</p>}<Badge className="mt-1 h-auto rounded-full bg-muted px-2 py-0.5 text-xs text-foreground">{roleLabel ?? role.replaceAll("_", " ")}</Badge></div></div></>) : (
 			<header className="relative isolate overflow-hidden rounded-b-4xl bg-primary px-5 pt-7 pb-6 text-primary-foreground">
+				<ThemeColor color="var(--primary)" />
 				<img
 					src="/ayune-14.svg"
 					alt=""
