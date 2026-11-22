@@ -1,4 +1,5 @@
 "use client";
+import { PageHeader } from "@/components/pageHeader";
 
 import {
 	useEffect,
@@ -8,16 +9,36 @@ import {
 	type FormEvent,
 } from "react";
 import Link from "next/link";
-import { Check, Circle, EllipsisVertical, Info, LoaderCircle, RotateCcw, Search, Upload } from "lucide-react";
+import {
+	Check,
+	Circle,
+	EllipsisVertical,
+	Info,
+	LoaderCircle,
+	RotateCcw,
+	Search,
+	Upload,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from "@/components/ui/dialog";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogTitle,
+} from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { PanelViewerDetailPage } from "@/features/panel-viewer/PanelViewerDetailPage";
 import type { TrialPublicModel } from "@/types/publicModel";
 import {
@@ -42,7 +63,11 @@ const importSteps = [
 	{ stage: "saving", label: "Menyimpan versi" },
 ] as const;
 
-export function Trial3DImportPage({ workspace = "Admin" }: { workspace?: "Admin" | "Drafter" }) {
+export function Import3DPage({
+	workspace = "Admin",
+}: {
+	workspace?: "Admin" | "Drafter";
+}) {
 	const [url, setUrl] = useState("");
 	const [search, setSearch] = useState("");
 	const [models, setModels] = useState<TrialPublicModel[]>([]);
@@ -61,8 +86,12 @@ export function Trial3DImportPage({ workspace = "Admin" }: { workspace?: "Admin"
 	const [importStage, setImportStage] = useState<
 		(typeof importSteps)[number]["stage"] | null
 	>(null);
-	const [deactivating, setDeactivating] = useState<TrialPublicModel | null>(null);
-	const [hplSyncedAt, setHplSyncedAt] = useState<Record<string, string | null>>({});
+	const [deactivating, setDeactivating] = useState<TrialPublicModel | null>(
+		null,
+	);
+	const [hplSyncedAt, setHplSyncedAt] = useState<Record<string, string | null>>(
+		{},
+	);
 	const importController = useRef<AbortController | null>(null);
 	const urlInput = useRef<HTMLInputElement>(null);
 	useEffect(() => () => importController.current?.abort(), []);
@@ -176,7 +205,11 @@ export function Trial3DImportPage({ workspace = "Admin" }: { workspace?: "Admin"
 			setBusy(false);
 		}
 	}
-	async function openPreview(model: TrialPublicModel, revision: string, button: string) {
+	async function openPreview(
+		model: TrialPublicModel,
+		revision: string,
+		button: string,
+	) {
 		setBusy(true);
 		setPreviewButton(button);
 		setMessage("");
@@ -214,7 +247,11 @@ export function Trial3DImportPage({ workspace = "Admin" }: { workspace?: "Admin"
 			if (!response.ok) throw new Error(result.error);
 			setPreview(null);
 			toast.success("Versi model berhasil diaktifkan.");
-			await load().catch(() => setMessage("Versi berhasil diaktifkan, tetapi daftar gagal dimuat. Muat ulang halaman."));
+			await load().catch(() =>
+				setMessage(
+					"Versi berhasil diaktifkan, tetapi daftar gagal dimuat. Muat ulang halaman.",
+				),
+			);
 		} catch (error) {
 			setMessage(error instanceof Error ? error.message : "Aktivasi gagal.");
 			setPreview(null);
@@ -228,14 +265,31 @@ export function Trial3DImportPage({ workspace = "Admin" }: { workspace?: "Admin"
 		setHplRefreshing(model.id);
 		setMessage("");
 		try {
-			const response = await fetch(`/api/panel/hpl?${new URLSearchParams({ id: model.id, revision: model.activeRevision })}`, { method: "POST" });
-			if (!response.ok) throw new Error("Kode HPL gagal diperbarui. Coba lagi.");
-			const data = await response.json() as { panels: { syncedAt?: string }[] };
-			const syncedAt = data.panels.reduce<string | null>((latest, panel) => panel.syncedAt && (!latest || panel.syncedAt > latest) ? panel.syncedAt : latest, null);
-			setHplSyncedAt((previous) => ({ ...previous, [`${model.id}:${model.activeRevision}`]: syncedAt }));
+			const response = await fetch(
+				`/api/panel/hpl?${new URLSearchParams({ id: model.id, revision: model.activeRevision })}`,
+				{ method: "POST" },
+			);
+			if (!response.ok)
+				throw new Error("Kode HPL gagal diperbarui. Coba lagi.");
+			const data = (await response.json()) as {
+				panels: { syncedAt?: string }[];
+			};
+			const syncedAt = data.panels.reduce<string | null>(
+				(latest, panel) =>
+					panel.syncedAt && (!latest || panel.syncedAt > latest)
+						? panel.syncedAt
+						: latest,
+				null,
+			);
+			setHplSyncedAt((previous) => ({
+				...previous,
+				[`${model.id}:${model.activeRevision}`]: syncedAt,
+			}));
 			toast.success("Kode HPL model aktif berhasil diperbarui.");
 		} catch (error) {
-			setMessage(error instanceof Error ? error.message : "Kode HPL gagal diperbarui.");
+			setMessage(
+				error instanceof Error ? error.message : "Kode HPL gagal diperbarui.",
+			);
 		} finally {
 			setHplRefreshing("");
 			setBusy(false);
@@ -245,12 +299,24 @@ export function Trial3DImportPage({ workspace = "Admin" }: { workspace?: "Admin"
 		if (!model.activeRevision) return;
 		const key = `${model.id}:${model.activeRevision}`;
 		try {
-			const response = await fetch(`/api/panel/hpl?${new URLSearchParams({ id: model.id, revision: model.activeRevision })}`);
+			const response = await fetch(
+				`/api/panel/hpl?${new URLSearchParams({ id: model.id, revision: model.activeRevision })}`,
+			);
 			if (!response.ok) throw new Error("HPL unavailable");
-			const data = await response.json() as { syncedAt: string | null };
-			setHplSyncedAt((previous) => ({ ...previous, [key]: previous[key] && previous[key] !== "error" && (!data.syncedAt || previous[key]! > data.syncedAt) ? previous[key] : data.syncedAt }));
+			const data = (await response.json()) as { syncedAt: string | null };
+			setHplSyncedAt((previous) => ({
+				...previous,
+				[key]:
+					previous[key] &&
+					previous[key] !== "error" &&
+					(!data.syncedAt || previous[key]! > data.syncedAt)
+						? previous[key]
+						: data.syncedAt,
+			}));
 		} catch {
-			setHplSyncedAt((previous) => key in previous ? previous : { ...previous, [key]: "error" });
+			setHplSyncedAt((previous) =>
+				key in previous ? previous : { ...previous, [key]: "error" },
+			);
 		}
 	}
 	async function deactivate(model: TrialPublicModel) {
@@ -258,46 +324,71 @@ export function Trial3DImportPage({ workspace = "Admin" }: { workspace?: "Admin"
 		setBusy(true);
 		setMessage("");
 		try {
-			const response = await fetch("/api/admin/trial-3d-import", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: model.id, revision: null, expected: model.activeRevision }) });
+			const response = await fetch("/api/admin/trial-3d-import", {
+				method: "PATCH",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					id: model.id,
+					revision: null,
+					expected: model.activeRevision,
+				}),
+			});
 			const result = await response.json();
 			if (!response.ok) throw new Error(result.error);
 			setDeactivating(null);
-			setMessage("Model 3D dinonaktifkan. Data dan riwayat tetap tersimpan; gunakan viewer old bila diperlukan.");
+			setMessage(
+				"Model 3D dinonaktifkan. Data dan riwayat tetap tersimpan; gunakan viewer old bila diperlukan.",
+			);
 			await load();
-		} catch (error) { setMessage(error instanceof Error ? error.message : "Gagal menonaktifkan model."); }
-		finally { setBusy(false); }
+		} catch (error) {
+			setMessage(
+				error instanceof Error ? error.message : "Gagal menonaktifkan model.",
+			);
+		} finally {
+			setBusy(false);
+		}
 	}
 	const filtered = models.filter((model) =>
 		model.name.toLowerCase().includes(search.trim().toLowerCase()),
 	);
 	return (
 		<main className="mx-auto min-h-dvh max-w-lg bg-background pb-28">
-			<header className="relative overflow-hidden rounded-b-[2.5rem] bg-accent/30 px-6 pt-6 pb-8 text-accent-foreground">
-				<img
-					src="/ayune-14.svg"
-					alt=""
-					aria-hidden="true"
-					className="pointer-events-none absolute -top-20 -right-16 size-70 opacity-10"
-				/>
-				<div className="relative pr-12">
+			<PageHeader
+				eyebrow={workspace}
+				title="Model LBY 3D Ver2"
+				action={
 					<DropdownMenu>
-						<DropdownMenuTrigger aria-label="Menu model" className="absolute right-0 top-0 flex size-11 items-center justify-center rounded-full hover:bg-background/50 focus-visible:outline-2 focus-visible:outline-ring">
+						<DropdownMenuTrigger
+							aria-label="Menu model"
+							className="flex size-11 items-center justify-center rounded-full hover:bg-background/50 focus-visible:outline-2 focus-visible:outline-ring"
+						>
 							<EllipsisVertical aria-hidden="true" className="size-5" />
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end">
-							<DropdownMenuItem render={<Link href="/cari-lokasi" />}>Buka pencarian lokasi</DropdownMenuItem>
-							<DropdownMenuItem render={<Link href={workspace === "Admin" ? "/admin/import-3d/old" : "/drafter/old"} />}>Kelola model LBY old</DropdownMenuItem>
+							<DropdownMenuItem render={<Link href="/cari-lokasi" />}>
+								Buka pencarian lokasi
+							</DropdownMenuItem>
+							<DropdownMenuItem
+								render={
+									<Link
+										href={
+											workspace === "Admin"
+												? "/admin/import-3d/old"
+												: "/drafter/old"
+										}
+									/>
+								}
+							>
+								Kelola model LBY old
+							</DropdownMenuItem>
 						</DropdownMenuContent>
 					</DropdownMenu>
-					<p className="text-md text-muted-foreground/80">{workspace}</p>
-					<h1 className="text-2xl font-extrabold tracking-tight">
-						Model LBY 3D Ver2
-					</h1>
-					<p className="mt-2 text-sm text-muted-foreground">
-						Kelola model aktif untuk pencarian lokasi panel.
-					</p>
-				</div>
-			</header>
+				}
+			>
+				<p className="relative mt-2 text-sm text-muted-foreground">
+					Kelola model aktif untuk pencarian lokasi panel.
+				</p>
+			</PageHeader>
 			<div className="space-y-6 px-4 pt-5">
 				{importStage ? (
 					<section
@@ -387,8 +478,7 @@ export function Trial3DImportPage({ workspace = "Admin" }: { workspace?: "Admin"
 							/>
 						</div>
 						<p className="text-xs text-muted-foreground">
-							Model disimpan sebagai kandidat. Periksa preview sebelum
-							aktivasi.
+							Model disimpan sebagai kandidat. Periksa preview sebelum aktivasi.
 						</p>
 						<Button
 							type="submit"
@@ -403,7 +493,9 @@ export function Trial3DImportPage({ workspace = "Admin" }: { workspace?: "Admin"
 				{message && (
 					<Alert role="status" className="border border-border">
 						<Info aria-hidden="true" />
-						<AlertDescription className="text-foreground">{message}</AlertDescription>
+						<AlertDescription className="text-foreground">
+							{message}
+						</AlertDescription>
 					</Alert>
 				)}
 				<section className="space-y-3" aria-busy={loading}>
@@ -443,7 +535,12 @@ export function Trial3DImportPage({ workspace = "Admin" }: { workspace?: "Admin"
 									style={candidate ? previewStatusStyle : activeStatusStyle}
 									className={`overflow-hidden rounded-2xl border bg-card text-card-foreground ${candidate ? "border-[color-mix(in_srgb,var(--status-color)_40%,transparent)]" : "border-border/60"}`}
 								>
-									<details className="group/model" onToggle={(event) => { if (event.currentTarget.open) void loadHplSyncTime(model); }}>
+									<details
+										className="group/model"
+										onToggle={(event) => {
+											if (event.currentTarget.open) void loadHplSyncTime(model);
+										}}
+									>
 										<summary className="flex cursor-pointer list-none items-center gap-3 p-4 transition-colors hover:bg-muted/40 group-open/model:bg-muted/30 focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
 											<span
 												style={
@@ -465,8 +562,8 @@ export function Trial3DImportPage({ workspace = "Admin" }: { workspace?: "Admin"
 												>
 													{model.name}
 												</h3>
-														<p className="mt-0.5 text-xs text-muted-foreground">
-															V{latest.number} ·{" "}
+												<p className="mt-0.5 text-xs text-muted-foreground">
+													V{latest.number} ·{" "}
 													{new Date(latest.importedAt).toLocaleString("id-ID", {
 														timeZone: "Asia/Jakarta",
 														day: "2-digit",
@@ -496,17 +593,32 @@ export function Trial3DImportPage({ workspace = "Admin" }: { workspace?: "Admin"
 											</span>
 										</summary>
 										<div className="space-y-4 border-t border-border/50 p-4">
-											{latest.panelCount != null && <p className="text-xs text-muted-foreground">{latest.panelCount} panel terpetakan · {latest.groupCount} grup</p>}
+											{latest.panelCount != null && (
+												<p className="text-xs text-muted-foreground">
+													{latest.panelCount} panel terpetakan ·{" "}
+													{latest.groupCount} grup
+												</p>
+											)}
 											<div className="grid grid-cols-2 gap-2">
 												<Button
 													type="button"
 													disabled={busy}
 													className="h-11 rounded-xl shadow-sm"
 													onClick={() =>
-																void openPreview(model, latest.revision, `${model.id}:latest`)
+														void openPreview(
+															model,
+															latest.revision,
+															`${model.id}:latest`,
+														)
 													}
 												>
-																{previewButton === `${model.id}:latest` && <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" />} Preview 3D
+													{previewButton === `${model.id}:latest` && (
+														<LoaderCircle
+															aria-hidden="true"
+															className="motion-safe:animate-spin"
+														/>
+													)}{" "}
+													Preview 3D
 												</Button>
 												<Button
 													type="button"
@@ -526,13 +638,80 @@ export function Trial3DImportPage({ workspace = "Admin" }: { workspace?: "Admin"
 											</div>
 											<div className="rounded-xl bg-muted/50 px-3">
 												<div className="flex items-center justify-between gap-3 py-3">
-													<div><p className="text-sm font-medium">Dipakai untuk pencarian</p><p className="text-xs text-muted-foreground">{model.activeRevision ? "Model 3D ini aktif" : "Model 3D belum aktif"}</p></div>
-													<Checkbox role="switch" aria-label={`Dipakai untuk pencarian: ${model.name}`} checked={Boolean(model.activeRevision)} disabled={busy} onCheckedChange={() => model.activeRevision ? (setMessage(""), setDeactivating(model)) : void openPreview(model, latest.revision, `${model.id}:latest`)} className="h-7 w-12 justify-start rounded-full border-input bg-muted p-1 before:size-5 before:rounded-full before:bg-card before:shadow-sm before:transition-transform data-checked:bg-green-500 data-checked:border-green-500 data-checked:before:translate-x-5 **:data-[slot=checkbox-indicator]:hidden" />
+													<div>
+														<p className="text-sm font-medium">
+															Dipakai untuk pencarian
+														</p>
+														<p className="text-xs text-muted-foreground">
+															{model.activeRevision
+																? "Model 3D ini aktif"
+																: "Model 3D belum aktif"}
+														</p>
+													</div>
+													<Checkbox
+														role="switch"
+														aria-label={`Dipakai untuk pencarian: ${model.name}`}
+														checked={Boolean(model.activeRevision)}
+														disabled={busy}
+														onCheckedChange={() =>
+															model.activeRevision
+																? (setMessage(""), setDeactivating(model))
+																: void openPreview(
+																		model,
+																		latest.revision,
+																		`${model.id}:latest`,
+																	)
+														}
+														className="h-7 w-12 justify-start rounded-full border-input bg-muted p-1 before:size-5 before:rounded-full before:bg-card before:shadow-sm before:transition-transform data-checked:bg-green-500 data-checked:border-green-500 data-checked:before:translate-x-5 **:data-[slot=checkbox-indicator]:hidden"
+													/>
 												</div>
-												{model.activeRevision && <div className="border-t py-3">
-															<div className="flex items-center justify-between gap-3"><div><p className="text-sm font-medium">Kode HPL</p><p className="text-xs text-muted-foreground">{hplRefreshing === model.id ? "Memperbarui HPL…" : hplSyncedAt[`${model.id}:${model.activeRevision}`] === "error" ? "Waktu sinkronisasi tidak tersedia" : hplSyncedAt[`${model.id}:${model.activeRevision}`] ? `Terakhir sinkron: ${new Date(hplSyncedAt[`${model.id}:${model.activeRevision}`]!).toLocaleString("id-ID", { timeZone: "Asia/Jakarta", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}` : `${model.id}:${model.activeRevision}` in hplSyncedAt ? "Belum disinkronkan" : "Memuat waktu sinkronisasi…"}</p></div><Button type="button" variant="outline" size="sm" className="bg-accent/30" disabled={busy} aria-label="Refresh HPL model aktif" onClick={() => void refreshHpl(model)}><RotateCcw aria-hidden="true" className="size-4" />Refresh</Button></div>
-													{hplRefreshing === model.id && <Progress value={null} aria-label="Memperbarui HPL" className="mt-3 [&_[data-slot=progress-indicator]]:w-1/3 [&_[data-slot=progress-indicator]]:motion-safe:animate-[hpl-loading_1.4s_ease-in-out_infinite_alternate]" />}
-												</div>}
+												{model.activeRevision && (
+													<div className="border-t py-3">
+														<div className="flex items-center justify-between gap-3">
+															<div>
+																<p className="text-sm font-medium">Kode HPL</p>
+																<p className="text-xs text-muted-foreground">
+																	{hplRefreshing === model.id
+																		? "Memperbarui HPL…"
+																		: hplSyncedAt[
+																					`${model.id}:${model.activeRevision}`
+																			  ] === "error"
+																			? "Waktu sinkronisasi tidak tersedia"
+																			: hplSyncedAt[
+																						`${model.id}:${model.activeRevision}`
+																				  ]
+																				? `Terakhir sinkron: ${new Date(hplSyncedAt[`${model.id}:${model.activeRevision}`]!).toLocaleString("id-ID", { timeZone: "Asia/Jakarta", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}`
+																				: `${model.id}:${model.activeRevision}` in
+																					  hplSyncedAt
+																					? "Belum disinkronkan"
+																					: "Memuat waktu sinkronisasi…"}
+																</p>
+															</div>
+															<Button
+																type="button"
+																variant="outline"
+																size="sm"
+																className="bg-accent/30"
+																disabled={busy}
+																aria-label="Refresh HPL model aktif"
+																onClick={() => void refreshHpl(model)}
+															>
+																<RotateCcw
+																	aria-hidden="true"
+																	className="size-4"
+																/>
+																Refresh
+															</Button>
+														</div>
+														{hplRefreshing === model.id && (
+															<Progress
+																value={null}
+																aria-label="Memperbarui HPL"
+																className="mt-3 **:data-[slot=progress-indicator]:w-1/3 **:data-[slot=progress-indicator]:motion-safe:animate-[hpl-loading_1.4s_ease-in-out_infinite_alternate]"
+															/>
+														)}
+													</div>
+												)}
 											</div>
 											<section
 												aria-label="Riwayat versi"
@@ -569,10 +748,21 @@ export function Trial3DImportPage({ workspace = "Admin" }: { workspace?: "Admin"
 																		className="h-8 rounded-xl text-xs"
 																		disabled={busy}
 																		onClick={() =>
-																						void openPreview(model, version.revision, `${model.id}:${version.revision}`)
+																			void openPreview(
+																				model,
+																				version.revision,
+																				`${model.id}:${version.revision}`,
+																			)
 																		}
 																	>
-																					{previewButton === `${model.id}:${version.revision}` && <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" />} Preview
+																		{previewButton ===
+																			`${model.id}:${version.revision}` && (
+																			<LoaderCircle
+																				aria-hidden="true"
+																				className="motion-safe:animate-spin"
+																			/>
+																		)}{" "}
+																		Preview
 																		<span className="sr-only">
 																			{" "}
 																			V{version.number}
@@ -598,10 +788,21 @@ export function Trial3DImportPage({ workspace = "Admin" }: { workspace?: "Admin"
 																className="h-8 shrink-0 rounded-xl text-xs"
 																disabled={busy}
 																onClick={() =>
-																				void openPreview(model, version.revision, `${model.id}:${version.revision}`)
+																	void openPreview(
+																		model,
+																		version.revision,
+																		`${model.id}:${version.revision}`,
+																	)
 																}
 															>
-																			{previewButton === `${model.id}:${version.revision}` && <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" />} Aktifkan
+																{previewButton ===
+																	`${model.id}:${version.revision}` && (
+																	<LoaderCircle
+																		aria-hidden="true"
+																		className="motion-safe:animate-spin"
+																	/>
+																)}{" "}
+																Aktifkan
 																<span className="sr-only">
 																	{" "}
 																	V{version.number}
@@ -623,12 +824,43 @@ export function Trial3DImportPage({ workspace = "Admin" }: { workspace?: "Admin"
 					)}
 				</section>
 			</div>
-			<Dialog open={Boolean(deactivating)} onOpenChange={(open) => { if (!open && !busy) setDeactivating(null); }}>
+			<Dialog
+				open={Boolean(deactivating)}
+				onOpenChange={(open) => {
+					if (!open && !busy) setDeactivating(null);
+				}}
+			>
 				<DialogContent showCloseButton={!busy}>
 					<DialogTitle className="pr-8">Nonaktifkan model 3D?</DialogTitle>
-					<DialogDescription>{deactivating?.name} tidak lagi muncul dalam pencarian aktif. Viewer old hanya tersedia jika data old ada. Versi yang belum diverifikasi harus diimport ulang sebelum dapat diaktifkan kembali.</DialogDescription>
-					{message && <p role="alert" className="text-sm text-destructive">{message}</p>}
-					<DialogFooter><Button type="button" variant="outline" disabled={busy} onClick={() => setDeactivating(null)}>Batal</Button><Button type="button" disabled={busy} onClick={() => { if (deactivating) void deactivate(deactivating); }}>{busy ? "Memproses…" : "Nonaktifkan"}</Button></DialogFooter>
+					<DialogDescription>
+						{deactivating?.name} tidak lagi muncul dalam pencarian aktif. Viewer
+						old hanya tersedia jika data old ada. Versi yang belum diverifikasi
+						harus diimport ulang sebelum dapat diaktifkan kembali.
+					</DialogDescription>
+					{message && (
+						<p role="alert" className="text-sm text-destructive">
+							{message}
+						</p>
+					)}
+					<DialogFooter>
+						<Button
+							type="button"
+							variant="outline"
+							disabled={busy}
+							onClick={() => setDeactivating(null)}
+						>
+							Batal
+						</Button>
+						<Button
+							type="button"
+							disabled={busy}
+							onClick={() => {
+								if (deactivating) void deactivate(deactivating);
+							}}
+						>
+							{busy ? "Memproses…" : "Nonaktifkan"}
+						</Button>
+					</DialogFooter>
 				</DialogContent>
 			</Dialog>
 			{preview && (
@@ -658,14 +890,24 @@ export function Trial3DImportPage({ workspace = "Admin" }: { workspace?: "Admin"
 										disabled={!checked || !ready || busy}
 										onClick={() => void activate()}
 									>
-										{busy && <LoaderCircle aria-hidden="true" className="motion-safe:animate-spin" />} Gunakan versi ini
+										{busy && (
+											<LoaderCircle
+												aria-hidden="true"
+												className="motion-safe:animate-spin"
+											/>
+										)}{" "}
+										Gunakan versi ini
 									</Button>
 								</div>
 							)
 						}
 					/>
 					<div className="absolute inset-x-3 top-3 z-10 flex items-start gap-2">
-						<Button variant="outline" disabled={busy} onClick={() => setPreview(null)}>
+						<Button
+							variant="outline"
+							disabled={busy}
+							onClick={() => setPreview(null)}
+						>
 							Kembali
 						</Button>
 						<span

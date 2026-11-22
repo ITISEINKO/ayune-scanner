@@ -1,4 +1,5 @@
 "use client";
+import { PageHeader } from "@/components/pageHeader";
 
 import Link from "next/link";
 import dynamic from "next/dynamic";
@@ -67,18 +68,24 @@ export function AdminDashboard({
 		initialData,
 		initialDataUpdatedAt: initialData?.now,
 		staleTime: 5 * 60_000,
-		refetchInterval: (query) => query.state.data === null
-			? query.state.error ? false : 5_000
-			: 5 * 60_000,
+		refetchInterval: (query) =>
+			query.state.data === null
+				? query.state.error
+					? false
+					: 5_000
+				: 5 * 60_000,
 		refetchIntervalInBackground: false,
 		refetchOnWindowFocus: true,
 		refetchOnReconnect: true,
 	});
-	const refresh = () => void queryClient.fetchQuery({
-		queryKey,
-		queryFn: ({ signal }) => loadDashboard(true, signal),
-		staleTime: 0,
-	}).catch(() => {});
+	const refresh = () =>
+		void queryClient
+			.fetchQuery({
+				queryKey,
+				queryFn: ({ signal }) => loadDashboard(true, signal),
+				staleTime: 0,
+			})
+			.catch(() => {});
 	if (!data && !isError) return <AdminDashboardSkeleton />;
 	if (!data)
 		return (
@@ -184,20 +191,15 @@ function AdminDashboardContent({
 
 	return (
 		<main className="mx-auto min-h-dvh max-w-lg bg-background pb-28">
-			<header className="relative overflow-hidden rounded-b-[2.5rem] bg-accent/30 px-6 pt-6 pb-5">
-				<img
-					src="/ayune-14.svg"
-					alt=""
-					aria-hidden="true"
-					className="pointer-events-none absolute -top-20 -right-16 size-70 opacity-10"
-				/>
-
-				<div className="relative mt-4">
+			<PageHeader
+				eyebrow={date}
+				title="Dashboard produksi"
+				action={
 					<Button
 						aria-label="Perbarui dashboard"
-						variant="outline"
-						size="icon"
-						className="absolute top-0 right-0"
+						variant="secondary"
+						size="sm"
+						title="Sinkronkan dashboard"
 						onClick={refresh}
 						disabled={refreshing}
 					>
@@ -205,36 +207,32 @@ function AdminDashboardContent({
 							aria-hidden="true"
 							className={refreshing ? "animate-spin" : ""}
 						/>
+						Sync
 					</Button>
-					<p className="text-xs font-bold text-muted-foreground">{date}</p>
-					<h1 className="mt-1 text-[27px] font-extrabold tracking-tight">
-						Dashboard produksi
-					</h1>
-					<p className="mt-1 text-sm leading-6 text-muted-foreground">
-						Kondisi semua project dan tim, langsung dari hasil scan.
-					</p>
-					<p
-						className="mt-3 text-[11px] leading-4 text-muted-foreground"
-						role="status"
-					>
-						{refreshing ? (
-							"Memperbarui dashboard…"
-						) : (
-							<>
-								Data terakhir:{" "}
-								<time dateTime={new Date(now).toISOString()}>
-									{new Intl.DateTimeFormat("id-ID", {
-										timeZone: "Asia/Jakarta",
-										dateStyle: "medium",
-										timeStyle: "short",
-									}).format(now)}{" "}
-									WIB
-								</time>
-							</>
-						)}
-					</p>
-				</div>
-			</header>
+				}
+			/>
+			<div className="px-4 pt-4">
+				<p
+					className="mt-3 text-[11px] leading-4 text-muted-foreground"
+					role="status"
+				>
+					{refreshing ? (
+						"Memperbarui dashboard…"
+					) : (
+						<>
+							Data terakhir:{" "}
+							<time dateTime={new Date(now).toISOString()}>
+								{new Intl.DateTimeFormat("id-ID", {
+									timeZone: "Asia/Jakarta",
+									dateStyle: "medium",
+									timeStyle: "short",
+								}).format(now)}{" "}
+								WIB
+							</time>
+						</>
+					)}
+				</p>
+			</div>
 
 			<div className="space-y-4 px-4 pt-4" aria-busy={refreshing}>
 				{(!projectsReady ||

@@ -1,6 +1,11 @@
 import { hasPpicAdminAccess } from "@/types/ppic";
 import { createHash, randomUUID } from "node:crypto";
-import { db, getPpicMemberAccess, getPpicTeamScanOverview, isPpicSuperAdmin } from "@/lib/db";
+import {
+	db,
+	getPpicMemberAccess,
+	getPpicTeamScanOverview,
+	isPpicSuperAdmin,
+} from "@/lib/db";
 import { inProgressProjects, panelListId } from "@/lib/projects";
 import { getProjectDashboard } from "@/lib/projectDashboard";
 import {
@@ -12,20 +17,23 @@ import { clickUpUserIdForToken, panelChannelMembers } from "@/lib/session";
 let snapshotSchema: Promise<void> | undefined;
 const ensureSnapshotSchema = () =>
 	(snapshotSchema ??= db
-		.batch([
-			`
+		.batch(
+			[
+				`
 		CREATE TABLE IF NOT EXISTS ppic_admin_dashboard_snapshot (
 			scope_key TEXT PRIMARY KEY,
 			dashboard_json TEXT NOT NULL
 		)
 	`,
-			`CREATE TABLE IF NOT EXISTS ppic_admin_dashboard_refresh (
+				`CREATE TABLE IF NOT EXISTS ppic_admin_dashboard_refresh (
 				scope_key TEXT PRIMARY KEY,
 				refresh_id TEXT,
 				refresh_until INTEGER NOT NULL DEFAULT 0,
 				attempted_at INTEGER NOT NULL
 			)`,
-		], "write")
+			],
+			"write",
+		)
 		.then(() => undefined));
 
 const snapshotScope = () =>
@@ -52,18 +60,25 @@ export async function getLastAdminDashboard(): Promise<AdminDashboardData | null
 	return json ? (JSON.parse(String(json)) as AdminDashboardData) : null;
 }
 
-async function buildAdminDashboard(token: string, resyncProjects: boolean): Promise<AdminDashboardData> {
+async function buildAdminDashboard(
+	token: string,
+	resyncProjects: boolean,
+): Promise<AdminDashboardData> {
 	const now = Date.now();
 	const [projectResult, teamResult] = await Promise.allSettled([
 		inProgressProjects(token, true).then(async (projects) => ({
 			count: projects.length,
 			dashboards: await Promise.allSettled(
 				projects.map((project) =>
-					getProjectDashboard(token, {
-						task_id: project.id,
-						name: project.name ?? null,
-						custom_id: project.custom_id ?? null,
-					}, resyncProjects),
+					getProjectDashboard(
+						token,
+						{
+							task_id: project.id,
+							name: project.name ?? null,
+							custom_id: project.custom_id ?? null,
+						},
+						resyncProjects,
+					),
 				),
 			),
 		})),
@@ -97,7 +112,10 @@ async function buildAdminDashboard(token: string, resyncProjects: boolean): Prom
 	else
 		for (const result of projectResult.value.dashboards)
 			if (result.status === "rejected")
-				console.error("[adminDashboard] Project dashboard failed", result.reason);
+				console.error(
+					"[adminDashboard] Project dashboard failed",
+					result.reason,
+				);
 	if (teamResult.status === "rejected")
 		console.error("[adminDashboard] Team overview failed", teamResult.reason);
 	const projects =
@@ -120,10 +138,14 @@ async function buildAdminDashboard(token: string, resyncProjects: boolean): Prom
 }
 
 export const isAdminDashboardComplete = (data: AdminDashboardData) =>
-	data.projectsReady && data.members !== null && data.dailyScans !== null &&
+	data.projectsReady &&
+	data.members !== null &&
+	data.dailyScans !== null &&
 	data.members.every((member) => member.summary !== null);
 
-export async function getAdminDashboard(refresh: false | "summary" | "projects" = false) {
+export async function getAdminDashboard(
+	refresh: false | "summary" | "projects" = false,
+) {
 	const previous = await getLastAdminDashboard();
 	const now = Date.now();
 	if (previous && !refresh && now - previous.now < 5 * 60_000) return previous;
@@ -137,7 +159,15 @@ export async function getAdminDashboard(refresh: false | "summary" | "projects" 
 			ON CONFLICT(scope_key) DO UPDATE SET refresh_id = excluded.refresh_id,
 				refresh_until = excluded.refresh_until, attempted_at = excluded.attempted_at
 			WHERE refresh_until <= ? AND (? OR attempted_at <= ?)`,
-		args: [scope, refreshId, now + 60_000, now, now, refresh ? 1 : 0, now - 5 * 60_000],
+		args: [
+			scope,
+			refreshId,
+			now + 60_000,
+			now,
+			now,
+			refresh ? 1 : 0,
+			now - 5 * 60_000,
+		],
 	});
 	if (!claimed.rowsAffected) {
 		const saved = await getLastAdminDashboard();
@@ -155,7 +185,8 @@ export async function getAdminDashboard(refresh: false | "summary" | "projects" 
 		if (!serviceUserId || !(await isPpicSuperAdmin(serviceUserId)))
 			throw new Error("DASHBOARD_SERVICE_UNAUTHORIZED");
 		const data = await buildAdminDashboard(token, refresh === "projects");
-		if (!isAdminDashboardComplete(data)) throw new Error("DASHBOARD_INCOMPLETE");
+		if (!isAdminDashboardComplete(data))
+			throw new Error("DASHBOARD_INCOMPLETE");
 		const saved = await db.execute({
 			sql: `INSERT INTO ppic_admin_dashboard_snapshot (scope_key, dashboard_json)
 				SELECT ?, ? WHERE EXISTS (

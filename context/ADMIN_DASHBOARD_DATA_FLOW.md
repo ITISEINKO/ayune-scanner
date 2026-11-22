@@ -10,7 +10,7 @@ The dashboard combines two independent datasets:
 | --- | --- | --- |
 | Barang tercatat, status distribution, returns | ClickUp project structure/custom field, stored project snapshot, then newer Turso `ppic_component_status` rows | Current components in listed in-progress projects, excluding supporting groups and `DIHAPUSKAN` |
 | Scan hari ini, Scan 7 hari, Tim hari ini, Scan per hari | Turso `ppic_scan_history`, limited to current non-admin channel members | Recorded scan events across **all projects**, including repeated events and members whose scan access is now disabled |
-| Enabled/active/idle/no access | Current channel roster plus Turso `ppic_permissions` and member summaries | People, not components or scan events |
+| Enabled/active/idle/no access | Current channel roster plus Better Auth `user`/`account` permissions and member summaries | People, not components or scan events |
 
 A component can be scanned several times and contribute one current component but several history rows. `100%` recorded means every included component has a nonempty status; it does not mean every component is installed or every project is complete. History totals cannot be used as an inventory denominator.
 

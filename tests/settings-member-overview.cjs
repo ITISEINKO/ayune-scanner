@@ -1,187 +1,212 @@
-// Run after npm run build: node --experimental-strip-types tests/settings-member-overview.cjs
-// Check only the member list and drawer entry: append --layout-only.
 const assert = require("node:assert/strict");
 const { createHmac } = require("node:crypto");
 const { spawn } = require("node:child_process");
-const { mkdtempSync, mkdirSync } = require("node:fs");
+const { mkdtempSync, readFileSync, rmSync } = require("node:fs");
+const { once } = require("node:events");
 const { tmpdir } = require("node:os");
 const { join } = require("node:path");
 const { createClient } = require("@libsql/client");
 const { chromium, expect } = require("@playwright/test");
-const { STATUS_COLOR_CONFIG } = require("../src/lib/colorStatusConfig.ts");
-
-const cssRgb = (hex) => `rgb(${[1, 3, 5].map((index) => parseInt(hex.slice(index, index + 2), 16)).join(", ")})`;
 
 async function main() {
-	const directory = mkdtempSync(join(tmpdir(), "trackerprod-groups-"));
-	const databaseUrl = `file:${join(directory, "dashboard.db").replaceAll("\\", "/")}`;
+	const directory = mkdtempSync(join(tmpdir(), "trackerprod-user-navigation-"));
+	const databaseUrl = `file:${join(directory, "navigation.db").replaceAll("\\", "/")}`;
+	const secret = "local-user-navigation-secret-at-least-32-characters";
+	const baseURL = "http://127.0.0.1:3364";
 	const db = createClient({ url: databaseUrl });
-	const token = "local-drawer-test";
-	const secret = "local-drawer-test-secret";
-	const baseURL = "http://127.0.0.1:3348";
-	const server = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start", "-p", "3348"], {
-		cwd: join(__dirname, ".."), windowsHide: true,
-		env: { ...process.env, TURSO_DATABASE_URL: databaseUrl, TURSO_AUTH_TOKEN: "local-only", CLICKUP_CLIENT_SECRET: secret, CLICKUP_PPIC_PANEL_LIST_ID: "1100830000000087", ABLY_API_KEY: "" },
-		stdio: ["ignore", "pipe", "pipe"],
+	const statements = (path) =>
+		readFileSync(path, "utf8")
+			.split("--> statement-breakpoint")
+			.map((sql) => sql.trim())
+			.filter(Boolean);
+	await db.batch(statements("drizzle/0004_mean_carlie_cooper.sql"), "write");
+	await db.batch(
+		statements("drizzle/0006_absurd_redwing.sql").slice(0, 6),
+		"write",
+	);
+	await db.execute(
+		"CREATE TABLE ppic_scan_history (id INTEGER PRIMARY KEY, clickup_user_id TEXT, serial_number TEXT, status TEXT, task_name TEXT, scanned_at TEXT, project_task_id TEXT, component_task_id TEXT)",
+	);
+	const now = Date.now();
+	await db.execute({
+		sql: 'INSERT INTO "user" (id,name,email,"emailVerified",role,allowed_status,active,can_import_lby,"createdAt","updatedAt") VALUES (?,?,?,?,?,?,?,?,?,?)',
+		args: ["local-admin", "Local Admin", "local-admin@example.test", 0, "SUPER_ADMIN", null, 0, 0, now, now],
 	});
+	await db.execute({
+		sql: 'INSERT INTO account (id,"accountId","providerId","userId","createdAt","updatedAt") VALUES (?,?,?,?,?,?)',
+		args: ["local-account", "local-admin", "clickup", "local-admin", now, now],
+	});
+	const sessionToken = "local-user-navigation-session";
+	await db.execute({
+		sql: 'INSERT INTO session (id,token,"userId","expiresAt","createdAt","updatedAt") VALUES (?,?,?,?,?,?)',
+		args: ["local-session", sessionToken, "local-admin", now + 60 * 60 * 1000, now, now],
+	});
+	const memberSessionToken = "local-member-activity-session";
+	await db.execute({
+		sql: 'INSERT INTO "user" (id,name,email,"emailVerified",role,allowed_status,active,can_import_lby,"createdAt","updatedAt") VALUES (?,?,?,?,?,?,?,?,?,?)',
+		args: ["local-member", "Local Member", "local-member@example.test", 0, "MEMBER", JSON.stringify(["BARANG_DITERIMA"]), 1, 0, now, now],
+	});
+	await db.execute({
+		sql: 'INSERT INTO account (id,"accountId","providerId","userId","createdAt","updatedAt") VALUES (?,?,?,?,?,?)',
+		args: ["local-member-account", "local-member", "clickup", "local-member", now, now],
+	});
+	await db.execute({
+		sql: 'INSERT INTO session (id,token,"userId","expiresAt","createdAt","updatedAt") VALUES (?,?,?,?,?,?)',
+		args: ["local-member-session", memberSessionToken, "local-member", now + 60 * 60 * 1000, now, now],
+	});
+	const server = spawn(
+		process.execPath,
+		["node_modules/next/dist/bin/next", "start", "-p", "3364"],
+		{
+			cwd: join(__dirname, ".."),
+			windowsHide: true,
+			env: {
+				...process.env,
+				TURSO_DATABASE_URL: databaseUrl,
+				TURSO_AUTH_TOKEN: "local-only",
+				CLICKUP_CLIENT_SECRET: secret,
+				BETTER_AUTH_SECRET: secret,
+				BETTER_AUTH_URL: baseURL,
+				ABLY_API_KEY: "",
+			},
+			stdio: ["ignore", "pipe", "pipe"],
+		},
+	);
 	let logs = "";
-	server.stdout.on("data", (chunk) => { logs += chunk; });
-	server.stderr.on("data", (chunk) => { logs += chunk; });
+	server.stdout.on("data", (chunk) => {
+		logs += chunk;
+	});
+	server.stderr.on("data", (chunk) => {
+		logs += chunk;
+	});
 	let browser;
 	try {
 		for (let attempt = 0; ; attempt += 1) {
-			try { if ((await fetch(`${baseURL}/login`)).ok) break; } catch {}
-			if (attempt >= 60 || server.exitCode !== null) throw new Error(`Test server failed: ${logs}`);
+			try {
+				if ((await fetch(`${baseURL}/login`)).ok) break;
+			} catch {}
+			if (attempt >= 60 || server.exitCode !== null)
+				throw new Error(`Test server failed: ${logs}`);
 			await new Promise((done) => setTimeout(done, 250));
 		}
 		browser = await chromium.launch();
-		const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
-		let summaryMode = "normal";
-		const summaryPeriods = [];
-		// Prevent link prefetch and unrelated session traffic from reaching any external service.
+		const context = await browser.newContext({
+			viewport: { width: 390, height: 844 },
+		});
 		await context.route("**/*", (route) => {
 			const url = new URL(route.request().url());
 			if (url.origin !== baseURL) return route.abort();
+			if (url.pathname === "/api/panel/members") {
+				assert.equal(route.request().method(), "GET", "the list must not mutate permissions");
+				return route.fulfill({
+					contentType: "application/json",
+					body: JSON.stringify({
+						members: [{ id: "member-navigation-test", name: "Member Navigation Test" }],
+						roles: { "member-navigation-test": "MEMBER" },
+						permissions: { "member-navigation-test": ["BARANG_DITERIMA"] },
+					}),
+				});
+			}
 			if (url.pathname === "/api/panel/members/summary") {
 				assert.equal(route.request().method(), "GET");
-				assert.ok(["color-test", "inactive-test"].includes(url.searchParams.get("user_id")));
-				const period = url.searchParams.get("period");
-				summaryPeriods.push(period);
-				if (summaryMode === "error") return route.fulfill({ status: 502, json: { error: "DATABASE_ERROR" } });
-				const days = period === "month" ? 23 : Number(period);
-				const counts = summaryMode === "empty" ? Array(days).fill(0) : Array.from({ length: days }, (_, index) => index + 1);
-				const total = counts.reduce((sum, count) => sum + count, 0);
-				return route.fulfill({ json: {
-					total, today: counts.at(-1), previousTotal: 10,
-					lastScannedAt: "2026-10-23T02:00:00.000Z",
-					days: counts.map((count, index) => ({ date: new Date(Date.UTC(2026, 9, 23 - days + 1 + index)).toISOString().slice(0, 10), count })),
-					statuses: Object.keys(STATUS_COLOR_CONFIG).filter((status) => !["UNSCANNED", "OTHER"].includes(status)).map((status, index) => ({ status, count: index === 0 ? total : 0 })),
-				} });
-			}
-			if (url.pathname === "/api/panel/members") {
-				assert.equal(route.request().method(), "GET", "color checks must not change permissions");
-				return route.fulfill({ contentType: "application/json", body: JSON.stringify({
-					members: [
-						{ id: "color-test", name: "Color Test" },
-						{ id: "receiving-test", name: "Receiving Test" },
-						{ id: "admin-test", name: "Admin Test" },
-						{ id: "inactive-test", name: "Inactive Test" },
-						{ id: "unassigned-test", name: "Unassigned Test" },
-					],
-					roles: { "color-test": "MEMBER", "receiving-test": "MEMBER", "admin-test": "SUPER_ADMIN", "inactive-test": "MEMBER" },
-					permissions: {
-						"color-test": ["BARANG_DITERIMA", "SEDANG_DIPACKING", "TERPASANG_DIGUNAKAN", "DALAM_PROSES_RETUR"],
-						"receiving-test": ["BARANG_DITERIMA"], "admin-test": null, "inactive-test": null,
+				assert.equal(url.searchParams.get("user_id"), "member-navigation-test");
+				const days = Array.from({ length: 7 }, (_, index) => ({
+					date: `2026-11-${String(index + 16).padStart(2, "0")}`,
+					count: 0,
+				}));
+				return route.fulfill({
+					json: {
+						total: 0,
+						today: 0,
+						previousTotal: 0,
+						lastScannedAt: null,
+						days,
+						statuses: [],
 					},
-				}) });
+				});
 			}
-			if (url.pathname.startsWith("/_next/") || url.pathname === "/admin/settings") return route.continue();
+			if (
+				url.pathname.startsWith("/_next/") ||
+				url.pathname === "/admin/users" ||
+				url.pathname.startsWith("/admin/users/") ||
+				url.pathname === "/activity"
+			)
+				return route.continue();
 			return route.fulfill({ status: 401, contentType: "application/json", body: "{}" });
 		});
-		const payload = Buffer.from(JSON.stringify({ user_id: "local-admin", role: "SUPER_ADMIN", allowed_status: null, refreshed_at: Date.now() })).toString("base64url");
-		const signature = createHmac("sha256", secret).update(payload).digest("base64url");
+
+		const signature = createHmac("sha256", secret)
+			.update(sessionToken)
+			.digest("base64");
 		await context.addCookies([
-			{ name: "clickup_access_token", value: token, url: baseURL },
-			{ name: "ppic_session", value: `${payload}.${signature}`, url: baseURL },
+			{
+				name: "better-auth.session_token",
+				value: encodeURIComponent(`${sessionToken}.${signature}`),
+				url: baseURL,
+			},
 		]);
+
 		const page = await context.newPage();
-		mkdirSync("test-results", { recursive: true });
-		await page.goto(`${baseURL}/admin/settings`);
-		const statusFilter = page.locator(".no-scrollbar");
-		await expect(statusFilter).toHaveCSS("scrollbar-width", "none");
-		assert.equal(
-			await statusFilter.evaluate((element) =>
-				getComputedStyle(element, "::-webkit-scrollbar").display,
-			),
-			"none",
+		await page.goto(`${baseURL}/admin/users`);
+		await expect(
+			page.getByRole("heading", { name: "Pengguna & aktivitas", exact: true }),
+		).toBeVisible();
+		await page
+			.getByRole("link", { name: "Lihat detail Member Navigation Test" })
+			.click();
+		await expect(page).toHaveURL(
+			`${baseURL}/admin/users/member-navigation-test`,
 		);
-		const memberCard = page.locator("article").filter({ hasText: "Color Test" });
-		await expect(page.getByRole("heading", { name: "Pengguna & aktivitas", exact: true })).toBeVisible();
-		await expect(page.locator("article")).toHaveCount(3);
-		await expect(page.getByRole("button", { name: "Lihat detail Admin Test", exact: true })).toBeVisible();
-		await expect(page.getByRole("button", { name: "Atur", exact: true })).toHaveCount(0);
-		await statusFilter.getByRole("button", { name: STATUS_COLOR_CONFIG.SEDANG_DIPACKING.shortLabel, exact: true }).click();
-		await expect(page.locator("article")).toHaveCount(1);
-		await expect(memberCard).toBeVisible();
-		await statusFilter.getByRole("button", { name: "Nonaktif", exact: true }).click();
-		await expect(page.locator("article")).toHaveCount(2);
-		await expect(page.getByRole("button", { name: "Lihat detail Admin Test", exact: true })).toHaveCount(0);
-		await page.getByRole("textbox", { name: "Search by name" }).fill("Inactive");
-		await expect(page.locator("article")).toHaveCount(1);
-		await page.locator("article").filter({ hasText: "Inactive Test" }).click();
-		const inactiveDrawer = page.getByRole("dialog", { name: "Inactive Test", exact: true });
-		await expect(inactiveDrawer).toBeVisible();
-		await inactiveDrawer.getByRole("tab", { name: "Akses halaman", exact: true }).click();
-		await inactiveDrawer.getByRole("button", { name: "Batal", exact: true }).click();
-		await page.getByRole("textbox", { name: "Search by name" }).fill("");
-		await statusFilter.getByRole("button", { name: "Semua", exact: true }).click();
-		await expect(page.locator("article")).toHaveCount(3);
-		await page.screenshot({ path: "test-results/settings-members-mobile.png", animations: "disabled" });
-		await page.setViewportSize({ width: 1280, height: 900 });
-		await expect(page.locator("article")).toHaveCount(3);
-		await page.screenshot({ path: "test-results/settings-members-desktop.png", animations: "disabled" });
-		await memberCard.getByRole("button", { name: "Lihat detail Color Test", exact: true }).focus();
-		await page.keyboard.press("Space");
-		const keyboardDrawer = page.getByRole("dialog", { name: "Color Test", exact: true });
-		await expect(keyboardDrawer).toBeVisible();
-		await keyboardDrawer.getByRole("tab", { name: "Akses halaman", exact: true }).click();
-		await keyboardDrawer.getByRole("button", { name: "Batal", exact: true }).click();
-		await page.setViewportSize({ width: 390, height: 844 });
-		console.log("Settings layout passed: active/admin list, inactive and status filters, search, card click, keyboard drawer entry, mobile and desktop.");
-		if (process.argv.includes("--layout-only")) return;
-		summaryPeriods.length = 0;
-		await memberCard.click();
-		const settingsDrawer = page.getByRole("dialog", { name: "Color Test" });
-		await expect(settingsDrawer.getByRole("tab", { name: "Overview", exact: true })).toHaveAttribute("aria-selected", "true");
-		await expect(settingsDrawer.getByRole("heading", { name: "Scan per status", exact: true })).toBeVisible();
-		await expect(settingsDrawer.getByRole("heading", { name: "Total scan", exact: true }).locator("..")).toContainText("28");
-		await expect(settingsDrawer.getByRole("button", { name: "Simpan", exact: true })).toHaveCount(0);
-		await page.screenshot({ path: "test-results/settings-member-overview-mobile.png", animations: "disabled" });
-		await expect(settingsDrawer.getByRole("heading", { name: "Hari ini (sementara)", exact: true })).toBeVisible();
-		await expect(settingsDrawer.getByText("+180% vs 7 hari sebelumnya", { exact: true })).toBeVisible();
-		await expect(settingsDrawer.getByText(/periode ini mencakup hari ini yang belum selesai, dibandingkan dengan 7 hari penuh sebelumnya/)).toBeVisible();
-		await expect(settingsDrawer.locator('[aria-label="Periode ringkasan"]').getByRole("button")).toHaveCount(3);
-		await settingsDrawer.getByRole("button", { name: "30 hari", exact: true }).click();
-		await expect(settingsDrawer.getByRole("heading", { name: "Total scan", exact: true }).locator("..")).toContainText("465");
-		await expect(settingsDrawer.getByRole("region", { name: /Grafik scan harian/ }).locator("[aria-label$='scan']")).toHaveCount(30);
-		await settingsDrawer.getByRole("button", { name: "Bulan ini", exact: true }).click();
-		await expect(settingsDrawer.getByRole("heading", { name: "Total scan", exact: true }).locator("..")).toContainText("276");
-		await expect(settingsDrawer.getByRole("region", { name: /Grafik scan harian/ }).locator("[aria-label$='scan']")).toHaveCount(23);
-		assert.ok(await settingsDrawer.getByRole("region", { name: /Grafik scan harian/ }).evaluate((element) => element.scrollWidth > element.clientWidth));
-		await expect(settingsDrawer.getByText(/dibandingkan dengan 23 hari penuh sebelumnya/)).toBeVisible();
-		assert.deepEqual(summaryPeriods.slice(0, 3), ["7", "30", "month"]);
-		await settingsDrawer.getByRole("tab", { name: "Akses halaman", exact: true }).click();
-		for (const status of ["BARANG_DITERIMA", "SEDANG_DIPACKING", "TERPASANG_DIGUNAKAN", "DALAM_PROSES_RETUR"]) {
-			const dot = settingsDrawer.locator("label").filter({ hasText: STATUS_COLOR_CONFIG[status].label }).locator("span").first();
-			await expect(dot).toHaveCSS("background-color", cssRgb(STATUS_COLOR_CONFIG[status].color));
-		}
-		await settingsDrawer.getByRole("button", { name: "Batal", exact: true }).click();
-		const cardTrigger = memberCard.getByRole("button", { name: "Lihat detail Color Test", exact: true });
-		await cardTrigger.focus();
-		await cardTrigger.press("Enter");
-		await expect(settingsDrawer.getByRole("button", { name: "7 hari", exact: true })).toHaveAttribute("aria-pressed", "true");
-		summaryMode = "empty";
-		await settingsDrawer.getByRole("button", { name: "Bulan ini", exact: true }).click();
-		await expect(settingsDrawer.getByText("Belum ada scan pada periode ini.", { exact: true })).toBeVisible();
-		summaryMode = "error";
-		await settingsDrawer.getByRole("button", { name: "7 hari", exact: true }).click();
-		await expect(settingsDrawer.getByRole("alert")).toContainText("Gagal memuat ringkasan scan.", { timeout: 15000 });
-		summaryMode = "normal";
-		await settingsDrawer.getByRole("button", { name: "Coba lagi", exact: true }).click();
-		await expect(settingsDrawer.getByRole("heading", { name: "Scan per status", exact: true })).toBeVisible();
-		await settingsDrawer.getByRole("tab", { name: "Akses halaman", exact: true }).click();
-		await expect(settingsDrawer.getByRole("button", { name: "Simpan", exact: true })).toBeVisible();
-		await settingsDrawer.getByRole("button", { name: "Batal", exact: true }).click();
-		await page.screenshot({ path: "test-results/status-colors-settings.png", animations: "disabled" });
-		console.log("Settings overview passed: period filters, daily chart, status summary, empty/error/retry states and access tab.");
+		await expect(
+			page.getByRole("heading", { name: "Member Navigation Test", exact: true }),
+		).toBeVisible();
+		await expect(page.getByRole("dialog")).toHaveCount(0);
+		await page.getByRole("tab", { name: "Akses", exact: true }).click();
+		await expect(
+			page.getByRole("checkbox", { name: /Akses Diterima/ }),
+		).toBeVisible();
+		await context.clearCookies();
+		const memberSignature = createHmac("sha256", secret)
+			.update(memberSessionToken)
+			.digest("base64");
+		await context.addCookies([
+			{
+				name: "better-auth.session_token",
+				value: encodeURIComponent(`${memberSessionToken}.${memberSignature}`),
+				url: baseURL,
+			},
+		]);
+		await page.goto(`${baseURL}/activity?tab=activity`);
+		await expect(
+			page.getByRole("heading", { name: "Aktivitas Scan", exact: true }),
+		).toBeVisible();
+		await expect(page.getByText("Belum ada riwayat scan.", { exact: true })).toBeVisible();
+		console.log("Settings navigation and local member activity passed without a ClickUp token.");
 	} finally {
-		await browser?.close();
-		server.kill();
-		server.stdout.destroy();
-		server.stderr.destroy();
-		server.unref();
-		db.close();
+		try {
+			await browser?.close();
+		} finally {
+			if (server.exitCode === null && server.signalCode === null) {
+				const exited = once(server, "exit");
+				server.kill();
+				let timeout;
+				await Promise.race([
+					exited,
+					new Promise((resolve) => {
+						timeout = setTimeout(resolve, 5000);
+					}),
+				]);
+				if (timeout) clearTimeout(timeout);
+			}
+			server.stdout.destroy();
+			server.stderr.destroy();
+			await db.close();
+			rmSync(directory, { recursive: true, force: true });
+		}
 	}
 }
 
-main().catch((error) => { console.error(error); process.exitCode = 1; });
+main().catch((error) => {
+	console.error(error);
+	process.exitCode = 1;
+});

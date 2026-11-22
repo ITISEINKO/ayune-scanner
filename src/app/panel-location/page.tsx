@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { PanelLocationPageView } from "@/features/panel-location/PanelLocationPageView";
 import { canImportLby, getPpicAccess } from "@/lib/db";
 import { getPanelLocation } from "@/lib/panelLocationSnapshot";
-import { ppicSession, requireClickUpToken } from "@/lib/session";
+import { getAppSession, requireClickUpToken } from "@/lib/session";
 
 export const metadata = { title: "Posisi panel | Production Scanner" };
 
@@ -13,7 +13,7 @@ export default async function PanelLocationPage({
 	searchParams: Promise<{ project?: string; barcode?: string; revision?: string }>;
 }) {
 	await requireClickUpToken();
-	const session = await ppicSession();
+	const session = await getAppSession();
 	if (!session) redirect("/login");
 	const [access, importer] = await Promise.all([
 		getPpicAccess(session.user_id), canImportLby(session.user_id),

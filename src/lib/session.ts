@@ -1,24 +1,23 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { unstable_cache } from "next/cache";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import { clickUpHeaders } from "@/lib/clickup";
-import { canImportLby, getPpicAccess, isPpicStatus, isPpicSuperAdmin } from "@/lib/db";
+import { canImportLby, db, getPpicAccess, isPpicStatus, isPpicSuperAdmin } from "@/lib/db";
+import { auth } from "@/lib/auth";
 import {
 	CLICKUP_TEAM_ID,
 	CLICKUP_PPIC_CHANNEL_ID,
 	ppicStatusPath,
 } from "@/lib/produksiPanel";
-import { hasPpicAdminAccess, ppicStatuses } from "@/types/ppic";
-import type { PpicRole, PpicStatuses } from "@/types/ppic";
+import { hasPpicAdminAccess } from "@/types/ppic";
 import type { PanelMember } from "@/types/clickup";
 import type { SelectedProject } from "@/types/project";
 
-export const PPIC_SESSION_COOKIE = "ppic_session";
+export const SESSION_COOKIE = "ppic_session";
 export const PPIC_SELECTED_PROJECT_COOKIE = "ppic_selected_project";
-export const PPIC_SESSION_REFRESH_TTL_MS = 15 * 60 * 1000;
-const PPIC_SESSION_MAX_AGE_MS = 9 * 60 * 60 * 1000;
+export const SESSION_REFRESH_TTL_MS = 15 * 60 * 1000;
 export const PANEL_MEMBERS_CACHE_TAG = "panel-members";
 
 type ClickUpUserResponse = {
@@ -30,8 +29,19 @@ export type PanelMembersResult =
 	| { ok: true; members: PanelMember[] }
 	| { ok: false; status: 401 | 403 | 502 };
 
-export const clickUpToken = async () =>
-	(await cookies()).get("clickup_access_token")?.value ?? null;
+export const clickUpToken = async () => {
+	const identity = await getClickUpIdentity();
+	if (!identity || !(await getAppSession())) return null;
+	try {
+		const result = await auth.api.getAccessToken({
+			body: { accountId: identity.account_id },
+			headers: await headers(),
+		});
+		return result.accessToken ?? null;
+	} catch {
+		return null;
+	}
+};
 
 export const clickUpUserIdForToken = cache(async (token: string) => {
 	try {
@@ -49,39 +59,7 @@ export const clickUpUserIdForToken = cache(async (token: string) => {
 });
 
 export const clickUpUserId = async () => {
-	const token = await clickUpToken();
-	return token ? clickUpUserIdForToken(token) : null;
-};
-
-export const clickUpProfile = async () => {
-	const token = await clickUpToken();
-	if (!token) return null;
-	try {
-		const response = await fetch("https://api.clickup.com/api/v2/user", {
-			headers: clickUpHeaders(token),
-			cache: "no-store",
-		});
-		if (!response.ok) return null;
-		const body = (await response.json()) as {
-			user?: { email?: unknown; username?: unknown; name?: unknown };
-			email?: unknown;
-			username?: unknown;
-			name?: unknown;
-		};
-		const email = body.user?.email ?? body.email;
-		const displayName = [
-			body.user?.username,
-			body.user?.name,
-			body.username,
-			body.name,
-		].find((name) => typeof name === "string" && name.trim());
-		return {
-			email: typeof email === "string" ? email : null,
-			displayName: typeof displayName === "string" ? displayName.trim() : null,
-		};
-	} catch {
-		return null;
-	}
+	return (await getClickUpIdentity())?.user_id ?? null;
 };
 
 const sessionSignature = (payload: string) =>
@@ -90,25 +68,6 @@ const sessionSignature = (payload: string) =>
 				.update(payload)
 				.digest("base64url")
 		: null;
-
-export const encodePpicSession = (
-	userId: string,
-	role: PpicRole,
-	allowedStatus: PpicStatuses | null,
-	canImportLby = false,
-) => {
-	const payload = Buffer.from(
-		JSON.stringify({
-			user_id: userId,
-			role,
-			allowed_status: allowedStatus,
-			...(canImportLby ? { can_import_lby: true } : {}),
-			refreshed_at: Date.now(),
-		}),
-	).toString("base64url");
-	const signature = sessionSignature(payload);
-	return signature ? `${payload}.${signature}` : null;
-};
 
 export const encodeSelectedProject = (
 	userId: string,
@@ -158,65 +117,30 @@ export const selectedProject = async (
 export const selectedProjectTaskId = async (userId: string) =>
 	(await selectedProject(userId))?.task_id ?? null;
 
-export const ppicSession = async () => {
-	const value = (await cookies()).get(PPIC_SESSION_COOKIE)?.value;
-	if (!value) return null;
-	const [payload, signature] = value.split(".");
-	const expected = payload ? sessionSignature(payload) : null;
-	if (!signature || !expected) return null;
-	const actualBuffer = Buffer.from(signature);
-	const expectedBuffer = Buffer.from(expected);
-	if (
-		actualBuffer.length !== expectedBuffer.length ||
-		!timingSafeEqual(actualBuffer, expectedBuffer)
-	)
-		return null;
-	try {
-		const session = JSON.parse(
-			Buffer.from(payload, "base64url").toString("utf8"),
-		) as {
-			user_id?: unknown;
-			role?: unknown;
-			allowed_status?: unknown;
-			can_import_lby?: unknown;
-			refreshed_at?: unknown;
-		};
-		if (
-			typeof session.user_id !== "string" ||
-			!session.user_id ||
-			typeof session.refreshed_at !== "number" ||
-			!Number.isFinite(session.refreshed_at) ||
-			session.refreshed_at > Date.now() ||
-			Date.now() - session.refreshed_at >= PPIC_SESSION_MAX_AGE_MS
-		)
-			return null;
-		if (hasPpicAdminAccess(session.role))
-			return {
-				user_id: session.user_id,
-				role: session.role,
-				allowed_status: null,
-				can_import_lby: false,
-				refreshed_at: session.refreshed_at,
-			};
-		const allowedStatus =
-			session.allowed_status === null
-				? null
-				: ppicStatuses(session.allowed_status);
-		if (session.role === "MEMBER" && (allowedStatus || session.can_import_lby === true))
-			return {
-				user_id: session.user_id,
-				role: "MEMBER" as const,
-				allowed_status: allowedStatus,
-				can_import_lby: session.can_import_lby === true,
-				refreshed_at: session.refreshed_at,
-			};
-	} catch {
-		return null;
-	}
-	return null;
+export const getClickUpIdentity = async () => {
+	const current = await auth.api.getSession({ headers: await headers(), query: { disableCookieCache: true } });
+	if (!current) return null;
+	const accounts = await db.execute({
+		sql: 'SELECT id, "accountId" FROM account WHERE "userId" = ? AND "providerId" = ?',
+		args: [current.user.id, "clickup"],
+	});
+	if (accounts.rows.length !== 1) return null;
+	return { user_id: String(accounts.rows[0].accountId), account_id: String(accounts.rows[0].id), refreshed_at: current.session.updatedAt.getTime() };
 };
 
-export const ppicLoginState = async (userId: string) => {
+export const getAppSession = async () => {
+	const identity = await getClickUpIdentity();
+	if (!identity) return null;
+	const state = await getAuthorizationState(identity.user_id);
+	return state.path === "/unauthorized" ? null : {
+		...identity,
+		role: state.role,
+		allowed_status: state.allowed_status,
+		can_import_lby: state.can_import_lby,
+	};
+};
+
+export const getAuthorizationState = async (userId: string) => {
 	const access = await getPpicAccess(userId);
 	if (hasPpicAdminAccess(access?.role))
 		return {
@@ -248,35 +172,36 @@ export const ppicLoginState = async (userId: string) => {
 };
 
 export const postLoginPathForUser = async (userId: string) =>
-	(await ppicLoginState(userId)).path;
+	(await getAuthorizationState(userId)).path;
 
 export const postLoginPath = async () => {
-	const session = await ppicSession();
+	const session = await getAppSession();
 	if (session) return hasPpicAdminAccess(session.role) ? "/admin" : session.can_import_lby ? "/drafter" : "/projects";
 	const userId = await clickUpUserId();
-	return userId ? postLoginPathForUser(userId) : "/login";
+	if (!userId) return "/login";
+	const path = await postLoginPathForUser(userId);
+	return path === "/unauthorized" ? "/profile" : path;
 };
 
 export const requireFreshSuperAdmin = async () => {
-	const userId = await clickUpUserId();
+	const userId = (await getClickUpIdentity())?.user_id;
 	if (!userId) redirect("/login");
-	if (!(await isPpicSuperAdmin(userId))) redirect("/unauthorized");
+	if (!(await isPpicSuperAdmin(userId)))
+		redirect((await getAuthorizationState(userId)).path === "/unauthorized" ? "/profile" : "/unauthorized");
 	return userId;
 };
 
 export const requireSuperAdmin = async () => {
-	const session = await ppicSession();
-	if (session) {
-		if (!hasPpicAdminAccess(session.role)) redirect("/unauthorized");
-		return;
-	}
-	await requireFreshSuperAdmin();
+	const session = await getAppSession();
+	if (!session) redirect(await getClickUpIdentity() ? "/profile" : "/login");
+	if (!hasPpicAdminAccess(session.role)) redirect("/unauthorized");
 };
 
 export const requireFreshPpicStatusAccess = async (status: string) => {
 	if (!isPpicStatus(status)) redirect("/unauthorized");
-	const userId = (await ppicSession())?.user_id ?? (await clickUpUserId());
+	const userId = (await getClickUpIdentity())?.user_id;
 	if (!userId) redirect("/login");
+	if ((await getAuthorizationState(userId)).path === "/unauthorized") redirect("/profile");
 	const access = await getPpicAccess(userId);
 	if (hasPpicAdminAccess(access?.role)) return userId;
 	if (
@@ -291,7 +216,7 @@ export const requireFreshPpicStatusAccess = async (status: string) => {
 
 export const requirePpicStatusAccess = async (status: string) => {
 	if (!isPpicStatus(status)) redirect("/unauthorized");
-	const session = await ppicSession();
+	const session = await getAppSession();
 	if (session) {
 		if (
 			hasPpicAdminAccess(session.role) ||
@@ -304,15 +229,16 @@ export const requirePpicStatusAccess = async (status: string) => {
 };
 
 export const requireSelectedMemberProject = async () => {
-	const session = await ppicSession();
-	if (!session || session.role !== "MEMBER") redirect("/unauthorized");
+	const session = await getAppSession();
+	if (!session) redirect(await getClickUpIdentity() ? "/profile" : "/login");
+	if (session.role !== "MEMBER") redirect("/unauthorized");
 	const project = await selectedProject(session.user_id);
 	if (!project) redirect("/projects");
 	return project;
 };
 
 export const requireSelectedAdminProject = async () => {
-	const session = await ppicSession();
+	const session = await getAppSession();
 	const userId =
 		hasPpicAdminAccess(session?.role) ? session.user_id : await clickUpUserId();
 	if (!userId) redirect("/login");

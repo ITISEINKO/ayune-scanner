@@ -7,7 +7,7 @@ import { canImportLby } from "@/lib/db";
 import { panelListId } from "@/lib/projects";
 import { loadDescendantTasks } from "@/lib/projectDashboard";
 import { CF_PANEL } from "@/lib/produksiPanel";
-import { clickUpToken, ppicSession } from "@/lib/session";
+import { clickUpToken, getAppSession } from "@/lib/session";
 import { listTrialModels, readTrialModel } from "@/lib/trialPublicModels";
 import type { ClickUpTask } from "@/types/clickup";
 
@@ -20,7 +20,7 @@ export const POST = (request: Request) => handle(request, true);
 
 async function handle(request: Request, refresh: boolean) {
 	const token = await clickUpToken();
-	const session = await ppicSession();
+	const session = await getAppSession();
 	if (refresh && (!token || !session))
 		return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
 	if (refresh && request.headers.get("origin") !== new URL(request.url).origin) return new Response(null, { status: 403 });

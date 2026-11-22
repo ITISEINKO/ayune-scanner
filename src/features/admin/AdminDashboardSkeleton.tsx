@@ -1,6 +1,7 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { STATUS_COLOR_CONFIG } from "@/lib/colorStatusConfig";
 import { PPIC_STATUSES } from "@/types/ppic";
+import { PageHeader } from "@/components/pageHeader";
 
 export function AdminDashboardSkeleton() {
 	return (
@@ -9,19 +10,14 @@ export function AdminDashboardSkeleton() {
 			aria-label="Memuat dashboard admin"
 			className="mx-auto min-h-dvh max-w-lg bg-background pb-28"
 		>
-			<header className="rounded-b-[2.5rem] bg-accent/30 px-6 pt-6 pb-5">
-				<div className="relative mt-4">
-					<Skeleton className="absolute top-0 right-0 size-9 rounded-lg" />
-					<Skeleton className="h-4 w-40" />
-					<h1 className="mt-1 text-[27px] font-extrabold tracking-tight">
-						Dashboard produksi
-					</h1>
-					<p className="mt-1 text-sm leading-6 text-muted-foreground">
-						Kondisi semua project dan tim, langsung dari hasil scan.
-					</p>
-					<Skeleton className="mt-3 h-4 w-52 max-w-full" />
-				</div>
-			</header>
+			<PageHeader
+				eyebrow="Dashboard"
+				title="Dashboard produksi"
+				action={<Skeleton className="h-9 w-20 rounded-lg" />}
+			/>
+			<div className="px-4 pt-4">
+				<Skeleton className="mt-3 h-4 w-52 max-w-full" />
+			</div>
 
 			<div aria-hidden="true" className="space-y-4 px-4 pt-4">
 				<div className="rounded-3xl bg-primary p-5">

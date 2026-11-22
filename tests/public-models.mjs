@@ -1,7 +1,7 @@
-const assert = require('node:assert/strict');
-const { gunzipSync } = require('node:zlib');
-const { prepare, doorMotion } = require('../scripts/import-public-models.cjs');
-const { Vector3, Quaternion } = require('three');
+import assert from "node:assert/strict";
+import { gunzipSync } from "node:zlib";
+import { prepare, doorMotion } from "../scripts/fetchPublicModel.mjs";
+import * as THREE from "three";
 const model = { value: { orderId: '123', docs: [{ houseId: 'room', houseName: 'Room', models: [{ id: 'door', roomPlankIdx: '4', doorOpenType: 'left' }], renderModels: [{ modelId: 'door', geometry: { position: [0,0,0, 1,0,0, 0,1,0], index: { 0: 0, 1: 1, 2: 2 } } }] }] } };
 const rooms = prepare(model, '123');
 assert.deepEqual(JSON.parse(gunzipSync(rooms[0].data)), [{ id: 'door', position: [0,0,0, 1,0,0, 0,1,0], index: [0,1,2], uv: [], texture: null, color: null, number: '4', doorOpenType: 'left', doorMotion: null, isDoor: true, hinges: [], hingeCount: 0 }]);
@@ -19,9 +19,9 @@ const near = (a,b) => assert(a.every((n,i) => Math.abs(n-b[i]) < 1e-6));
 for (const [direction, pivot, axis] of [['left',[10,22,30],[0,0,1]], ['right',[10,122,30],[0,0,1]], ['up',[10,22,230],[0,1,0]], ['bottom',[10,22,30],[0,1,0]]]) {
 	const motion = doorMotion(door, byId, direction); near(motion.pivot,pivot); near(motion.axis,axis);
 	if (direction === 'left' || direction === 'right') {
-		const edge = new Vector3(direction === 'left' ? 1 : -1,0,0).applyQuaternion(new Quaternion().fromArray(parent.quaternion));
+		const edge = new THREE.Vector3(direction === 'left' ? 1 : -1,0,0).applyQuaternion(new THREE.Quaternion().fromArray(parent.quaternion));
 		const angle = (direction === 'left' ? -1 : 1) * Math.PI / 2;
-		near(edge.applyQuaternion(new Quaternion().setFromAxisAngle(new Vector3().fromArray(motion.axis), angle)).toArray(), [1,0,0]);
+		near(edge.applyQuaternion(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3().fromArray(motion.axis), angle)).toArray(), [1,0,0]);
 	}
 }
 assert.equal(doorMotion({ ...door, parentId: 'missing' }, byId, 'left'), null);
@@ -30,12 +30,12 @@ const straightMirror = { ...parent, quaternion: [0,0,0,1], scale: [-1,1,1] };
 const straightMotion = doorMotion(door, new Map([[straightMirror.id, straightMirror], [door.id, door]]), 'right');
 assert.equal(straightMotion.opening, 'left');
 near(straightMotion.pivot, [8,20,30]);
-const straightEdge = new Vector3(-1,0,0).applyQuaternion(new Quaternion().setFromAxisAngle(new Vector3().fromArray(straightMotion.axis), -Math.PI / 2));
+const straightEdge = new THREE.Vector3(-1,0,0).applyQuaternion(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3().fromArray(straightMotion.axis), -Math.PI / 2));
 near(straightEdge.toArray(), [0,-1,0]);
 const mirrorMotion = doorMotion(door, new Map([[mirrored.id, mirrored], [door.id, door]]), 'right');
 near(mirrorMotion.pivot, [10, -82, 30]);
 near(mirrorMotion.axis, [0, 0, -1]);
-const mirroredEdge = new Vector3(0, 1, 0).applyQuaternion(new Quaternion().setFromAxisAngle(new Vector3().fromArray(mirrorMotion.axis), Math.PI / 2));
+const mirroredEdge = new THREE.Vector3(0, 1, 0).applyQuaternion(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3().fromArray(mirrorMotion.axis), Math.PI / 2));
 near(mirroredEdge.toArray(), [1, 0, 0]);
 assert.equal(doorMotion({ ...door, scale: [0, 1, 1] }, byId, 'right'), null);
 const mount = (x, y, z) => ({ matrix: [1,0,0,0,0,1,0,0,0,0,1,0,x,y,z,1] });
@@ -47,7 +47,7 @@ near(doorMotion(door, byId, 'left', [mount(7, 72, 40)]).pivot, [10,22,30]);
 const anchored = doorMotion(door, new Map([[mirrored.id, mirrored], [door.id, door]]), 'right', [mount(7, 17, 40), mount(7, 17, 200)]);
 assert.equal(anchored.opening, 'left');
 near(anchored.pivot, [7, 18, 30]);
-const anchoredEdge = new Vector3(0, -1, 0).applyQuaternion(new Quaternion().setFromAxisAngle(new Vector3().fromArray(anchored.axis), -Math.PI / 2));
+const anchoredEdge = new THREE.Vector3(0, -1, 0).applyQuaternion(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3().fromArray(anchored.axis), -Math.PI / 2));
 near(anchoredEdge.toArray(), [1, 0, 0]);
 model.value.docs[0].models[0].textureImage = '12345'; model.value.docs[0].models[0].color = 0x123456;
 model.value.docs[0].renderModels[0].geometry.uv = [0,0, 1,0, 0,1];

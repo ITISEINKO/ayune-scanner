@@ -1,8 +1,8 @@
 import { BottomNavigation } from "@/components/bottomNavigation";
 import { SessionRefresh } from "@/components/sessionRefresh";
 import {
-	PPIC_SESSION_REFRESH_TTL_MS,
-	ppicSession,
+	SESSION_REFRESH_TTL_MS,
+	getAppSession,
 	requireSuperAdmin,
 } from "@/lib/session";
 
@@ -12,7 +12,7 @@ export default async function AdminLayout({
 	children: React.ReactNode;
 }>) {
 	await requireSuperAdmin();
-	const session = await ppicSession();
+	const session = await getAppSession();
 
 	return (
 		<>
@@ -20,7 +20,7 @@ export default async function AdminLayout({
 			<SessionRefresh
 				refreshAfter={Math.max(
 					0,
-					PPIC_SESSION_REFRESH_TTL_MS -
+					SESSION_REFRESH_TTL_MS -
 						(Date.now() - (session?.refreshed_at ?? 0)),
 				)}
 				refreshedAt={session?.refreshed_at ?? 0}

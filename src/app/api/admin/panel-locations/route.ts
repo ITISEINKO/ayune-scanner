@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { canImportLby } from "@/lib/db";
-import { clickUpToken, ppicSession } from "@/lib/session";
+import { clickUpToken, getAppSession } from "@/lib/session";
 import { activateLbyImport, claimLbyImport, getLbyImportState, lbyProjectForOrder, listLbyImports, releaseLbyImport, saveLbyImport } from "@/lib/panelLocationStore";
 import { fetchProject, parseShareLink } from "../../../../../scripts/import-lby-project.cjs";
 import type { LbyImportStage } from "@/types/panelLocation";
@@ -11,7 +11,7 @@ export const maxDuration = 300;
 const error = (status: number, code: string) => NextResponse.json({ ok: false, error: code }, { status });
 const validProject = (value: unknown): value is string => typeof value === "string" && /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$/.test(value);
 const importAccess = async () => {
-	const session = await ppicSession(), token = await clickUpToken();
+	const session = await getAppSession(), token = await clickUpToken();
 	if (!session || !token) return error(401, "UNAUTHORIZED");
 	if (!(await canImportLby(session.user_id))) return error(403, "LBY_IMPORT_REQUIRED");
 	return { actor: session.user_id };

@@ -1,10 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, RefreshCw, Search } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { PageHeader } from "@/components/pageHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,21 +46,10 @@ export const ChooseProjectPage = ({
 
 	return (
 		<main className="mx-auto min-h-dvh max-w-lg bg-background pb-24">
-			<header className="relative overflow-hidden rounded-b-[2.5rem] bg-accent/30 px-6 pt-6 pb-8 text-accent-foreground">
-				<img
-					src="/ayune-14.svg"
-					alt=""
-					aria-hidden="true"
-					className="pointer-events-none absolute -top-20 -right-16 z-0 size-70  opacity-10"
-				/>
-				<div className="relative z-10 flex items-center gap-3">
-					<div className="mr-auto">
-						<p className="text-md text-muted-foreground/80">Pekerjaan Aktif</p>
-
-						<h1 className="text-2xl text- font-extrabold tracking-tight">
-							Pilih project
-						</h1>
-					</div>
+			<PageHeader
+				eyebrow="Daftar pekerjaan"
+				title="Pilih project"
+				action={
 					<Button
 						variant="secondary"
 						size="sm"
@@ -70,22 +59,23 @@ export const ChooseProjectPage = ({
 						<RefreshCw className={isFetching ? "animate-spin" : ""} />
 						Sync
 					</Button>
-				</div>
+				}
+			>
 				<div className="relative z-10 mt-4">
 					<Search
 						aria-hidden="true"
-						className="pointer-events-none absolute top-1/2 left-3 size-5 -translate-y-1/2 text-muted-foreground"
+						className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
 					/>
 					<Input
 						type="search"
 						aria-label="Cari project"
 						placeholder="Cari kode / nama project"
-						className="h-11 rounded-2xl border-border bg-card pl-10 shadow-sm"
+						className="min-h-10 rounded-xl border-border bg-card pl-9 text-base shadow-sm"
 						value={search}
 						onChange={(event) => setSearch(event.target.value)}
 					/>
 				</div>
-			</header>
+			</PageHeader>
 
 			<div className="space-y-5 px-4 pt-5">
 				<section aria-labelledby="ongoing-projects">
@@ -156,7 +146,7 @@ export const ChooseProjectPage = ({
 								<article
 									key={index}
 									aria-hidden="true"
-									className="rounded-[1.35rem] border border-broder/40 bg-card p-4"
+									className="rounded-[1.35rem] border border-border/40 bg-card/50 p-4"
 								>
 									<Skeleton className="h-6 w-20 rounded-md" />
 									<Skeleton className="mt-3 h-10 w-4/5" />

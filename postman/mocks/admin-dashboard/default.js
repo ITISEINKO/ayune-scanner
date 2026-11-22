@@ -72,7 +72,19 @@ http.createServer((req, res) => {
 			else { manualStatus = req.body.value; manualWrites++; const id = url.pathname.split("/")[4]; manualWritesByTask[id] = (manualWritesByTask[id] || 0) + 1; body = {}; }
 		} else { status = 501; body = { error: "Endpoint not modeled" }; }
 	} else if (mode?.startsWith("project-complete")) {
-		const task = { id: "complete-project", name: "Rak Buku · Kantor Contoh", parent: null, list: { id: listId }, date_closed: projectCompleted ? String(Date.parse("2026-10-22T10:00:00Z")) : null, status: { status: projectCompleted ? "complete" : "in progress" } };
+		const task = {
+			id: "complete-project",
+			name: "Rak Buku · Kantor Contoh",
+			parent: null,
+			list: { id: listId },
+			...(projectCompleted && mode === "project-complete-review"
+				? { start_date: String(Date.parse("2026-10-12T00:00:00Z")) }
+				: {}),
+			date_closed: projectCompleted
+				? String(Date.parse("2026-10-22T10:00:00Z"))
+				: null,
+			status: { status: projectCompleted ? "complete" : "in progress" },
+		};
 		if (url.pathname === "/test/reset") {
 			projectCompleted = false; completeWrites = 0; body = {};
 		} else if (url.pathname === "/test/writes") {

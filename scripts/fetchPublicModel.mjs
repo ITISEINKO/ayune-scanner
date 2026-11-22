@@ -1,17 +1,20 @@
-const assert = require('node:assert/strict');
-const { gzipSync } = require('node:zlib');
-const { unzipModel } = require('./import-lby-project.cjs');
-const { isHinge } = require('./lby-panel-geometry.cjs');
-const { Box3, Matrix3, Matrix4, Vector3, Quaternion } = require('three');
+import assert from "node:assert/strict";
+import { gzipSync, gunzipSync } from "node:zlib";
+import * as THREE from "three";
+import importLbyProject from "./import-lby-project.cjs";
+import panelGeometry from "./lby-panel-geometry.cjs";
+
+const { unzipModel } = importLbyProject;
+const { isHinge } = panelGeometry;
 
 function worldMatrix(model, models) {
-	const world = new Matrix4();
+	const world = new THREE.Matrix4();
 	const seen = new Set();
 	let item = model;
 	while (item) {
 		if (seen.has(item.id) || !['position', 'quaternion', 'scale'].every((key) => Array.isArray(item[key]) && item[key].length === (key === 'quaternion' ? 4 : 3) && item[key].every(Number.isFinite)) || item.scale.some((value) => value === 0) || Math.hypot(...item.quaternion) < 1e-8) return null;
 		seen.add(item.id);
-		world.premultiply(new Matrix4().compose(new Vector3().fromArray(item.position), new Quaternion().fromArray(item.quaternion).normalize(), new Vector3().fromArray(item.scale)));
+		world.premultiply(new THREE.Matrix4().compose(new THREE.Vector3().fromArray(item.position), new THREE.Quaternion().fromArray(item.quaternion).normalize(), new THREE.Vector3().fromArray(item.scale)));
 		if (item.parentId && !models.has(item.parentId)) return null;
 		item = item.parentId ? models.get(item.parentId) : null;
 	}
@@ -23,13 +26,13 @@ function doorMotion(model, models, opening, hinges = []) {
 	const world = worldMatrix(model, models);
 	if (!world) return null;
 	// shortcut: only correct axis-aligned X mirrors without hinge anchors; use verified hinge data for rotated mirrors.
-	if (!hinges.length && world.determinant() < 0 && new Vector3(1, 0, 0).transformDirection(world).x < -0.999999 && (opening === 'left' || opening === 'right')) opening = opening === 'left' ? 'right' : 'left';
+	if (!hinges.length && world.determinant() < 0 && new THREE.Vector3(1, 0, 0).transformDirection(world).x < -0.999999 && (opening === 'left' || opening === 'right')) opening = opening === 'left' ? 'right' : 'left';
 	const horizontal = opening === 'left' || opening === 'right';
 	const width = horizontal ? model.sizeX : model.sizeZ;
 	let mountDepth = 0;
 	if (hinges.length) {
 		const inverse = world.clone().invert();
-		const mounts = hinges.map((hinge) => new Vector3().setFromMatrixPosition(new Matrix4().fromArray(hinge.matrix)).applyMatrix4(inverse));
+		const mounts = hinges.map((hinge) => new THREE.Vector3().setFromMatrixPosition(new THREE.Matrix4().fromArray(hinge.matrix)).applyMatrix4(inverse));
 		const coordinate = horizontal ? 'x' : 'z';
 		if (Number.isFinite(width) && width > 0) {
 			const atStart = mounts.every((mount) => Math.abs(mount[coordinate]) <= width * 0.25);
@@ -43,9 +46,9 @@ function doorMotion(model, models, opening, hinges = []) {
 	}
 	const dimension = opening === 'right' || opening === 'up' ? width : 0;
 	if (!Number.isFinite(dimension) || dimension < 0) return null;
-	const localPivot = new Vector3(opening === 'right' ? dimension : 0, mountDepth, opening === 'up' ? dimension : 0);
+	const localPivot = new THREE.Vector3(opening === 'right' ? dimension : 0, mountDepth, opening === 'up' ? dimension : 0);
 	const pivot = localPivot.applyMatrix4(world);
-	const axis = new Vector3(opening === 'up' || opening === 'bottom' ? 1 : 0, 0, opening === 'left' || opening === 'right' ? 1 : 0).applyMatrix3(new Matrix3().getNormalMatrix(world)).multiplyScalar(Math.sign(world.determinant())).normalize();
+	const axis = new THREE.Vector3(opening === 'up' || opening === 'bottom' ? 1 : 0, 0, opening === 'left' || opening === 'right' ? 1 : 0).applyMatrix3(new THREE.Matrix3().getNormalMatrix(world)).multiplyScalar(Math.sign(world.determinant())).normalize();
 	return { pivot: pivot.toArray(), axis: axis.toArray(), opening };
 }
 
@@ -76,8 +79,8 @@ function prepare(model, orderId, panels = []) {
 		const doorBounds = new Map();
 		for (const { modelId, geometry } of doc.renderModels) {
 			if (!['left', 'right', 'up', 'bottom'].includes(models.get(modelId)?.doorOpenType) || !Array.isArray(geometry?.position)) continue;
-			const box = new Box3();
-			for (let i = 0; i + 2 < geometry.position.length; i += 3) box.expandByPoint(new Vector3(...geometry.position.slice(i, i + 3)));
+			const box = new THREE.Box3();
+			for (let i = 0; i + 2 < geometry.position.length; i += 3) box.expandByPoint(new THREE.Vector3(...geometry.position.slice(i, i + 3)));
 			if (!box.isEmpty()) doorBounds.set(modelId, box);
 		}
 		const hingesByDoor = new Map();
@@ -85,7 +88,7 @@ function prepare(model, orderId, panels = []) {
 		for (const hinge of (doc.models || []).filter(isHinge)) {
 			const matrix = hinge.instanceMatrix;
 			if (!Array.isArray(matrix) || matrix.length !== 16 || !matrix.every(Number.isFinite)) { unresolvedHinges = true; continue; }
-			const point = new Vector3().setFromMatrixPosition(new Matrix4().fromArray(matrix));
+			const point = new THREE.Vector3().setFromMatrixPosition(new THREE.Matrix4().fromArray(matrix));
 			// shortcut: 50 mm proximity and 1 mm separation are heuristics; replace with validated vendor mounting links.
 			const nearby = [...doorBounds].map(([id, box]) => ({ id, distance: box.distanceToPoint(point) })).filter(({ distance }) => distance <= 50).sort((a, b) => a.distance - b.distance);
 			const door = nearby.length && (!nearby[1] || nearby[1].distance - nearby[0].distance > 1) ? nearby[0].id : undefined;
@@ -103,9 +106,9 @@ function prepare(model, orderId, panels = []) {
 				if (parent.className === 'BaseModuleGroupModel' && parent.moduleType === '06') {
 					const world = worldMatrix(item, models);
 					if (world) {
-						const rotation = new Quaternion();
-						world.decompose(new Vector3(), rotation, new Vector3());
-						drawerParts.set(modelId, new Vector3(0, -300, 0).applyQuaternion(rotation).toArray());
+						const rotation = new THREE.Quaternion();
+						world.decompose(new THREE.Vector3(), rotation, new THREE.Vector3());
+						drawerParts.set(modelId, new THREE.Vector3(0, -300, 0).applyQuaternion(rotation).toArray());
 					}
 					break;
 				}
@@ -171,8 +174,8 @@ async function fetchPublicModel(source, signal, hasTexture = () => false, onProg
 	assert(panelResponse.data.length, 'NO_PANEL_SERIAL');
 	onProgress('rooms');
 	const rooms = prepare(JSON.parse(raw), id, panelResponse.data);
-	assert(rooms.length && rooms.some((room) => JSON.parse(require('node:zlib').gunzipSync(room.data)).length), 'No panel geometry');
-	const ids = [...new Set(rooms.flatMap((room) => JSON.parse(require('node:zlib').gunzipSync(room.data)).map((part) => part.texture).filter(Boolean)))];
+	assert(rooms.length && rooms.some((room) => JSON.parse(gunzipSync(room.data)).length), 'No panel geometry');
+	const ids = [...new Set(rooms.flatMap((room) => JSON.parse(gunzipSync(room.data)).map((part) => part.texture).filter(Boolean)))];
 	const missing = ids.filter((texture) => !hasTexture(texture));
 	const textures = [];
 	onProgress('textures');
@@ -192,4 +195,4 @@ async function fetchPublicModel(source, signal, hasTexture = () => false, onProg
 	return { rooms, textures };
 }
 
-module.exports = { prepare, doorMotion, fetchPublicModel };
+export { prepare, doorMotion, fetchPublicModel };

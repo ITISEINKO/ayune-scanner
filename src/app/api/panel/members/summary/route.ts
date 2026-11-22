@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { getPpicAccess, getPpicMemberScanSummary, isPpicSuperAdmin } from "@/lib/db";
-import { ppicSession } from "@/lib/session";
+import { getAppSession } from "@/lib/session";
 
 export async function GET(request: Request) {
 	try {
-		const userId = (await ppicSession())?.user_id;
+		const userId = (await getAppSession())?.user_id;
 		if (!userId)
 			return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
 		if (!(await isPpicSuperAdmin(userId)))

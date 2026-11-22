@@ -11,7 +11,7 @@ import {
 	clickUpToken,
 	encodeSelectedProject,
 	PPIC_SELECTED_PROJECT_COOKIE,
-	ppicSession,
+	getAppSession,
 	selectedProject,
 } from "@/lib/session";
 import { getPpicAccess } from "@/lib/db";
@@ -21,7 +21,7 @@ const error = (status: number, code: string) =>
 	NextResponse.json({ ok: false, error: code }, { status });
 
 const projectSession = async () => {
-	const session = await ppicSession();
+	const session = await getAppSession();
 	if (session && (hasPpicAdminAccess(session.role) || session.allowed_status)) return session;
 	const userId = await clickUpUserId();
 	const access = userId ? await getPpicAccess(userId) : null;

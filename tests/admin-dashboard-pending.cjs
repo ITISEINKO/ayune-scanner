@@ -34,7 +34,7 @@ function load(file, dependencies, globals = {}) {
 		{
 			"next/server": { NextResponse: Response },
 			"@/lib/session": {
-				ppicSession: async () => ({ user_id: "admin" }),
+				getAppSession: async () => ({ user_id: "admin" }),
 				clickUpToken: async () => "test",
 			},
 			"@/lib/db": { isPpicSuperAdmin: async () => authorized },

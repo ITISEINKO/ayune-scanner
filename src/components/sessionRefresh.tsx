@@ -23,6 +23,10 @@ export function SessionRefresh({
 		const refresh = async (redirectToState = false) => {
 			try {
 				const response = await fetch("/api/auth/refresh", { cache: "no-store" });
+				if (response.status === 401 && !closed) {
+					router.replace("/login");
+					return;
+				}
 				if (!response.ok || closed || !redirectToState) return;
 				const data = (await response.json()) as { path?: unknown };
 				if (typeof data.path === "string") router.replace(data.path);

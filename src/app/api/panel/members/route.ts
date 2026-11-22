@@ -20,7 +20,7 @@ import {
 	clickUpUserId,
 	panelChannelMembers,
 	PANEL_MEMBERS_CACHE_TAG,
-	ppicSession,
+	getAppSession,
 } from "@/lib/session";
 
 const accessError = (status: 401 | 403 | 502) =>
@@ -39,7 +39,7 @@ const accessError = (status: 401 | 403 | 502) =>
 
 export async function GET(request: Request) {
 	try {
-		const userId = (await ppicSession())?.user_id;
+		const userId = (await getAppSession())?.user_id;
 		if (!userId) return accessError(401);
 		if (!(await isPpicSuperAdmin(userId))) return accessError(403);
 		let members = await getPanelMembersSnapshot();
@@ -117,7 +117,10 @@ export async function POST(request: Request) {
 			await deactivatePpicPermission(userId, updatedBy);
 		else await savePpicPermission(userId, allowedStatus!, updatedBy);
 		await savePpicMemberNames([member]);
-	} catch {
+	} catch (error) {
+		if (error instanceof Error && error.message === "ClickUp user is not provisioned")
+			return NextResponse.json({ ok: false, error: "USER_NOT_PROVISIONED" }, { status: 409 });
+		console.error("Panel member permission update failed", error);
 		return NextResponse.json(
 			{ ok: false, error: "DATABASE_ERROR" },
 			{ status: 502 },

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { Label, Pie, PieChart } from "recharts";
@@ -55,6 +55,7 @@ import { elapsedLabel, scanWindow } from "@/lib/projectTimeline";
 import { statusBarangScanOptions } from "@/lib/produksiPanel";
 import type { ProjectDashboard, ProjectStatusChange } from "@/types/project";
 import { CompletedProjectDetailPage } from "@/features/admin/CompletedProjectDetailPage";
+import { ThemeColor } from "@/components/themeColor";
 
 const formatDate = (value: string | null, includeTime = false) => {
 	if (!value) return "Tidak tersedia";
@@ -217,6 +218,8 @@ export const ProjectDetailPage = ({
 	const [completeOpen, setCompleteOpen] = useState(false);
 	const [completing, setCompleting] = useState(false);
 	const [completeError, setCompleteError] = useState("");
+	const titleRef = useRef<HTMLHeadingElement>(null);
+	const [titleScrolled, setTitleScrolled] = useState(false);
 	const queryClient = useQueryClient();
 	const router = useRouter();
 	const syncDashboard = async () => {
@@ -241,6 +244,20 @@ export const ProjectDetailPage = ({
 		}
 	};
 	useEffect(() => setCurrentDashboard(dashboard), [dashboard]);
+	useEffect(() => {
+		const title = titleRef.current;
+		if (!title) return;
+		const observer = new IntersectionObserver(
+			([entry]) => setTitleScrolled(entry.boundingClientRect.bottom < 64),
+			{ rootMargin: "-64px 0px 0px 0px" },
+		);
+		observer.observe(title);
+		return () => observer.disconnect();
+	}, [
+		Boolean(currentDashboard),
+		currentDashboard?.completion,
+		currentDashboard?.project.status,
+	]);
 	useEffect(() => {
 		if (
 			!currentDashboard ||
@@ -343,7 +360,6 @@ export const ProjectDetailPage = ({
 		.flatMap((item) => item.components);
 	const statusTotals = countsFor(components);
 	const totalComponents = components.length;
-	const completedComponents = statusTotals.get("TERPASANG_DIGUNAKAN") ?? 0;
 	const serials = items
 		.flatMap((item) => item.components)
 		.filter((component) => component.serialNumber?.trim());
@@ -458,34 +474,46 @@ export const ProjectDetailPage = ({
 
 	return (
 		<main className="mx-auto min-h-dvh max-w-lg  bg-muted ">
-			<header className="bg-primary px-5 pt-3 pb-16">
-				<div className="flex items-center justify-between gap-3">
-					<Link
-						href="/admin/projects"
-						aria-label="Kembali ke project"
-						className="-ml-2 inline-flex size-10 items-center justify-center rounded-full text-primary-foreground transition-colors hover:bg-primary-foreground/10 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary-foreground/40"
+			<ThemeColor color="var(--primary)" />
+			<div className="sticky top-0 z-30 flex min-h-16 items-center gap-3 bg-primary px-5">
+				<Link
+					href="/admin/projects"
+					aria-label="Kembali ke project"
+					className="-ml-2 inline-flex size-10 items-center justify-center rounded-full text-primary-foreground transition-colors hover:bg-primary-foreground/10 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-primary-foreground/40"
+				>
+					<ChevronLeft aria-hidden="true" className="size-6" />
+				</Link>
+				<span
+					aria-hidden="true"
+					className={`min-w-0 flex-1 truncate text-sm font-bold text-primary-foreground transition-opacity duration-200 motion-reduce:transition-none ${titleScrolled ? "opacity-100" : "opacity-0"}`}
+				>
+					{project.name ?? "Tanpa nama"}
+				</span>
+				<div className="flex shrink-0 items-center gap-2">
+					<Badge className="rounded-full border border-primary-foreground/25 bg-primary-foreground/15 px-3 py-1 text-xs font-bold text-primary-foreground">
+						{project.custom_id || project.task_id}
+					</Badge>
+					<Button
+						aria-label="Sinkronkan dashboard"
+						disabled={isSyncing || completing}
+						onClick={syncDashboard}
+						size="icon-sm"
+						title="Sinkronkan dashboard"
+						variant="ghost"
+						className="text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
 					>
-						<ChevronLeft aria-hidden="true" className="size-6" />
-					</Link>
-					<div className="flex items-center gap-2">
-						<Badge className="rounded-full border border-primary-foreground/25 bg-primary-foreground/15 px-3 py-1 text-xs font-bold text-primary-foreground">{project.custom_id || project.task_id}</Badge>
-						<Button
-							aria-label="Sinkronkan dashboard"
-							disabled={isSyncing || completing}
-							onClick={syncDashboard}
-							size="icon-sm"
-							title="Sinkronkan dashboard"
-							variant="ghost"
-							className="text-primary-foreground hover:bg-primary-foreground/10 hover:text-primary-foreground"
-						>
-							<RefreshCw
-								aria-hidden="true"
-								className={isSyncing ? "animate-spin" : ""}
-							/>
-						</Button>
-					</div>
+						<RefreshCw
+							aria-hidden="true"
+							className={isSyncing ? "animate-spin" : ""}
+						/>
+					</Button>
 				</div>
-				<h1 className="mt-5  text-2xl font-extrabold leading-tight tracking-tight text-primary-foreground">
+			</div>
+			<header className="bg-primary px-5 pt-1 pb-16">
+				<h1
+					ref={titleRef}
+					className=" text-xl font-extrabold leading-tight tracking-tight text-primary-foreground"
+				>
 					{project.name ?? "Tanpa nama"}
 				</h1>
 				{currentDashboard.syncedAt && (

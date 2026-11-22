@@ -276,19 +276,19 @@ export const getCompletedProjectDashboard = async (token: string, project: Selec
 	if (parent.status?.status?.toLowerCase() !== "complete") throw new Error("PROJECT_STATUS_CHANGED");
 	const scopeKey = completedSnapshotKey(token, project.task_id);
 	const saved = await getAdminProjectSnapshot(scopeKey);
-	if (saved?.project.status === "complete" && saved.completion) return withCompletedProjectInsights(saved);
+	if (saved?.project.status === "complete" && saved.completion) return withCompletedProjectInsights({ ...saved, project: { ...saved.project, startDate: parent.start_date ?? null } });
 	const refreshId = randomUUID();
 	if (!(await claimAdminProjectRefresh(scopeKey, refreshId))) throw new Error("PROJECT_SYNC_IN_PROGRESS");
 	try {
 		const current = await getAdminProjectSnapshot(scopeKey);
 		if (current?.project.status === "complete" && current.completion) {
 			await finishAdminProjectRefresh(scopeKey, refreshId);
-			return withCompletedProjectInsights(current);
+			return withCompletedProjectInsights({ ...current, project: { ...current.project, startDate: parent.start_date ?? null } });
 		}
 		const dashboard = current?.completion ? current : await buildProjectDashboard(token, project, { parent });
 		const archived = withCompletedProjectInsights({
 			...dashboard,
-			project: { ...dashboard.project, status: "complete" },
+			project: { ...dashboard.project, status: "complete", startDate: parent.start_date ?? null },
 			completion: {
 				completedAt: parent.date_closed ?? parent.date_done ?? null,
 				capturedAt: dashboard.completion?.capturedAt ?? new Date().toISOString(),
@@ -313,7 +313,7 @@ export const getProjectDashboard = async (
 	const archived = await getAdminProjectSnapshot(completedSnapshotKey(token, project.task_id));
 	if (archived?.project.status === "complete" && archived.completion) {
 		const current = await getPanelProject(token, project.task_id);
-		if (current.status?.status?.toLowerCase() === "complete") return withCompletedProjectInsights(archived);
+		if (current.status?.status?.toLowerCase() === "complete") return withCompletedProjectInsights({ ...archived, project: { ...archived.project, startDate: current.start_date ?? null } });
 		refresh = true;
 	}
 	const sourceToken = process.env.CLICKUP_TOKEN;

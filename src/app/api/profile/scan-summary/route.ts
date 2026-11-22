@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { getPpicAccess, getPpicMemberScanSummary } from "@/lib/db";
-import { clickUpUserId, ppicSession } from "@/lib/session";
+import { clickUpUserId, getAppSession } from "@/lib/session";
 
 export async function GET() {
 	try {
-		const userId = (await ppicSession())?.user_id ?? (await clickUpUserId());
+		const userId = (await getAppSession())?.user_id ?? (await clickUpUserId());
 		if (!userId)
 			return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
 		if ((await getPpicAccess(userId))?.role !== "MEMBER")

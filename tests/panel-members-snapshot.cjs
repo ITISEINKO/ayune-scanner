@@ -21,7 +21,7 @@ runInNewContext(transpileModule(readFileSync("src/app/api/panel/members/route.ts
 		if (id === "next/cache") return { revalidateTag() {} };
 		if (id === "@/lib/db") return db;
 		if (id === "@/lib/session") return {
-			ppicSession: async () => session ? { user_id: "admin" } : null,
+			getAppSession: async () => session ? { user_id: "admin" } : null,
 			panelChannelMembers: async () => { upstream++; return fail ? { ok: false, status: 502 } : { ok: true, members: [{ id: "1", name: `Name ${upstream}` }] }; },
 		};
 		if (id === "@/types/ppic" || id === "@/lib/ably") return {};

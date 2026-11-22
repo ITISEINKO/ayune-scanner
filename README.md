@@ -74,6 +74,25 @@ pnpm dev
 
 Installation runs `next build` through `postinstall`, so configure the environment before installing. Open `http://localhost:3000` after starting the dev server.
 
+To migrate a local SQLite copy of the legacy user permissions, prepare a private JSON file with ClickUp workspace members in this format: `[{"id":"123","name":"Name","email":"name@example.com"}]`. IDs must come from the trusted ClickUp workspace, not name matching. Active members, importers, and admins without a matching email stop the migration; inactive members without one receive an `example.invalid` placeholder.
+
+```sh
+pnpm db:migrate-auth-local --database ./copy.db --members ./members.json
+pnpm db:migrate-auth-local --database ./copy.db --members ./members.json --apply
+```
+
+The first command previews and rolls back the transaction. Stop application writes before applying. The second creates and checks a backup beside the database, then creates the Better Auth tables, moves permissions, and drops `ppic_permissions` in a transaction. Keep the backup private: it can contain user data and tokens. This command supports local SQLite files only and does not update Drizzle's migration history; reconcile that history before running `pnpm db:migrate`. Test on a copy before planning a remote migration.
+
+For an existing Turso production database, schedule a maintenance window and stop all application writes. Create and verify a complete private SQLite backup of the production database before running any migration, and prepare the trusted ClickUp workspace members JSON described above. Confirm that `.env` targets the intended database. Test the procedure on a separate copy first.
+
+```sh
+pnpm db:migrate
+pnpm db:migrate-auth-production --members ./members.json --backup ./production-backup.db
+pnpm db:migrate-auth-production --members ./members.json --backup ./production-backup.db --apply
+```
+
+The first command applies pending Drizzle migrations, including the Better Auth schema. The second previews the user transfer and rolls it back; the third applies it. The transfer checks the Drizzle history, backup integrity and equality of the legacy permission records within its transaction. A mismatch, missing email for an active member, importer or admin, conflicting account, or invalid data stops the transfer. The backup comparison covers permission rows, not proof that the entire backup is complete or restorable; independently verify the full backup and restore procedure. The script drops `ppic_permissions` on apply, so the old deployed application must remain stopped until the Better Auth version is deployed. Legacy sessions require login again. Verify production OAuth, roles, permissions and recovery before reopening access. Keep backup and members files private.
+
 | Command                              | Purpose                                               |
 | ------------------------------------ | ----------------------------------------------------- |
 | `pnpm build`                         | Create a production build                             |
@@ -95,7 +114,7 @@ Installation runs `next build` through `postinstall`, so configure the environme
 
 ## Continuous integration
 
-[Tests](.github/workflows/playwright.yml) runs on every push, pull request, or manual dispatch. It uses Node 22 and the pnpm version pinned in `package.json`, validates the frozen lockfile, runs unit/authorization checks, builds once, and runs Chromium smoke and regression checks. API checks use the committed Postman ClickUp simulation and temporary local databases. No GitHub secrets or production services are required. Screenshots, the Playwright report, and simulation logs are uploaded as `test-results`.
+[Tests](.github/workflows/playwright.yml) runs on every push, pull request, or manual dispatch. It uses Node 26 and the pnpm version pinned in `package.json`, validates the frozen lockfile, runs unit/authorization checks, builds once, and runs Chromium smoke and regression checks. API checks use the committed Postman ClickUp simulation and temporary local databases. No GitHub secrets or production services are required. Screenshots, the Playwright report, and simulation logs are uploaded as `test-results`.
 
 CI installs dependencies with `--ignore-scripts` so `postinstall` does not trigger a build during installation. The explicit build step uses local test environment values. Live permission/ClickUp fixtures remain opt-in and are not included in the push checks.
 

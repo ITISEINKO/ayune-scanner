@@ -14,7 +14,7 @@ import { taskProjectScope } from "@/lib/projectScope";
 import { getPanelProject } from "@/lib/projects";
 import {
 	clickUpToken,
-	ppicSession,
+	getAppSession,
 	requireFreshPpicStatusAccess,
 	selectedProjectTaskId,
 } from "@/lib/session";
@@ -100,7 +100,7 @@ export async function POST(request: Request) {
 	if (!serialNumber) return error(400, "MISSING_SERIAL_NUMBER");
 	if (!target) return error(400, "INVALID_STATUS");
 	const userId = await requireFreshPpicStatusAccess(status);
-	const session = await ppicSession();
+	const session = await getAppSession();
 	if (hasPpicAdminAccess(session?.role)) return error(401, "UNAUTHORIZED");
 	const mainTaskId = await selectedProjectTaskId(userId);
 	if (!mainTaskId) return error(409, "NO_SELECTED_PROJECT");

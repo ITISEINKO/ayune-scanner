@@ -2,13 +2,26 @@
 const assert = require("node:assert/strict");
 const { createHmac } = require("node:crypto");
 const { spawn } = require("node:child_process");
+const { mkdtempSync, readFileSync } = require("node:fs");
+const { tmpdir } = require("node:os");
+const { join } = require("node:path");
+const { createClient } = require("@libsql/client");
 const { chromium, expect } = require("@playwright/test");
 
 (async () => {
 	const baseURL = "http://127.0.0.1:3348";
-	const secret = "local-project-filter-test";
+	const secret = "local-project-filter-test-secret-32-characters";
+	const databaseUrl = `file:${join(mkdtempSync(join(tmpdir(), "admin-projects-")), "test.db").replaceAll("\\", "/")}`;
+	const db = createClient({ url: databaseUrl });
+	const statements = (path) => readFileSync(path, "utf8").split("--> statement-breakpoint").map((sql) => sql.trim()).filter(Boolean);
+	await db.batch(statements("drizzle/0004_mean_carlie_cooper.sql"), "write");
+	await db.batch(statements("drizzle/0006_absurd_redwing.sql").slice(0, 6), "write");
+	const now = Date.now();
+	await db.execute({ sql: 'INSERT INTO "user" (id,name,email,"emailVerified",role,active,"createdAt","updatedAt") VALUES (?,?,?,?,?,?,?,?)', args: ["local-admin", "Admin", "admin@example.test", 0, "SUPER_ADMIN", 1, now, now] });
+	await db.execute({ sql: 'INSERT INTO account (id,"userId","accountId","providerId","accessToken","createdAt","updatedAt") VALUES (?,?,?,?,?,?,?)', args: ["account", "local-admin", "local-admin", "clickup", "synthetic-token", now, now] });
+	await db.execute({ sql: 'INSERT INTO session (id,token,"userId","expiresAt","createdAt","updatedAt") VALUES (?,?,?,?,?,?)', args: ["session", "session-token", "local-admin", now + 3600000, now, now] });
 	const server = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start", "-p", "3348"], {
-		env: { ...process.env, CLICKUP_CLIENT_SECRET: secret, TURSO_DATABASE_URL: "file::memory:", TURSO_AUTH_TOKEN: "local-test-only" },
+		env: { ...process.env, CLICKUP_CLIENT_SECRET: secret, BETTER_AUTH_SECRET: secret, BETTER_AUTH_URL: baseURL, TURSO_DATABASE_URL: databaseUrl, TURSO_AUTH_TOKEN: "local-test-only" },
 		stdio: "pipe", windowsHide: true,
 	});
 	let browser;
@@ -20,8 +33,8 @@ const { chromium, expect } = require("@playwright/test");
 		browser = await chromium.launch({ headless: true });
 		const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
 		await context.route("**/*", (route) => new URL(route.request().url()).origin === baseURL ? route.continue() : route.abort());
-		const payload = Buffer.from(JSON.stringify({ user_id: "local-admin", role: "SUPER_ADMIN", allowed_status: null, refreshed_at: Date.now() })).toString("base64url");
-		await context.addCookies([{ name: "ppic_session", value: `${payload}.${createHmac("sha256", secret).update(payload).digest("base64url")}`, url: baseURL }]);
+		const signature = createHmac("sha256", secret).update("session-token").digest("base64");
+		await context.addCookies([{ name: "better-auth.session_token", value: encodeURIComponent(`session-token.${signature}`), url: baseURL }]);
 		const page = await context.newPage();
 		let writes = 0;
 		let fail = true;
@@ -43,24 +56,23 @@ const { chromium, expect } = require("@playwright/test");
 			return route.fulfill({ json: { tasks: status === emptyStatus ? [] : status === "complete" ? completedTasks : status === "to do" ? [{ id: "todo-project", custom_id: "DEMO-003", name: projectName }] : [{ id: "ongoing-project", name: "Ongoing project" }] } });
 		});
 		const selectStatus = async (label) => {
-			await page.getByRole("combobox", { name: "Status project" }).click();
-			const insets = await page.getByRole("option").first().evaluate(option => {
-				const item = option.getBoundingClientRect();
-				const popup = option.closest('[data-slot="select-content"]').getBoundingClientRect();
-				return { left: item.left - popup.left, right: popup.right - item.right };
-			});
-			assert.ok(insets.left > 0 && Math.abs(insets.left - insets.right) < 1, "dropdown options have equal left and right insets");
-			await page.getByRole("option", { name: label, exact: true }).click();
+			const button = page.getByRole("group", { name: "Status project" }).getByRole("button", { name: label, exact: true });
+			await button.click();
+			await expect(button).toHaveAttribute("aria-pressed", "true");
 		};
 		await page.goto(`${baseURL}/admin/projects`);
 		await expect(page.getByRole("link", { name: /Ongoing project/ })).toHaveAttribute("href", "/admin/project?task_id=ongoing-project");
 		await expect(page.getByRole("dialog")).toHaveCount(0);
 		assert.equal(reads.some(({ status }) => status === "complete"), false, "completed projects load only when selected");
 		await expect(page.getByRole("tab")).toHaveCount(0);
-		await selectStatus("Completed");
+		await selectStatus("Selesai");
 		await expect(page.getByRole("link", { name: /Completed wardrobe/ })).toHaveAttribute("href", "/admin/project?task_id=completed-project&review=completed");
-		await expect(page.getByText("Project yang sudah selesai. Pilih project untuk melihat detail dan riwayatnya.")).toBeVisible();
+		await expect(page.getByText("Project yang sudah selesai.", { exact: true })).toBeVisible();
 		await expect(page.getByRole("button", { name: /Mulai project/ })).toHaveCount(0);
+		await page.reload();
+		await expect(page.getByRole("group", { name: "Status project" }).getByRole("button", { name: "Selesai" })).toHaveAttribute("aria-pressed", "true");
+		await expect(page.getByRole("link", { name: /Completed wardrobe/ })).toBeVisible();
+		assert.equal(reads.filter(({ status }) => status === "complete").length, 2, "reload restores and fetches the previously selected status");
 		await page.getByRole("searchbox", { name: "Cari project" }).fill("missing");
 		await expect(page.getByRole("heading", { name: "Project tidak ditemukan", exact: true })).toBeVisible();
 		await expect(page.getByText(/yang cocok dengan “missing”/)).toBeVisible();
@@ -76,8 +88,8 @@ const { chromium, expect } = require("@playwright/test");
 		await selectStatus("In progress");
 		await expect(page.getByRole("link", { name: /Ongoing project/ })).toBeVisible();
 		await expect(page.getByRole("link", { name: /Completed wardrobe/ })).toHaveCount(0);
-		await selectStatus("Completed");
-		assert.equal(reads.filter(({ status }) => status === "complete").length, 1, "returning to a status reuses its cache");
+		await selectStatus("Selesai");
+		assert.equal(reads.filter(({ status }) => status === "complete").length, 2, "returning to a status reuses its cache");
 		completedTasks = [];
 		await page.getByRole("button", { name: "Sync", exact: true }).click();
 		await expect(page.getByRole("heading", { name: "Belum ada project selesai", exact: true })).toBeVisible();
@@ -138,7 +150,7 @@ const { chromium, expect } = require("@playwright/test");
 		fail = false;
 		await dialog.getByRole("button", { name: "Ya, mulai", exact: true }).click();
 		await expect(dialog).not.toBeVisible();
-		await expect(page.getByRole("combobox", { name: "Status project" })).toContainText("In progress");
+		await expect(page.getByRole("group", { name: "Status project" }).getByRole("button", { name: "In progress" })).toHaveAttribute("aria-pressed", "true");
 		await expect(page.getByRole("link", { name: /Todo project/ })).toHaveAttribute("href", "/admin/project?task_id=todo-project");
 		await expect(page.getByRole("link", { name: /Ongoing project/ })).toBeVisible();
 		await selectStatus("Todo");
@@ -147,5 +159,6 @@ const { chromium, expect } = require("@playwright/test");
 	} finally {
 		await browser?.close();
 		server.kill();
+		db.close();
 	}
 })().catch((error) => { console.error(error); process.exitCode = 1; });

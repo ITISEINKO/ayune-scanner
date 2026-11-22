@@ -8,6 +8,7 @@ import { STATUS_COLOR_CONFIG } from "@/lib/colorStatusConfig";
 import { asDate } from "@/lib/projectTimeline";
 import { trackingStatuses } from "@/lib/projectStatus";
 import type { ProjectDashboard } from "@/types/project";
+import { ThemeColor } from "@/components/themeColor";
 
 const formatDate = (value: string | null | undefined, includeYear = false) => {
 	const date = asDate(value);
@@ -34,6 +35,7 @@ export const CompletedProjectDetailPage = ({
 	const insights = completion?.insights;
 	return (
 		<main className="completed-project-review mx-auto min-h-dvh max-w-lg bg-background pb-28 text-foreground">
+			<ThemeColor color="color-mix(in srgb, var(--accent) 25%, var(--background))" />
 			<header className="rounded-b-4xl bg-accent/25 px-5 pt-5 pb-7">
 				<Link
 					href="/admin/projects"
@@ -65,7 +67,7 @@ export const CompletedProjectDetailPage = ({
 							<dt>Mulai</dt>
 							<dd>
 								{formatDate(review.startAt)}
-								<p>{review.startSource ?? "Scan pertama dan tanggal mulai tidak tersedia dalam laporan."}</p>
+								<p>{review.startSource ?? "Tanggal mulai tidak tersedia di ClickUp."}</p>
 							</dd>
 						</div>
 						<div className="review-stat">

@@ -24,8 +24,15 @@ const dashboard = {
 const report = completedProjectReview(dashboard);
 assert.equal(report.total, 4);
 assert.equal(report.scanned, 4);
-assert.equal(report.durationDays, 10);
-assert.equal(report.startSource, "Scan pertama");
+assert.equal(report.durationDays, 12);
+assert.equal(report.startAt, "2026-10-10T00:00:00.000Z");
+assert.equal(report.startSource, "Start date ClickUp");
+const missingStart = structuredClone(dashboard);
+missingStart.project.startDate = null;
+assert.equal(completedProjectReview(missingStart).startAt, null, "scan history must not supply the start date");
+assert.equal(completedProjectReview(missingStart).durationDays, null);
+missingStart.project.startDate = "2026-10-23T00:00:00Z";
+assert.equal(completedProjectReview(missingStart).durationDays, null, "a start after completion has no valid duration");
 assert.deepEqual(report.timeline.map(({ label, at }) => [label, at]), [
 	["Scan pertama", "2026-10-12 02:00:00"], ["50% terscan", "2026-10-17 02:00:00"],
 	["100% terscan", "2026-10-22 03:00:00"], ["Project selesai", "2026-10-22T10:00:00.000Z"],
@@ -45,6 +52,7 @@ assert.equal(completedProjectReview(noHistory).durationDays, null);
 noHistory.items = [];
 assert.equal(completedProjectReview(noHistory).total, 0);
 const jakarta = structuredClone(dashboard);
+jakarta.project.startDate = "2026-10-21T18:00:00Z";
 jakarta.items[0].components[0].history = [event("one", "2026-10-21T18:00:00Z")];
 for (const component of jakarta.items[0].components.slice(1)) component.history = [];
 assert.equal(completedProjectReview(jakarta).durationDays, 0, "calendar days use Jakarta, not UTC");

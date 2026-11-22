@@ -40,6 +40,8 @@ export function PanelViewerDetailPage({
 	canvasBehindNavigation = false,
 	onReady,
 	footer,
+	footerAlwaysVisible = false,
+	keepSelectedPanel = false,
 }: {
 	id: string;
 	rooms: { id: string; name: string }[];
@@ -53,6 +55,8 @@ export function PanelViewerDetailPage({
 	canvasBehindNavigation?: boolean;
 	onReady?: (ready: boolean) => void;
 	footer?: ReactNode;
+	footerAlwaysVisible?: boolean;
+	keepSelectedPanel?: boolean;
 }) {
 	const [room, setRoom] = useState(
 		rooms.some((item) => item.id === initialRoom)
@@ -236,8 +240,9 @@ export function PanelViewerDetailPage({
 				: room === initialRoom
 					? selectedPanel
 					: undefined,
+			keepSelectedPanel && room === initialRoom ? selectedPanel : undefined,
 		);
-	}, [room, initialRoom, selectedPanel, pickedPanel]);
+	}, [room, initialRoom, selectedPanel, pickedPanel, keepSelectedPanel]);
 	useEffect(() => {
 		viewer.current?.setDoorsOpen(doorsOpen);
 	}, [doorsOpen]);
@@ -364,7 +369,7 @@ export function PanelViewerDetailPage({
 				</div>
 			)}
 			<div
-				className={`absolute inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] max-h-[45%] overflow-y-auto rounded-xl border bg-card/95 shadow-sm ${hideRoomSelector ? "p-2" : "p-3 sm:left-5 sm:right-auto sm:w-96"}`}
+				className={`absolute inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] max-h-[45%] overflow-y-auto rounded-xl border bg-card/95 shadow-sm ${hideRoomSelector ? "p-2 md:left-5 md:right-auto md:w-96" : "p-3 sm:left-5 sm:right-auto sm:w-96"}`}
 			>
 				{hingeCheckUnavailable && (
 					<p role="status" className="mb-2 text-xs text-muted-foreground">
@@ -497,8 +502,8 @@ export function PanelViewerDetailPage({
 					</section>
 				)}
 				{footer &&
-					(!locationViewer || detailsOpen) &&
-					!(pickedPanel?.room === room && pickedPanel.id !== selectedPanel) && (
+					(!locationViewer || detailsOpen || footerAlwaysVisible) &&
+					(footerAlwaysVisible || !(pickedPanel?.room === room && pickedPanel.id !== selectedPanel)) && (
 						<div
 							className={
 								locationViewer

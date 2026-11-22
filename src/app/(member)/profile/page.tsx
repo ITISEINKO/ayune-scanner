@@ -1,11 +1,12 @@
 import { hasPpicAdminAccess } from "@/types/ppic";
 import { MemberProfilePage } from "@/features/profile/MemberProfilePage";
 import { redirect } from "next/navigation";
-import { ppicSession } from "@/lib/session";
+import { getAppSession } from "@/lib/session";
+import { getProfile } from "@/features/profile/getProfile";
 
 const Profile = async () => {
-	if (hasPpicAdminAccess((await ppicSession())?.role)) redirect("/admin/profile");
-	return <MemberProfilePage />;
+	if (hasPpicAdminAccess((await getAppSession())?.role)) redirect("/admin/profile");
+	return <MemberProfilePage profile={await getProfile()} />;
 };
 
 export default Profile;

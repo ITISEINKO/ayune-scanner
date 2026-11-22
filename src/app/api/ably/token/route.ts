@@ -1,10 +1,10 @@
 import { hasPpicAdminAccess } from "@/types/ppic";
 import { NextResponse } from "next/server";
 import { getAbly } from "@/lib/ably";
-import { ppicSession } from "@/lib/session";
+import { getAppSession } from "@/lib/session";
 
 export async function GET() {
-	const session = await ppicSession();
+	const session = await getAppSession();
 	if (!session)
 		return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
 

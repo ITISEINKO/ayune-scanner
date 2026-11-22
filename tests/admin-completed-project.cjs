@@ -2,7 +2,7 @@
 const assert = require("node:assert/strict");
 const { createHash, createHmac } = require("node:crypto");
 const { spawn } = require("node:child_process");
-const { mkdtempSync, mkdirSync } = require("node:fs");
+const { mkdtempSync, mkdirSync, readFileSync } = require("node:fs");
 const { tmpdir } = require("node:os");
 const { join } = require("node:path");
 
@@ -14,7 +14,7 @@ if (process.env.COMPLETED_REVIEW_SERVER === "1") {
 		assert.equal(init?.method ?? "GET", "GET", "review never mutates ClickUp");
 		return nativeFetch(
 			`http://127.0.0.1:4900/clickup${url.pathname}${url.search}`,
-			{ ...init, headers: { "x-test-mode": "project-complete" } },
+			{ ...init, headers: { "x-test-mode": "project-complete-review" } },
 		);
 	};
 } else {
@@ -30,7 +30,7 @@ async function main() {
 	await fetch("http://127.0.0.1:4900/clickup/api/v2/task/complete-project", {
 		method: "PUT",
 		headers: {
-			"x-test-mode": "project-complete",
+			"x-test-mode": "project-complete-review",
 			"Content-Type": "application/json",
 		},
 		body: JSON.stringify({ status: "complete" }),
@@ -38,20 +38,21 @@ async function main() {
 	const directory = mkdtempSync(join(tmpdir(), "trackerprod-review-"));
 	const databaseUrl = `file:${join(directory, "review.db").replaceAll("\\", "/")}`;
 	const db = createClient({ url: databaseUrl });
-	const secret = "local-completed-review-secret";
+	const secret = "local-completed-review-secret-at-least-32";
 	const baseURL = "http://127.0.0.1:3358";
-	await db.execute(
-		"CREATE TABLE ppic_permissions (clickup_user_id TEXT PRIMARY KEY, role TEXT)",
-	);
-	await db.execute(
-		"INSERT INTO ppic_permissions VALUES ('admin', 'SUPER_ADMIN')",
-	);
+	const statements = (path) => readFileSync(path, "utf8").split("--> statement-breakpoint").map(sql => sql.trim()).filter(Boolean);
+	await db.batch(statements("drizzle/0004_mean_carlie_cooper.sql"), "write");
+	await db.batch(statements("drizzle/0006_absurd_redwing.sql").slice(0, 6), "write");
+	const now = Date.now();
+	await db.execute({ sql: 'INSERT INTO "user" (id,name,email,"emailVerified",role,active,"createdAt","updatedAt") VALUES (?,?,?,?,?,?,?,?)', args: ["admin", "Admin", "admin@example.test", 0, "SUPER_ADMIN", 1, now, now] });
+	await db.execute({ sql: 'INSERT INTO account (id,"userId","accountId","providerId","accessToken","createdAt","updatedAt") VALUES (?,?,?,?,?,?,?)', args: ["account", "admin", "admin", "clickup", "local-review-token", now, now] });
+	await db.execute({ sql: 'INSERT INTO session (id,token,"userId","expiresAt","createdAt","updatedAt") VALUES (?,?,?,?,?,?)', args: ["session", "session-token", "admin", now + 3600000, now, now] });
 	const dashboard = {
 		project: {
 			task_id: "complete-project",
 			name: "AY-19880 APARTEMEN KEMANG - DAPUR",
 			custom_id: "AY-19880",
-			startDate: null,
+			startDate: "2026-10-12T00:00:00Z",
 			dueDate: null,
 			status: "complete",
 		},
@@ -163,6 +164,8 @@ async function main() {
 				TURSO_DATABASE_URL: databaseUrl,
 				TURSO_AUTH_TOKEN: "local-only",
 				CLICKUP_CLIENT_SECRET: secret,
+				BETTER_AUTH_SECRET: secret,
+				BETTER_AUTH_URL: baseURL,
 				CLICKUP_PPIC_PANEL_LIST_ID: "1100830000000087",
 				ABLY_API_KEY: "",
 			},
@@ -188,23 +191,11 @@ async function main() {
 		const context = await browser.newContext({
 			viewport: { width: 390, height: 844 },
 		});
-		const payload = Buffer.from(
-			JSON.stringify({
-				user_id: "admin",
-				role: "SUPER_ADMIN",
-				allowed_status: null,
-				refreshed_at: Date.now(),
-			}),
-		).toString("base64url");
+		const signature = createHmac("sha256", secret).update("session-token").digest("base64");
 		await context.addCookies([
 			{
-				name: "ppic_session",
-				value: `${payload}.${createHmac("sha256", secret).update(payload).digest("base64url")}`,
-				url: baseURL,
-			},
-			{
-				name: "clickup_access_token",
-				value: "local-review-token",
+				name: "better-auth.session_token",
+				value: encodeURIComponent(`session-token.${signature}`),
 				url: baseURL,
 			},
 		]);

@@ -1,6 +1,6 @@
 // Run after npm run build: node tests/admin-role-browser.cjs
 const assert = require("node:assert/strict");
-const { mkdtempSync } = require("node:fs");
+const { mkdtempSync, readFileSync } = require("node:fs");
 const { tmpdir } = require("node:os");
 const { join } = require("node:path");
 const { createHmac } = require("node:crypto");
@@ -12,13 +12,27 @@ const { chromium, expect } = require("@playwright/test");
 	const directory = mkdtempSync(join(tmpdir(), "trackerprod-admin-browser-"));
 	const databaseUrl = `file:${join(directory, "roles.db").replaceAll("\\", "/")}`;
 	const db = createClient({ url: databaseUrl });
-	await db.execute("CREATE TABLE ppic_permissions (clickup_user_id TEXT PRIMARY KEY, role TEXT, allowed_status TEXT, active INTEGER)");
-	await db.execute("INSERT INTO ppic_permissions VALUES ('test-user', 'ADMIN', 'BARANG_DITERIMA', 0)");
-	await db.execute("ALTER TABLE ppic_permissions ADD COLUMN can_import_lby INTEGER NOT NULL DEFAULT 0 CHECK(can_import_lby IN (0,1))");
-	const secret = "local-role-browser-secret", base = "http://127.0.0.1:3358";
+	const secret = "local-role-browser-secret-at-least-32-characters", base = "http://127.0.0.1:3358";
+	const statements = (path) => readFileSync(path, "utf8").split("--> statement-breakpoint").map((sql) => sql.trim()).filter(Boolean);
+	await db.batch(statements("drizzle/0004_mean_carlie_cooper.sql"), "write");
+	await db.batch(statements("drizzle/0006_absurd_redwing.sql").slice(0, 6), "write");
+	const now = Date.now();
+	await db.execute({
+		sql: 'INSERT INTO "user" (id,name,email,"emailVerified",role,allowed_status,active,can_import_lby,"createdAt","updatedAt") VALUES (?,?,?,?,?,?,?,?,?,?)',
+		args: ["test-user", "Test User", "test-user@example.test", 0, "ADMIN", '["BARANG_DITERIMA"]', 1, 0, now, now],
+	});
+	await db.execute({
+		sql: 'INSERT INTO account (id,"accountId","providerId","userId","accessToken","createdAt","updatedAt") VALUES (?,?,?,?,?,?,?)',
+		args: ["test-account", "test-user", "clickup", "test-user", "local-only", now, now],
+	});
+	const sessionToken = "local-role-browser-session";
+	await db.execute({
+		sql: 'INSERT INTO session (id,token,"userId","expiresAt","createdAt","updatedAt") VALUES (?,?,?,?,?,?)',
+		args: ["test-session", sessionToken, "test-user", now + 60 * 60 * 1000, now, now],
+	});
 	const server = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start", "-p", "3358"], {
 		windowsHide: true, stdio: ["ignore", "pipe", "pipe"],
-		env: { ...process.env, TURSO_DATABASE_URL: databaseUrl, TURSO_AUTH_TOKEN: "local-only", CLICKUP_CLIENT_SECRET: secret, ABLY_API_KEY: "" },
+		env: { ...process.env, TURSO_DATABASE_URL: databaseUrl, TURSO_AUTH_TOKEN: "local-only", CLICKUP_CLIENT_SECRET: secret, BETTER_AUTH_SECRET: secret, BETTER_AUTH_URL: base, ABLY_API_KEY: "" },
 	});
 	let logs = "", browser;
 	server.stdout.on("data", (chunk) => { logs += chunk; });
@@ -31,8 +45,8 @@ const { chromium, expect } = require("@playwright/test");
 		}
 		browser = await chromium.launch();
 		for (const role of ["ADMIN", "SUPER_ADMIN", "MEMBER"]) {
-			await db.execute({ sql: "UPDATE ppic_permissions SET role=? WHERE clickup_user_id='test-user'", args: [role] });
-			await db.execute("UPDATE ppic_permissions SET can_import_lby=0 WHERE clickup_user_id='test-user'");
+			await db.execute({ sql: 'UPDATE "user" SET role=? WHERE id=?', args: [role, "test-user"] });
+			await db.execute({ sql: 'UPDATE "user" SET can_import_lby=0 WHERE id=?', args: ["test-user"] });
 			const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
 			const writes = [];
 			let importer = false;
@@ -48,6 +62,8 @@ const { chromium, expect } = require("@playwright/test");
 					}
 					return route.fulfill({ json: { ok: true } });
 				}
+				if (url.pathname === "/api/auth/refresh")
+					return route.fulfill({ json: { ok: true, path: "/admin" } });
 				if (url.pathname === "/api/panel/members") return route.fulfill({ json: {
 					members: [{ id: "member", name: "Member Example" }, { id: "owner", name: "Highest Role" }, { id: "super", name: "Super Admin Example" }],
 					roles: { member: "MEMBER", owner: "ADMIN", super: "SUPER_ADMIN" }, permissions: { member: ["BARANG_DITERIMA"], owner: null, super: null },
@@ -56,19 +72,17 @@ const { chromium, expect } = require("@playwright/test");
 				if (url.pathname.startsWith("/api/")) return route.fulfill({ status: 401, json: {} });
 				return route.continue();
 			});
-			const payload = Buffer.from(JSON.stringify({ user_id: "test-user", role, allowed_status: role === "MEMBER" ? ["BARANG_DITERIMA"] : null, refreshed_at: Date.now() })).toString("base64url");
-			const signature = createHmac("sha256", secret).update(payload).digest("base64url");
+			const signature = createHmac("sha256", secret).update(sessionToken).digest("base64");
 			await context.addCookies([
-				{ name: "clickup_access_token", value: "local-only", url: base },
-				{ name: "ppic_session", value: `${payload}.${signature}`, url: base },
+				{ name: "better-auth.session_token", value: encodeURIComponent(`${sessionToken}.${signature}`), url: base },
 			]);
 			const page = await context.newPage();
 			const errors = [];
 			page.on("pageerror", (error) => errors.push(error.message));
-			await page.goto(`${base}/admin/settings`);
+			await page.goto(`${base}/admin/users`);
 			if (role === "MEMBER") {
 				await expect(page).toHaveURL(`${base}/unauthorized`);
-				await db.execute("UPDATE ppic_permissions SET can_import_lby=1 WHERE clickup_user_id='test-user'");
+				await db.execute({ sql: 'UPDATE "user" SET can_import_lby=1 WHERE id=?', args: ["test-user"] });
 				await page.goto(`${base}/admin/import-3d`);
 				await expect(page).toHaveURL(`${base}/unauthorized`);
 				await page.goto(`${base}/drafter`);
@@ -78,6 +92,7 @@ const { chromium, expect } = require("@playwright/test");
 				await expect(page.getByRole("heading", { name: "Pengguna & aktivitas" })).toBeVisible();
 				await expect(page.getByRole("navigation").getByRole("link")).toHaveCount(5);
 				if (role === "ADMIN") {
+					await page.goto(`${base}/admin/settings`);
 					let releaseProfile;
 					const profileGate = new Promise((resolve) => { releaseProfile = resolve; });
 					const holdProfile = async (route) => {
@@ -90,48 +105,55 @@ const { chromium, expect } = require("@playwright/test");
 					const navigation = profileLink.click();
 					await expect(profileLink.locator("[data-navigation-pending]")).toBeVisible();
 					await expect(profileLink).not.toHaveAttribute("aria-current", "page");
-					await expect(page.getByRole("navigation").getByRole("link", { name: "Member", exact: true })).toHaveAttribute("aria-current", "page");
+					await expect(page.getByRole("navigation").getByRole("link", { name: "Settings", exact: true })).toHaveAttribute("aria-current", "page");
 					assert(!await profileLink.evaluate((link) => link.className.includes("bg-white/10")), "pending destination must not look active");
 					releaseProfile();
 					await navigation;
 					await expect(page).toHaveURL(`${base}/admin/profile`);
 					await expect(profileLink.locator("[data-navigation-pending]")).toHaveCount(0);
 					await page.unroute("**/admin/profile*", holdProfile);
-					await page.goto(`${base}/admin/settings`);
+					await page.goto(`${base}/admin/users`);
 				}
-				const highest = page.getByRole("button", { name: "Lihat detail Highest Role", exact: true });
-				if (role === "SUPER_ADMIN") await expect(highest).toBeDisabled();
-				else await expect(highest).toBeEnabled();
-				await page.getByRole("button", { name: "Lihat detail Member Example", exact: true }).click();
-				await page.getByRole("tab", { name: "Akses halaman", exact: true }).click();
+				await page.getByRole("link", { name: "Lihat detail Highest Role", exact: true }).click();
+				await page.getByRole("tab", { name: "Akses", exact: true }).click();
+				const adminRole = page.getByRole("button", { name: "Admin", exact: true });
+				if (role === "SUPER_ADMIN") {
+					await expect(adminRole).toBeDisabled();
+					await expect(page.getByText("Hanya Admin yang dapat mengubah akses Admin.")).toBeVisible();
+				} else {
+					await expect(adminRole).toBeEnabled();
+				}
+				await page.goto(`${base}/admin/users`);
+				await page.getByRole("link", { name: "Lihat detail Member Example", exact: true }).click();
+				await page.getByRole("tab", { name: "Akses", exact: true }).click();
 				await expect(page.getByRole("button", { name: "Admin", exact: true })).toHaveCount(role === "ADMIN" ? 1 : 0);
 				await expect(page.getByRole("button", { name: "Super Admin", exact: true })).toBeVisible();
-				await page.getByRole("checkbox", { name: "Drafter", exact: true }).click();
+				await page.getByRole("checkbox", { name: /Drafter/ }).click();
 				await page.getByRole("button", { name: "Simpan", exact: true }).click();
-				await expect(page.getByRole("dialog")).toHaveCount(0);
 				assert.deepEqual(writes, [{ user_id: "member", can_import_lby: true }], "changing LBY access must not resave unrelated status permissions");
 				await page.reload();
-				await expect(page.getByText("Drafter", { exact: true })).toBeVisible();
-				await page.getByRole("button", { name: "Lihat detail Super Admin Example", exact: true }).click();
-				await page.getByRole("tab", { name: "Akses halaman", exact: true }).click();
-				await expect(page.getByRole("checkbox", { name: "Drafter", exact: true })).toBeEnabled();
-				await page.getByRole("checkbox", { name: "Drafter", exact: true }).click();
+				await page.getByRole("tab", { name: "Akses", exact: true }).click();
+				await expect(page.getByRole("checkbox", { name: /Drafter/ })).toBeChecked();
+				await page.goto(`${base}/admin/users`);
+				await page.getByRole("link", { name: "Lihat detail Super Admin Example", exact: true }).click();
+				await page.getByRole("tab", { name: "Akses", exact: true }).click();
+				await expect(page.getByRole("checkbox", { name: /Drafter/ })).toBeEnabled();
+				await page.getByRole("checkbox", { name: /Drafter/ }).click();
 				await page.getByRole("button", { name: "Simpan", exact: true }).click();
-				await expect(page.getByRole("dialog")).toHaveCount(0);
 				assert.deepEqual(writes.at(-1), { user_id: "super", can_import_lby: true }, "granting LBY to SUPER_ADMIN does not rewrite its role or scan access");
-				await db.execute("UPDATE ppic_permissions SET can_import_lby=1 WHERE clickup_user_id='test-user'");
+				await db.execute({ sql: 'UPDATE "user" SET can_import_lby=1 WHERE id=?', args: ["test-user"] });
 				await page.goto(`${base}/admin/profile`);
-				await expect(page.getByRole("link", { name: "Kelola model LBY", exact: true })).toBeVisible();
-				await page.getByRole("link", { name: "Kelola model LBY", exact: true }).click();
+				await expect(page.getByRole("heading", { name: "Profil", exact: true })).toBeVisible();
+				await page.goto(`${base}/admin/import-3d`);
 				await expect(page).toHaveURL(`${base}/admin/import-3d`);
 				await expect(page.getByRole("heading", { name: "Model LBY 3D Ver2", exact: true })).toBeVisible();
 				await expect(page.locator("header").getByText("Admin", { exact: true })).toBeVisible();
-				assert.deepEqual(await page.getByRole("navigation").getByRole("link").allTextContents(), ["Home", "Projects", "Scan", "Member", "Profile"]);
+				assert.deepEqual(await page.getByRole("navigation").getByRole("link").allTextContents(), ["Home", "Projects", "Scan", "Settings", "Profile"]);
 				await page.goto(`${base}/panel-location?project=z96buhry4p&barcode=15370046376`);
 				await page.getByRole("link", { name: "Kembali ke model", exact: true }).click();
 				await expect(page).toHaveURL(`${base}/admin/import-3d/old`);
 				if (role === "SUPER_ADMIN") {
-					await db.execute("UPDATE ppic_permissions SET can_import_lby=0 WHERE clickup_user_id='test-user'");
+					await db.execute({ sql: 'UPDATE "user" SET can_import_lby=0 WHERE id=?', args: ["test-user"] });
 					await page.reload();
 					await expect(page).toHaveURL(`${base}/unauthorized`);
 				}

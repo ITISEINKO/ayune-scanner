@@ -21,7 +21,7 @@ export const completedProjectReview = (dashboard: ProjectDashboard) => {
 		.sort((a, b) => asDate(a.scannedAt)!.getTime() - asDate(b.scannedAt)!.getTime());
 	const firstScan = history[0]?.scannedAt ?? null;
 	const plannedStart = asDate(dashboard.project.startDate)?.toISOString() ?? null;
-	const startAt = firstScan ?? (plannedStart && (!completedAt || plannedStart <= completedAt) ? plannedStart : null);
+	const startAt = plannedStart;
 	const timeline: { label: string; description: string; at: string | null }[] = [];
 	if (firstScan) timeline.push({ label: "Scan pertama", description: "Aktivitas scan pertama yang tercatat.", at: firstScan });
 	const seen = new Set<string>();
@@ -54,7 +54,7 @@ export const completedProjectReview = (dashboard: ProjectDashboard) => {
 	})).sort((a, b) => b.scans - a.scans || a.name.localeCompare(b.name));
 	return {
 		total, scanned, counts, startAt, completedAt, timeline, members,
-		startSource: firstScan ? "Scan pertama" : startAt ? "Start date ClickUp" : null,
-		durationDays: startAt && completedAt ? calendarDaysBetween(startAt, completedAt) : null,
+		startSource: startAt ? "Start date ClickUp" : null,
+		durationDays: startAt && completedAt && startAt <= completedAt ? calendarDaysBetween(startAt, completedAt) : null,
 	};
 };

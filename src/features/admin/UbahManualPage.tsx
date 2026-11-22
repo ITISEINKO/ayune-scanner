@@ -1,9 +1,11 @@
 "use client";
 
+import { PageHeader } from "@/components/pageHeader";
+
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, ChevronDown } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { Scanner } from "@/components/scanner";
 import StatusPicker from "@/components/statusPicker";
@@ -20,6 +22,7 @@ import { PanelLocationViewer } from "@/features/panel-location/PanelLocationView
 import { PanelLocationLoader } from "@/features/panel-location/PanelLocationLoader";
 import { PanelViewerDetailPage } from "@/features/panel-viewer/PanelViewerDetailPage";
 import type { ManualPanelChoice, ManualPanelItem } from "@/types/panelLocation";
+import type { TrialPanelMatch } from "@/types/publicModel";
 import { panelDisplayName } from "@/lib/panelLocation";
 
 const messageFor = (error?: string) =>
@@ -40,7 +43,17 @@ const messageFor = (error?: string) =>
 			"Lokasi panel belum dapat dimuat. Coba lagi sebentar.",
 	})[error ?? ""] ?? "Data barang tidak dapat diproses.";
 
-export const UbahManualPage = ({ serialNumber }: { serialNumber?: string }) => {
+export const UbahManualPage = ({
+	serialNumber,
+	initialModels = [],
+	modelError = false,
+}: {
+	serialNumber?: string;
+	initialModels?: (Omit<TrialPanelMatch, "roomName"> & {
+		rooms: { id: string; name: string }[];
+	})[];
+	modelError?: boolean;
+}) => {
 	const router = useRouter();
 	const finding = useRef(false);
 	const savingRef = useRef(false);
@@ -52,41 +65,10 @@ export const UbahManualPage = ({ serialNumber }: { serialNumber?: string }) => {
 	const [saving, setSaving] = useState(false);
 	const [editing, setEditing] = useState(false);
 	const [errorMessage, setErrorMessage] = useState("");
-	const [models, setModels] = useState<
-		{
-			modelId: string;
-			roomId: string;
-			panelId: string;
-			name: string;
-			revision: string;
-			rooms: { id: string; name: string }[];
-		}[]
-	>([]);
-	const [modelIndex, setModelIndex] = useState(0);
+	const models = initialModels;
+	const [modelIndex, setModelIndex] = useState(models.length > 1 ? -1 : 0);
 	const [legacyViewer, setLegacyViewer] = useState(false);
-	const [modelError, setModelError] = useState(false);
-	const [modelLoaded, setModelLoaded] = useState(false);
 	const model = models[modelIndex];
-	useEffect(() => {
-		if (!serialNumber) return;
-		const controller = new AbortController();
-		fetch(
-			`/api/admin/trial-3d-import?${new URLSearchParams({ serial: serialNumber })}`,
-			{ signal: controller.signal },
-		)
-			.then((response) => (response.ok ? response.json() : Promise.reject()))
-			.then((data) => {
-				setModels(data.results);
-				setModelIndex(data.results.length > 1 ? -1 : 0);
-			})
-			.catch(() => {
-				if (!controller.signal.aborted) setModelError(true);
-			})
-			.finally(() => {
-				if (!controller.signal.aborted) setModelLoaded(true);
-			});
-		return () => controller.abort();
-	}, [serialNumber]);
 	const findItem = (value: string) => {
 		const code = value.trim();
 		if (!code || finding.current) return;
@@ -279,8 +261,8 @@ export const UbahManualPage = ({ serialNumber }: { serialNumber?: string }) => {
 		<main
 			className={
 				serialNumber
-					? "relative mx-auto flex h-dvh max-w-lg flex-col overflow-hidden bg-neutral-50 pb-(--bottom-navigation-height) dark:bg-background"
-					: "mx-auto min-h-dvh max-w-lg p-4 pb-28"
+					? "relative mx-auto flex h-dvh max-w-lg flex-col overflow-hidden bg-neutral-50 pb-(--bottom-navigation-height) md:max-w-none dark:bg-background"
+					: "mx-auto min-h-dvh max-w-120 bg-background pb-28"
 			}
 		>
 			{serialNumber ? (
@@ -311,27 +293,15 @@ export const UbahManualPage = ({ serialNumber }: { serialNumber?: string }) => {
 				</header>
 			) : (
 				<>
-					<header className="mb-7">
-						<div className="flex items-center gap-4">
-							<div className="size-19 shrink-0 overflow-hidden">
-								<img src="/icon.svg" alt="" className="size-full" />
-							</div>
-							<div>
-								<p className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
-									Produksi Panel admin
-								</p>
-								<h1 className="text-xl font-black capitalize tracking-tight">
-									Ubah status barang
-								</h1>
-							</div>
-						</div>
-						<p className="mt-2 text-sm text-muted-foreground">
-							Scan Serial Number untuk menampilkan lokasi item dan mengubah
-							statusnya secara manual.
-						</p>
-					</header>
+					<PageHeader eyebrow="Produksi Panel" title="Ubah status barang" />
+					<p className="px-4 pt-4 pb-5 text-sm text-muted-foreground">
+						Scan Serial Number untuk menampilkan lokasi item dan mengubah
+						statusnya secara manual.
+					</p>
 
-					<Scanner onDetected={findItem} disabled={loading} />
+					<div className="px-4">
+						<Scanner onDetected={findItem} disabled={loading} />
+					</div>
 				</>
 			)}
 			{loading && serialNumber && (
@@ -415,38 +385,40 @@ export const UbahManualPage = ({ serialNumber }: { serialNumber?: string }) => {
 									rooms={model.rooms}
 									initialRoom={model.roomId}
 									selectedPanel={model.panelId}
+									initialSerial={serialNumber}
+									initialNumber={model.number}
 									trialRevision={model.revision}
 									hideRoomSelector
+									locationViewer
+									footerAlwaysVisible
+									keepSelectedPanel
 									footer={
-										<details open className="group">
-											<summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden">
-												<span className="flex min-w-0 flex-1 flex-col">
-													<span className="truncate text-sm font-bold">
-														{item
-															? panelDisplayName(
-																	item.nama,
-																	locatedPanel?.panelNumber
-																		? `Panel ${locatedPanel.panelNumber}`
-																		: "Panel",
-																)
-															: "Panel"}
-													</span>
-													<span className="truncate text-xs text-muted-foreground">
-														Serial: {item?.serial_number ?? serialNumber}
-													</span>
+										<div className="border-t pt-3">
+											<p className="mb-2 text-xs text-muted-foreground">
+												Merah: panel yang diubah · Biru: panel yang dipilih
+											</p>
+											<div className="flex min-w-0 items-center gap-2">
+												<span className="min-w-0 flex-1 truncate text-sm font-bold">
+													{item
+														? panelDisplayName(
+																item.nama,
+																locatedPanel?.panelNumber
+																	? `Panel ${locatedPanel.panelNumber}`
+																	: "Panel",
+															)
+														: "Panel"}
 												</span>
 												{item && (
 													<Badge className="max-w-[55%] truncate rounded-full bg-accent/20 px-2 py-1 text-[10px] font-bold text-foreground">
 														{item.status ?? "STATUS TIDAK TERSEDIA"}
 													</Badge>
 												)}
-												<ChevronDown
-													aria-hidden="true"
-													className="size-4 shrink-0 transition-transform group-open:rotate-180"
-												/>
-											</summary>
+											</div>
+											<p className="mt-1 text-xs text-muted-foreground">
+												Serial yang diubah: {serialNumber}
+											</p>
 											{statusCard}
-										</details>
+										</div>
 									}
 								/>
 								{models.length > 1 && (
@@ -498,19 +470,17 @@ export const UbahManualPage = ({ serialNumber }: { serialNumber?: string }) => {
 								className="flex min-h-0 flex-1 flex-col items-center justify-center-safe overflow-y-auto px-5 pb-8 pt-20 text-center text-sm text-muted-foreground"
 							>
 								<p>
-									{!modelLoaded
-										? "Mencari model 3D aktif…"
-										: modelError
-											? "Model 3D aktif belum dapat diperiksa."
-											: item?.location
-												? "Serial tidak ditemukan pada model 3D aktif."
-												: item?.location_error === "LOCATION_AMBIGUOUS"
-													? "Serial ditemukan di beberapa model aktif. Periksa model LBY di profil admin. Status barang tetap dapat diubah."
-													: item?.location_error
-														? "Lokasi panel belum dapat dimuat. Status barang tetap dapat diubah."
-														: "Lokasi panel belum tersedia. Hubungi drafter untuk mengunggah model LBY. Status barang tetap dapat diubah."}
+									{modelError
+										? "Model 3D aktif belum dapat diperiksa."
+										: item?.location
+											? "Serial tidak ditemukan pada model 3D aktif."
+											: item?.location_error === "LOCATION_AMBIGUOUS"
+												? "Serial ditemukan di beberapa model aktif. Periksa model LBY di profil admin. Status barang tetap dapat diubah."
+												: item?.location_error
+													? "Lokasi panel belum dapat dimuat. Status barang tetap dapat diubah."
+													: "Lokasi panel belum tersedia. Hubungi drafter untuk mengunggah model LBY. Status barang tetap dapat diubah."}
 								</p>
-								{modelLoaded && item?.location && (
+								{item?.location && (
 									<button
 										type="button"
 										className="mt-3 underline"

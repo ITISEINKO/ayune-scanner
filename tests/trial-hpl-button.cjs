@@ -6,7 +6,7 @@ const values = [];
 let cursor = 0, calls = [], success = '';
 const component = { exports: {} };
 const jsx = (type, props, key) => ({ type, props, key });
-runInNewContext(ts.transpileModule(readFileSync('src/features/trial-import/Trial3DImportPage.tsx', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText, {
+runInNewContext(ts.transpileModule(readFileSync('src/features/import/Import3DPage.tsx', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText, {
 	module: component, exports: component.exports, URLSearchParams, Date, AbortController,
 	fetch: async (url, init) => { calls.push({ url, init }); return { ok: true, json: async () => ({ models: [], syncedAt: '2026-11-20T03:00:00.000Z', panels: [{ syncedAt: '2026-11-20T03:00:00.000Z' }] }) }; },
 	require: (id) => {
@@ -18,7 +18,7 @@ runInNewContext(ts.transpileModule(readFileSync('src/features/trial-import/Trial
 	},
 });
 const nodes = (node) => !node || typeof node !== 'object' ? [] : [node, ...[node.props?.children].flat(Infinity).flatMap(nodes)];
-const render = () => { cursor = 0; return component.exports.Trial3DImportPage({}); };
+const render = () => { cursor = 0; return component.exports.Import3DPage({}); };
 render();
 values[2] = [
 	{ id: '123', name: 'Active', activeRevision: 'active', versions: [{ revision: 'candidate', number: 2, importedAt: '2026-01-01', panelCount: 5, groupCount: 2 }, { revision: 'active', number: 1, importedAt: '2026-01-01' }] },

@@ -7,8 +7,8 @@ export default function manifest(): MetadataRoute.Manifest {
 		description: "Mobile production scanner",
 		start_url: "/",
 		display: "standalone",
-		background_color: "#fdfcff",
-		theme_color: "#fdfcff",
+		background_color: "#f7f6f2",
+		theme_color: "#f7f6f2",
 		icons: [
 			{
 				src: "/android-chrome-192x192.png",
