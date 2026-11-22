@@ -18,7 +18,7 @@ const required = {
 	verification: ["id", "identifier", "value", "expiresAt", "createdAt", "updatedAt"],
 };
 
-async function migrate(db, members, apply = false) {
+async function migrate(db, members, apply = false, expectedPermissions = null) {
 	const byId = new Map();
 	for (const member of members) {
 		assert(member && (typeof member.id === "string" || typeof member.id === "number"), "Invalid member ID");
@@ -53,6 +53,10 @@ async function migrate(db, members, apply = false) {
 		const expectedColumns = ["clickup_user_id", "display_name", "role", "allowed_status", "active", "can_import_lby", "updated_by", "updated_at"];
 		assert(sourceColumns.length === expectedColumns.length && expectedColumns.every((name) => sourceColumns.includes(name)), "Unexpected legacy permission schema");
 		const permissions = (await tx.execute("SELECT * FROM ppic_permissions")).rows;
+		if (expectedPermissions) {
+			const normalize = (rows) => rows.map((p) => expectedColumns.map((key) => p[key])).sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+			assert.deepEqual(normalize(permissions), normalize(expectedPermissions), "Legacy permissions differ from backup; create a fresh backup before applying");
+		}
 		let created = 0, placeholders = 0;
 		for (const p of permissions) {
 			assert(p.clickup_user_id != null && String(p.clickup_user_id).trim(), "Permission has no ClickUp ID");

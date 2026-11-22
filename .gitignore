@@ -37,6 +37,9 @@
 /trackerprod-panel.db-wal*
 /trackerprod-panel.db-shm*
 /.local-backups/
+/members.json
+/production-backup.db*
+
 /AGENTS.md
 .DS_Store
 *.pem
