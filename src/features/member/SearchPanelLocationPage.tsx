@@ -7,7 +7,7 @@ import { ArrowLeft, LoaderCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Scanner } from "@/components/scanner";
 import { buttonVariants } from "@/components/ui/button";
-import { PanelLocationViewer } from "@/features/panel-location/PanelLocationViewer";
+import { PanelLocationViewer } from "@/features/panel-location-old/PanelLocationViewer";
 import { PanelViewerDetailPage } from "@/features/panel-viewer/PanelViewerDetailPage";
 import type { PanelLocationView } from "@/types/panelLocation";
 import type { TrialPanelMatch } from "@/types/publicModel";

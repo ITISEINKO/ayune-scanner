@@ -1,4 +1,4 @@
-import { LbyImportPage } from "@/features/panel-location/LbyImportPage";
+import { LbyImportPage } from "@/features/panel-location-old/LbyImportPage";
 import { canImportLby } from "@/lib/db";
 import { getAppSession } from "@/lib/session";
 import { redirect } from "next/navigation";

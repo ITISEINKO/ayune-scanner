@@ -18,8 +18,8 @@ import {
 	DrawerTitle,
 } from "@/components/ui/drawer";
 import { statusBarangScanOptions } from "@/lib/produksiPanel";
-import { PanelLocationViewer } from "@/features/panel-location/PanelLocationViewer";
-import { PanelLocationLoader } from "@/features/panel-location/PanelLocationLoader";
+import { PanelLocationViewer } from "@/features/panel-location-old/PanelLocationViewer";
+import { PanelLocationLoader } from "@/features/panel-location-old/PanelLocationLoader";
 import { PanelViewerDetailPage } from "@/features/panel-viewer/PanelViewerDetailPage";
 import type { ManualPanelChoice, ManualPanelItem } from "@/types/panelLocation";
 import type { TrialPanelMatch } from "@/types/publicModel";

@@ -167,6 +167,8 @@ export async function createPanelViewer(
 	renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
 	target.appendChild(renderer.domElement);
 	const controls = new OrbitControls(camera, renderer.domElement);
+	const initialCameraPosition = camera.position.clone();
+	const initialCameraTarget = controls.target.clone();
 	const raycaster = new THREE.Raycaster();
 	let pointerStart: { x: number; y: number; id: number } | null = null;
 	const pointerDown = (event: PointerEvent) => {
@@ -342,6 +344,12 @@ export async function createPanelViewer(
 		apply(next: typeof settings) {
 			settings = next;
 			update();
+			render();
+		},
+		resetView() {
+			camera.position.copy(initialCameraPosition);
+			controls.target.copy(initialCameraTarget);
+			controls.update();
 			render();
 		},
 		setSelected(id?: string, pinnedId?: string) {

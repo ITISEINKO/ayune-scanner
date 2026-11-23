@@ -4,18 +4,17 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
 	DoorOpen,
 	EyeOff,
-	ScanEye,
 	Hash,
-	Bone,
 	DoorClosed,
 	ChevronDown,
 	ChevronUp,
+	RotateCcw,
 	TriangleAlert,
 	X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { PanelLocationLoader } from "@/features/panel-location/PanelLocationLoader";
+import { PanelLocationLoader } from "@/features/panel-location-old/PanelLocationLoader";
 import {
 	Select,
 	SelectContent,
@@ -68,6 +67,7 @@ export function PanelViewerDetailPage({
 		id: string;
 		number: string;
 	} | null>(null);
+	const [selectionCleared, setSelectionCleared] = useState(false);
 	const [detailsOpen, setDetailsOpen] = useState(false);
 	const [dismissedHingesRoom, setDismissedHingesRoom] = useState<string | null>(
 		null,
@@ -81,8 +81,9 @@ export function PanelViewerDetailPage({
 		"loading" | "ready" | "login" | "denied" | "error"
 	>("loading");
 	const hplRequest = useRef<AbortController | null>(null);
-	const selectedId =
-		pickedPanel?.room === room
+	const selectedId = selectionCleared
+		? undefined
+		: pickedPanel?.room === room
 			? pickedPanel.id
 			: room === initialRoom
 				? selectedPanel
@@ -110,14 +111,37 @@ export function PanelViewerDetailPage({
 				}
 				if (!response.ok) throw new Error("HPL unavailable");
 				const data = (await response.json()) as {
-					panels: (PanelHpl & { room: string; id: string; syncedAt?: string })[];
+					panels: (PanelHpl & {
+						room: string;
+						id: string;
+						syncedAt?: string;
+					})[];
 					syncedAt: string | null;
 				};
 				if (!abort.signal.aborted) {
-					const panels = data.panels.map((panel) => ({ ...panel, syncedAt: panel.syncedAt ?? data.syncedAt ?? "" }));
-					setHpl((previous) => mode === "panel" && previous?.key === hplKey
-						? { key: hplKey, syncedAt: previous.syncedAt, panels: [...previous.panels.filter((panel) => !panels.some((updated) => updated.room === panel.room && updated.id === panel.id)), ...panels] }
-						: { key: hplKey, syncedAt: data.syncedAt ?? "", panels });
+					const panels = data.panels.map((panel) => ({
+						...panel,
+						syncedAt: panel.syncedAt ?? data.syncedAt ?? "",
+					}));
+					setHpl((previous) =>
+						mode === "panel" && previous?.key === hplKey
+							? {
+									key: hplKey,
+									syncedAt: previous.syncedAt,
+									panels: [
+										...previous.panels.filter(
+											(panel) =>
+												!panels.some(
+													(updated) =>
+														updated.room === panel.room &&
+														updated.id === panel.id,
+												),
+										),
+										...panels,
+									],
+								}
+							: { key: hplKey, syncedAt: data.syncedAt ?? "", panels },
+					);
 					setHplState("ready");
 				}
 			})
@@ -129,7 +153,7 @@ export function PanelViewerDetailPage({
 		if (!locationViewer || !trialRevision) return;
 		loadHpl();
 		return () => hplRequest.current?.abort();
-	// The lookup belongs to the model revision, not the selected panel.
+		// The lookup belongs to the model revision, not the selected panel.
 	}, [id, trialRevision, locationViewer]);
 	const selectedHpl =
 		hpl?.key === hplKey
@@ -161,6 +185,7 @@ export function PanelViewerDetailPage({
 		room,
 		initialRoom,
 		selectedPanel,
+		selectionCleared,
 		doorsOpen,
 		hideDoors,
 		xray,
@@ -171,6 +196,7 @@ export function PanelViewerDetailPage({
 		room,
 		initialRoom,
 		selectedPanel,
+		selectionCleared,
 		doorsOpen,
 		hideDoors,
 		xray,
@@ -198,8 +224,10 @@ export function PanelViewerDetailPage({
 			trialRevision,
 			locationViewer,
 			locationViewer
-				? (id, number) =>
-						setPickedPanel({ room: latest.current.room, id, number })
+				? (id, number) => {
+						setSelectionCleared(false);
+						setPickedPanel({ room: latest.current.room, id, number });
+					}
 				: undefined,
 		)
 			.then(async (result) => {
@@ -211,7 +239,9 @@ export function PanelViewerDetailPage({
 				viewer.current = result;
 				const state = latest.current;
 				result.setSelected(
-					state.room === state.initialRoom ? state.selectedPanel : undefined,
+					!state.selectionCleared && state.room === state.initialRoom
+						? state.selectedPanel
+						: undefined,
 				);
 				result.setDoorsOpen(state.doorsOpen);
 				result.apply(state);
@@ -235,14 +265,25 @@ export function PanelViewerDetailPage({
 	}, [parts, id, trialRevision, locationViewer]);
 	useEffect(() => {
 		viewer.current?.setSelected(
-			pickedPanel?.room === room
-				? pickedPanel.id
-				: room === initialRoom
-					? selectedPanel
-					: undefined,
-			keepSelectedPanel && room === initialRoom ? selectedPanel : undefined,
+			selectionCleared
+				? undefined
+				: pickedPanel?.room === room
+					? pickedPanel.id
+					: room === initialRoom
+						? selectedPanel
+						: undefined,
+			!selectionCleared && keepSelectedPanel && room === initialRoom
+				? selectedPanel
+				: undefined,
 		);
-	}, [room, initialRoom, selectedPanel, pickedPanel, keepSelectedPanel]);
+	}, [
+		room,
+		initialRoom,
+		selectedPanel,
+		pickedPanel,
+		selectionCleared,
+		keepSelectedPanel,
+	]);
 	useEffect(() => {
 		viewer.current?.setDoorsOpen(doorsOpen);
 	}, [doorsOpen]);
@@ -350,6 +391,26 @@ export function PanelViewerDetailPage({
 						<Icon aria-hidden="true" />
 					</Button>
 				))}
+				{locationViewer && (
+					<>
+						<div className="mx-1 border-t" />
+						<Button
+							type="button"
+							variant="ghost"
+							size="icon"
+							aria-label="Reset lokasi dan pilihan panel"
+							title="Reset lokasi dan pilihan panel"
+							onClick={() => {
+								viewer.current?.resetView();
+								setPickedPanel(null);
+								setSelectionCleared(true);
+								setDetailsOpen(false);
+							}}
+						>
+							<RotateCcw aria-hidden="true" />
+						</Button>
+					</>
+				)}
 			</div>
 			{missingHinges > 0 && dismissedHingesRoom !== room && (
 				<div
@@ -468,12 +529,12 @@ export function PanelViewerDetailPage({
 								? "Memuat kode HPL…"
 								: hplState === "login"
 									? "Login untuk memperbarui kode HPL."
-								: hplState === "denied"
-									? "Refresh hanya tersedia untuk pengguna yang memiliki izin import model."
-									: hplState === "error"
-									? `Kode HPL gagal diperbarui.${selectedHpl ? ` Data lama dari ${new Date(selectedHpl.syncedAt).toLocaleString("id-ID")}.` : ""}`
-										: selectedHpl && hpl
-											? `Diperbarui: ${new Date(selectedHpl.syncedAt).toLocaleString("id-ID")}`
+									: hplState === "denied"
+										? "Refresh hanya tersedia untuk pengguna yang memiliki izin import model."
+										: hplState === "error"
+											? `Kode HPL gagal diperbarui.${selectedHpl ? ` Data lama dari ${new Date(selectedHpl.syncedAt).toLocaleString("id-ID")}.` : ""}`
+											: selectedHpl && hpl
+												? `Diperbarui: ${new Date(selectedHpl.syncedAt).toLocaleString("id-ID")}`
 												: "HPL belum disinkronkan untuk panel ini."}
 						</p>
 						<div className="flex flex-wrap gap-2">
@@ -503,7 +564,10 @@ export function PanelViewerDetailPage({
 				)}
 				{footer &&
 					(!locationViewer || detailsOpen || footerAlwaysVisible) &&
-					(footerAlwaysVisible || !(pickedPanel?.room === room && pickedPanel.id !== selectedPanel)) && (
+					(footerAlwaysVisible ||
+						!(
+							pickedPanel?.room === room && pickedPanel.id !== selectedPanel
+						)) && (
 						<div
 							className={
 								locationViewer
