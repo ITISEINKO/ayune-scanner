@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
 	DoorOpen,
+	Eye,
 	EyeOff,
 	Hash,
 	DoorClosed,
@@ -13,6 +14,15 @@ import {
 	X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+	ContextMenu,
+	ContextMenuContent,
+	ContextMenuGroup,
+	ContextMenuItem,
+	ContextMenuLabel,
+	ContextMenuSeparator,
+	ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import { Slider } from "@/components/ui/slider";
 import { PanelLocationLoader } from "@/features/panel-location-old/PanelLocationLoader";
 import {
@@ -62,12 +72,13 @@ export function PanelViewerDetailPage({
 			? initialRoom!
 			: (rooms[0]?.id ?? ""),
 	);
-	const [pickedPanel, setPickedPanel] = useState<{
+	const [pickedPanels, setPickedPanels] = useState<{
 		room: string;
 		id: string;
 		number: string;
-	} | null>(null);
-	const [selectionCleared, setSelectionCleared] = useState(false);
+	}[] | null>(null);
+	const [hiddenPanels, setHiddenPanels] = useState<{ room: string; id: string }[]>([]);
+	const [contextMenuPanelId, setContextMenuPanelId] = useState<string | null>(null);
 	const [detailsOpen, setDetailsOpen] = useState(false);
 	const [dismissedHingesRoom, setDismissedHingesRoom] = useState<string | null>(
 		null,
@@ -81,13 +92,37 @@ export function PanelViewerDetailPage({
 		"loading" | "ready" | "login" | "denied" | "error"
 	>("loading");
 	const hplRequest = useRef<AbortController | null>(null);
-	const selectedId = selectionCleared
-		? undefined
-		: pickedPanel?.room === room
-			? pickedPanel.id
-			: room === initialRoom
-				? selectedPanel
-				: undefined;
+	const allPickedPanels = useMemo(
+		() =>
+			pickedPanels ??
+			(selectedPanel
+				? [
+						{
+							room: initialRoom ?? room,
+							id: selectedPanel,
+							number: initialNumber ?? "",
+						},
+					]
+				: []),
+		[pickedPanels, selectedPanel, initialRoom, initialNumber, room],
+	);
+	const selectedPanels = useMemo(
+		() => allPickedPanels.filter((panel) => panel.room === room),
+		[allPickedPanels, room],
+	);
+	const pickedPanel = selectedPanels[selectedPanels.length - 1];
+	const selectedId = pickedPanel?.id;
+	const selectedIds = useMemo(
+		() => selectedPanels.map((panel) => panel.id),
+		[selectedPanels],
+	);
+	const hiddenIds = useMemo(
+		() =>
+			hiddenPanels
+				.filter((panel) => panel.room === room)
+				.map((panel) => panel.id),
+		[hiddenPanels, room],
+	);
 	const hplKey = `${id}:${trialRevision}`;
 	function loadHpl(mode?: "panel") {
 		hplRequest.current?.abort();
@@ -185,7 +220,9 @@ export function PanelViewerDetailPage({
 		room,
 		initialRoom,
 		selectedPanel,
-		selectionCleared,
+		initialNumber,
+		selectedPanels: allPickedPanels,
+		hiddenPanels,
 		doorsOpen,
 		hideDoors,
 		xray,
@@ -196,7 +233,9 @@ export function PanelViewerDetailPage({
 		room,
 		initialRoom,
 		selectedPanel,
-		selectionCleared,
+		initialNumber,
+		selectedPanels: allPickedPanels,
+		hiddenPanels,
 		doorsOpen,
 		hideDoors,
 		xray,
@@ -204,6 +243,25 @@ export function PanelViewerDetailPage({
 		explode,
 	};
 	onReadyRef.current = onReady;
+	function hidePanels(ids: string[]) {
+		if (!ids.length) return;
+		setHiddenPanels((current) => [
+			...current.filter((panel) => panel.room !== room || !ids.includes(panel.id)),
+			...ids.map((panelId) => ({ room, id: panelId })),
+		]);
+		setPickedPanels((current) =>
+			(current ?? latest.current.selectedPanels).filter(
+				(panel) => panel.room !== room || !ids.includes(panel.id),
+			),
+		);
+		if (selectedIds.some((id) => ids.includes(id))) setDetailsOpen(false);
+		setContextMenuPanelId(null);
+	}
+	useEffect(() => {
+		setPickedPanels(null);
+		setHiddenPanels([]);
+		setContextMenuPanelId(null);
+	}, [id, trialRevision]);
 	useEffect(() => {
 		onReadyRef.current?.(status.kind === "ready");
 	}, [status.kind]);
@@ -224,10 +282,26 @@ export function PanelViewerDetailPage({
 			trialRevision,
 			locationViewer,
 			locationViewer
-				? (id, number) => {
-						setSelectionCleared(false);
-						setPickedPanel({ room: latest.current.room, id, number });
+				? (id, number, multi) => {
+						setPickedPanels((current) => {
+							const previous = current ?? latest.current.selectedPanels;
+							const otherRooms = previous.filter(
+								(panel) => panel.room !== latest.current.room,
+							);
+							const selected = previous.filter(
+								(panel) => panel.room === latest.current.room,
+							);
+							const next = !multi
+								? [{ room: latest.current.room, id, number }]
+								: selected.some((panel) => panel.id === id)
+									? selected.filter((panel) => panel.id !== id)
+									: [...selected, { room: latest.current.room, id, number }];
+							return [...otherRooms, ...next];
+						});
 					}
+				: undefined,
+			locationViewer
+				? (id) => setContextMenuPanelId(id)
 				: undefined,
 		)
 			.then(async (result) => {
@@ -239,9 +313,17 @@ export function PanelViewerDetailPage({
 				viewer.current = result;
 				const state = latest.current;
 				result.setSelected(
-					!state.selectionCleared && state.room === state.initialRoom
+					state.selectedPanels
+						.filter((panel) => panel.room === state.room)
+						.map((panel) => panel.id),
+					keepSelectedPanel && state.room === state.initialRoom
 						? state.selectedPanel
 						: undefined,
+				);
+				result.setHidden(
+					state.hiddenPanels
+						.filter((panel) => panel.room === state.room)
+						.map((panel) => panel.id),
 				);
 				result.setDoorsOpen(state.doorsOpen);
 				result.apply(state);
@@ -262,28 +344,24 @@ export function PanelViewerDetailPage({
 			current?.dispose();
 			if (viewer.current === current) viewer.current = null;
 		};
-	}, [parts, id, trialRevision, locationViewer]);
+	}, [parts, id, trialRevision, locationViewer, keepSelectedPanel]);
 	useEffect(() => {
 		viewer.current?.setSelected(
-			selectionCleared
-				? undefined
-				: pickedPanel?.room === room
-					? pickedPanel.id
-					: room === initialRoom
-						? selectedPanel
-						: undefined,
-			!selectionCleared && keepSelectedPanel && room === initialRoom
+			selectedIds,
+			keepSelectedPanel && room === initialRoom
 				? selectedPanel
 				: undefined,
 		);
 	}, [
+		selectedIds,
 		room,
 		initialRoom,
 		selectedPanel,
-		pickedPanel,
-		selectionCleared,
 		keepSelectedPanel,
 	]);
+	useEffect(() => {
+		viewer.current?.setHidden(hiddenIds);
+	}, [hiddenIds, room]);
 	useEffect(() => {
 		viewer.current?.setDoorsOpen(doorsOpen);
 	}, [doorsOpen]);
@@ -293,11 +371,50 @@ export function PanelViewerDetailPage({
 
 	return (
 		<section className="absolute inset-0" aria-label="Viewer model 3D">
-			<div
-				ref={container}
-				className={`absolute inset-0 ${canvasBehindNavigation ? "-bottom-(--bottom-navigation-height)" : ""}`}
-				aria-label="Model 3D interaktif"
-			/>
+			<ContextMenu
+				open={Boolean(locationViewer && contextMenuPanelId)}
+				onOpenChange={(open) => {
+					if (!open) setContextMenuPanelId(null);
+				}}
+			>
+				{locationViewer ? (
+					<ContextMenuTrigger className="absolute inset-0">
+						<div
+							ref={container}
+							className={`absolute inset-0 ${canvasBehindNavigation ? "-bottom-(--bottom-navigation-height)" : ""}`}
+							aria-label="Model 3D interaktif"
+						/>
+					</ContextMenuTrigger>
+				) : (
+					<div
+						ref={container}
+						className={`absolute inset-0 ${canvasBehindNavigation ? "-bottom-(--bottom-navigation-height)" : ""}`}
+						aria-label="Model 3D interaktif"
+					/>
+				)}
+				{locationViewer && (
+					<ContextMenuContent>
+						<ContextMenuGroup>
+							<ContextMenuLabel>
+								Ctrl/Cmd-click untuk memilih beberapa panel
+							</ContextMenuLabel>
+							<ContextMenuSeparator />
+							{contextMenuPanelId && (
+								<ContextMenuItem onClick={() => hidePanels([contextMenuPanelId])}>
+									Sembunyikan panel ini
+								</ContextMenuItem>
+							)}
+							{contextMenuPanelId &&
+								selectedIds.length > 1 &&
+								selectedIds.includes(contextMenuPanelId) && (
+									<ContextMenuItem onClick={() => hidePanels(selectedIds)}>
+										Sembunyikan {selectedIds.length} panel terpilih
+									</ContextMenuItem>
+								)}
+						</ContextMenuGroup>
+					</ContextMenuContent>
+				)}
+			</ContextMenu>
 			{status.kind !== "ready" && (
 				<div className="absolute inset-0 flex bg-background">
 					{status.kind === "loading" ? (
@@ -398,13 +515,32 @@ export function PanelViewerDetailPage({
 							type="button"
 							variant="ghost"
 							size="icon"
+							aria-label="Tampilkan panel tersembunyi"
+							title="Tampilkan panel tersembunyi"
+							disabled={!hiddenIds.length}
+							onClick={() =>
+								setHiddenPanels((current) =>
+									current.filter((panel) => panel.room !== room),
+								)
+							}
+						>
+							<Eye aria-hidden="true" />
+						</Button>
+						<Button
+							type="button"
+							variant="ghost"
+							size="icon"
 							aria-label="Reset lokasi dan pilihan panel"
 							title="Reset lokasi dan pilihan panel"
 							onClick={() => {
 								viewer.current?.resetView();
-								setPickedPanel(null);
-								setSelectionCleared(true);
+								setPickedPanels((current) =>
+									(current ?? latest.current.selectedPanels).filter(
+										(panel) => panel.room !== room,
+									),
+								);
 								setDetailsOpen(false);
+								setContextMenuPanelId(null);
 							}}
 						>
 							<RotateCcw aria-hidden="true" />
