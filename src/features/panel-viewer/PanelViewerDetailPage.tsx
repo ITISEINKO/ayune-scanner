@@ -539,6 +539,9 @@ export function PanelViewerDetailPage({
 										(panel) => panel.room !== room,
 									),
 								);
+								setHiddenPanels((current) =>
+									current.filter((panel) => panel.room !== room),
+								);
 								setDetailsOpen(false);
 								setContextMenuPanelId(null);
 							}}
