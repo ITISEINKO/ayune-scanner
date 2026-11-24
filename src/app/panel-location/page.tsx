@@ -63,8 +63,8 @@ export default async function PanelLocationPage({
 			preview={revision !== undefined}
 			modelsHref={
 				hasPpicAdminAccess(access?.role)
-					? "/admin/import-3d/old"
-					: "/drafter/old"
+					? "/admin/import-3d"
+					: "/drafter"
 			}
 		/>
 	);

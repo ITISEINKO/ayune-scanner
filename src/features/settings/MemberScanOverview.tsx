@@ -17,6 +17,16 @@ const dateLabel = (date: string, days: number) =>
 			: { day: "numeric", month: "short", timeZone: "Asia/Jakarta" },
 	).format(new Date(`${date}T00:00:00+07:00`));
 
+const compactCount = (count: number) =>
+	count < 1000
+		? count.toLocaleString("id-ID")
+		: new Intl.NumberFormat("en-US", {
+				notation: "compact",
+				maximumFractionDigits: 1,
+			})
+				.format(count)
+				.toLowerCase();
+
 export function MemberScanOverview({ memberId }: { memberId?: string }) {
 	const [period, setPeriod] = useState<MemberScanPeriod>("7");
 	const { data, isPending, isError, refetch } = useQuery({
@@ -40,16 +50,13 @@ export function MemberScanOverview({ memberId }: { memberId?: string }) {
 		day.count > best.count ? day : best,
 	);
 	const statusData =
-		(data && (memberId ? data.statuses : data.lifetimeStatuses))
+		data?.lifetimeStatuses
 			?.filter(({ count }) => count > 0)
 			.map((bucket) => ({
 				...bucket,
 				fill: STATUS_COLOR_CONFIG[bucket.status].color,
 			})) ?? [];
-	const statusTotal = (memberId ? data?.total : data?.lifetimeTotal) ?? 0;
-	const change = data?.previousTotal
-		? Math.round(((data.total - data.previousTotal) / data.previousTotal) * 100)
-		: null;
+	const statusTotal = data?.lifetimeTotal ?? 0;
 
 	return (
 		<div
@@ -58,28 +65,6 @@ export function MemberScanOverview({ memberId }: { memberId?: string }) {
 			}
 			aria-busy={isPending}
 		>
-			{memberId && (
-				<div className="flex gap-2" aria-label="Periode ringkasan">
-					{(
-						[
-							["7", "7 hari"],
-							["30", "30 hari"],
-							["month", "Bulan ini"],
-						] as const
-					).map(([value, label]) => (
-						<Button
-							key={value}
-							size="sm"
-							variant={period === value ? "secondary" : "outline"}
-							className="rounded-full"
-							aria-pressed={period === value}
-							onClick={() => setPeriod(value)}
-						>
-							{label}
-						</Button>
-					))}
-				</div>
-			)}
 			{isPending ? (
 				<div
 					role="status"
@@ -121,17 +106,15 @@ export function MemberScanOverview({ memberId }: { memberId?: string }) {
 						<div className="grid grid-cols-2 gap-3">
 							<section className="rounded-2xl border border-border/30 bg-card p-4">
 								<h3 className="text-xs text-muted-foreground">Total scan</h3>
-								<p className="mt-1 text-3xl font-bold tabular-nums">
-									{(memberId ? data.total : data.lifetimeTotal).toLocaleString(
-										"id-ID",
-									)}
+								<p
+									className="mt-1 text-3xl font-bold tabular-nums"
+									title={data.lifetimeTotal.toLocaleString("id-ID")}
+									aria-label={`Total scan ${data.lifetimeTotal.toLocaleString("id-ID")} sepanjang waktu`}
+								>
+									{compactCount(data.lifetimeTotal)}
 								</p>
 								<p className="mt-1 text-xs text-muted-foreground">
-									{!memberId
-										? "Sepanjang waktu"
-										: change === null
-											? "Periode sebelumnya: 0"
-											: `${change > 0 ? "+" : ""}${change}% vs ${data.days.length} hari sebelumnya`}
+									Sepanjang waktu
 								</p>
 							</section>
 							<section className="rounded-2xl border border-border/30 bg-card p-4">
@@ -146,7 +129,7 @@ export function MemberScanOverview({ memberId }: { memberId?: string }) {
 										"7 hari terakhir"
 									) : (
 										<>
-											Rata-rata{" "}
+											Rata-rata {data.days.length} hari{" "}
 											{(data.total / data.days.length).toLocaleString("id-ID", {
 												maximumFractionDigits: 1,
 											})}
@@ -159,73 +142,98 @@ export function MemberScanOverview({ memberId }: { memberId?: string }) {
 						{data.total === 0 && (
 							<p className="text-sm text-muted-foreground">
 								{memberId
-									? "Belum ada scan pada periode ini."
+									? `Belum ada scan dalam ${data.days.length} hari terakhir.`
 									: "Belum ada scan dalam 7 hari terakhir."}
 							</p>
 						)}
-						<section className="rounded-2xl border border-border/30 bg-card p-4">
-							<div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-								<h3 className="font-bold">
+						<section
+							className="space-y-2"
+							aria-labelledby="member-daily-scans-heading"
+						>
+							<div className="flex items-center justify-between gap-2 px-1">
+								<h3
+									id="member-daily-scans-heading"
+									className="text-xs font-bold tracking-wide text-muted-foreground uppercase"
+								>
 									{memberId ? "Scan per hari" : "7 hari terakhir"}
 								</h3>
-								{peak && peak.count > 0 && (
-									<p className="text-xs text-muted-foreground">
-										Puncak {dateLabel(peak.date, data.days.length)},{" "}
-										{peak.count}
-									</p>
+								{memberId && (
+									<div
+										className="flex rounded-lg bg-muted p-0.5"
+										role="group"
+										aria-label="Periode grafik scan per hari"
+									>
+										{(["7", "30"] as const).map((value) => (
+											<Button
+												key={value}
+												type="button"
+												size="sm"
+												variant={period === value ? "secondary" : "ghost"}
+												className="h-7 rounded-lg px-2 text-xs"
+												aria-pressed={period === value}
+												onClick={() => setPeriod(value)}
+											>
+												{value} hari
+											</Button>
+										))}
+									</div>
 								)}
 							</div>
-							<div
-								className="overflow-x-auto pb-1"
-								tabIndex={0}
-								role="region"
-								aria-label="Grafik scan harian, geser untuk melihat semua hari"
-							>
+							<div className="rounded-3xl bg-card p-4">
 								<div
-									className="flex h-36 gap-2"
-									style={{
-										minWidth:
-											data.days.length > 7 ? data.days.length * 36 : undefined,
-									}}
+									className="no-scrollbar overflow-x-auto pb-1"
+									tabIndex={0}
+									role="region"
+									aria-label="Grafik scan harian, geser untuk melihat semua hari"
 								>
-									{data.days.map((day, index) => (
-										<div
-											key={day.date}
-											className="flex min-w-0 flex-1 flex-col items-center justify-end gap-1"
-											aria-label={`${dateLabel(day.date, data.days.length)}: ${day.count} scan`}
-										>
-											<span className="text-[10px] tabular-nums text-muted-foreground">
-												{day.count}
-											</span>
+									<div
+										className="flex h-36 gap-2"
+										style={{
+											minWidth:
+											data.days.length > 7 ? data.days.length * 36 : undefined,
+										}}
+									>
+										{data.days.map((day, index) => (
 											<div
-												className={`w-full max-w-9 rounded-t-md ${index === data.days.length - 1 ? "bg-accent" : "bg-muted"}`}
-												style={{
-													height: `${(day.count / Math.max(1, peak?.count ?? 0)) * 96}px`,
-													minHeight: 2,
-												}}
-											/>
-											<span className="whitespace-nowrap text-[10px] text-muted-foreground">
-												{dateLabel(day.date, data.days.length)}
-											</span>
-										</div>
-									))}
+												key={day.date}
+												className="flex min-w-0 flex-1 flex-col items-center justify-end gap-1"
+												aria-label={`${dateLabel(day.date, data.days.length)}: ${day.count} scan`}
+											>
+												<span className="text-[10px] tabular-nums text-muted-foreground">
+													{day.count}
+												</span>
+												<div
+													className={`w-full max-w-9 rounded-t-md ${index === data.days.length - 1 ? "bg-accent" : "bg-muted"}`}
+													style={{
+														height: `${(day.count / Math.max(1, peak?.count ?? 0)) * 96}px`,
+														minHeight: 2,
+													}}
+												/>
+												<span className="whitespace-nowrap text-[10px] text-muted-foreground">
+													{dateLabel(day.date, data.days.length)}
+												</span>
+											</div>
+										))}
+									</div>
 								</div>
 							</div>
 						</section>
 						<section
-							className="rounded-2xl border border-border/30 bg-card p-4"
-							aria-label="Ringkasan scan per status"
+							className="space-y-2"
+							aria-labelledby="member-status-scans-heading"
 						>
-							<div className="mb-4">
-								<h3 className="font-bold">
+							<div className="flex items-center justify-between gap-2 px-1">
+								<h3
+									id="member-status-scans-heading"
+									className="text-xs font-bold tracking-wide text-muted-foreground uppercase"
+								>
 									{memberId ? "Scan per status" : "Total scan per status"}
 								</h3>
-								{!memberId && (
-									<p className="mt-1 text-xs text-muted-foreground">
-										Sepanjang waktu
-									</p>
-								)}
+								<p className="shrink-0 text-xs text-muted-foreground">
+									Sepanjang waktu
+								</p>
 							</div>
+							<div className="rounded-3xl bg-card p-4">
 							<div className="flex items-center gap-4">
 								<div className="relative size-32 shrink-0">
 									<ChartContainer
@@ -255,9 +263,9 @@ export function MemberScanOverview({ memberId }: { memberId?: string }) {
 									<div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
 										<p
 											className="max-w-20 truncate text-xl font-bold tabular-nums"
-											aria-label={`Total ${statusTotal.toLocaleString("id-ID")} scan ${memberId ? "pada periode ini" : "sepanjang waktu"}`}
+										aria-label={`Total ${statusTotal.toLocaleString("id-ID")} scan sepanjang waktu`}
 										>
-											{statusTotal.toLocaleString("id-ID")}
+											{compactCount(statusTotal)}
 										</p>
 										<p className="text-[10px] text-muted-foreground">
 											total scan
@@ -290,11 +298,12 @@ export function MemberScanOverview({ memberId }: { memberId?: string }) {
 									</p>
 								)}
 							</div>
+							</div>
 						</section>
 						<p className="text-xs text-muted-foreground">
 							Berdasarkan scan berhasil yang tercatat. Waktu dalam WIB;{" "}
 							{memberId
-								? `periode ini mencakup hari ini yang belum selesai, dibandingkan dengan ${data.days.length} hari penuh sebelumnya.`
+								? `grafik harian untuk ${data.days.length} hari terakhir; total dan status sepanjang waktu.`
 								: "grafik harian untuk 7 hari terakhir; total per status sepanjang waktu."}
 						</p>
 					</>

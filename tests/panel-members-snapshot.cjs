@@ -4,10 +4,8 @@ const { readFileSync } = require("node:fs");
 const { runInNewContext } = require("node:vm");
 const { transpileModule, ModuleKind } = require("typescript");
 
-let snapshot = null, upstream = 0, allowed = true, session = true, fail = false;
+let upstream = 0, allowed = true, session = true, fail = false;
 const db = {
-	getPanelMembersSnapshot: async () => snapshot,
-	savePanelMembersSnapshot: async (members) => { snapshot = members; },
 	savePpicMemberNames: async () => {},
 	isPpicSuperAdmin: async () => allowed,
 	getPpicMemberAccess: async () => ({ roles: {}, permissions: {} }),
@@ -31,16 +29,16 @@ runInNewContext(transpileModule(readFileSync("src/app/api/panel/members/route.ts
 const get = (query = "") => mod.exports.GET(new Request(`http://localhost/api/panel/members${query}`));
 (async () => {
 	assert.equal((await get()).status, 200);
-	assert.equal(upstream, 1, "first visit initializes snapshot");
-	assert.equal((await (await get()).json()).members[0].name, "Name 1");
-	assert.equal(upstream, 1, "normal reads avoid ClickUp");
-	assert.equal((await (await get("?refresh=1")).json()).members[0].name, "Name 2");
+	assert.equal(upstream, 1, "first visit reads channel members");
+	assert.equal((await (await get()).json()).members[0].name, "Name 2");
+	assert.equal(upstream, 2, "normal reads use channel members");
+	assert.equal((await (await get("?refresh=1")).json()).members[0].name, "Name 3");
 	fail = true;
 	assert.equal((await get("?refresh=1")).status, 502);
-	assert.equal((await (await get()).json()).members[0].name, "Name 2", "failed refresh preserves snapshot");
+	assert.equal((await get()).status, 502, "workspace members are not used as fallback");
 	allowed = false;
 	assert.equal((await get()).status, 403);
 	session = false;
 	assert.equal((await get()).status, 401);
-	console.log("PASS: member snapshot bootstrap, reads, refresh, failure and authorization.");
+	console.log("PASS: channel member reads, refresh, failure and authorization.");
 })().catch((error) => { console.error(error); process.exitCode = 1; });

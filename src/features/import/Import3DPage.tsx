@@ -368,19 +368,6 @@ export function Import3DPage({
 							<DropdownMenuItem render={<Link href="/cari-lokasi" />}>
 								Buka pencarian lokasi
 							</DropdownMenuItem>
-							<DropdownMenuItem
-								render={
-									<Link
-										href={
-											workspace === "Admin"
-												? "/admin/import-3d/old"
-												: "/drafter/old"
-										}
-									/>
-								}
-							>
-								Kelola model LBY old
-							</DropdownMenuItem>
 						</DropdownMenuContent>
 					</DropdownMenu>
 				}
@@ -872,6 +859,7 @@ export function Import3DPage({
 						id={preview.model.id}
 						rooms={preview.rooms}
 						trialRevision={preview.revision}
+						selectionEnabled
 						onReady={setReady}
 						footer={
 							preview.revision !== preview.model.activeRevision && (

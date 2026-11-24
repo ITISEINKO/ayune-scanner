@@ -151,7 +151,7 @@ const { chromium, expect } = require("@playwright/test");
 				assert.deepEqual(await page.getByRole("navigation").getByRole("link").allTextContents(), ["Home", "Projects", "Scan", "Settings", "Profile"]);
 				await page.goto(`${base}/panel-location?project=z96buhry4p&barcode=15370046376`);
 				await page.getByRole("link", { name: "Kembali ke model", exact: true }).click();
-				await expect(page).toHaveURL(`${base}/admin/import-3d/old`);
+				await expect(page).toHaveURL(`${base}/admin/import-3d`);
 				if (role === "SUPER_ADMIN") {
 					await db.execute({ sql: 'UPDATE "user" SET can_import_lby=0 WHERE id=?', args: ["test-user"] });
 					await page.reload();

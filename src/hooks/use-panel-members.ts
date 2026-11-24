@@ -22,6 +22,7 @@ const loadMembers = async () => {
 		roles?: Record<string, PpicRole>;
 		permissions?: Record<string, PpicStatuses | null>;
 		lbyImporters?: Record<string, boolean>;
+		provisioned?: Record<string, boolean>;
 	};
 	if (!response.ok || !data.members) throw new Error("members");
 	return {
@@ -29,6 +30,7 @@ const loadMembers = async () => {
 		roles: data.roles ?? {},
 		permissions: data.permissions ?? {},
 		lbyImporters: data.lbyImporters ?? {},
+		provisioned: data.provisioned ?? {},
 	};
 };
 
@@ -58,7 +60,13 @@ export function usePanelMembers() {
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(body),
 			});
-			if (!response.ok) throw new Error("permission");
+			const data = (await response.json().catch(() => ({}))) as {
+				error?: unknown;
+			};
+			if (!response.ok)
+				throw new Error(
+					typeof data.error === "string" ? data.error : "permission",
+				);
 			return body;
 		},
 		onSuccess: (body) => {
@@ -66,15 +74,18 @@ export function usePanelMembers() {
 				panelMembersQuery.queryKey,
 				(data) => {
 					if (!data) return data;
-					if ("can_import_lby" in body) return { ...data, lbyImporters: { ...data.lbyImporters, [body.user_id]: body.can_import_lby } };
+					const provisioned = { ...data.provisioned, [body.user_id]: true };
+					if ("can_import_lby" in body) return { ...data, provisioned, lbyImporters: { ...data.lbyImporters, [body.user_id]: body.can_import_lby } };
 					if ("role" in body)
 						return {
 							...data,
+							provisioned,
 							roles: { ...data.roles, [body.user_id]: body.role },
 							permissions: { ...data.permissions, [body.user_id]: null },
 						};
 					return {
 						...data,
+						provisioned,
 						permissions: {
 							...data.permissions,
 							[body.user_id]: body.allowed_status,
@@ -144,6 +155,7 @@ export function usePanelMembers() {
 		roles: query.data?.roles ?? {},
 		permissions: query.data?.permissions ?? {},
 		lbyImporters: query.data?.lbyImporters ?? {},
+		provisioned: query.data?.provisioned ?? {},
 		loading: query.isLoading,
 		error: query.isError,
 		refreshError,

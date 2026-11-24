@@ -3,13 +3,11 @@ import { revalidateTag } from "next/cache";
 import {
 	deactivatePpicPermission,
 	getPpicMemberAccess,
-	getPanelMembersSnapshot,
 	getLbyImportPermissions,
 	getPpicAccess,
 	isPpicRole,
 	isPpicSuperAdmin,
 	savePpicMemberNames,
-	savePanelMembersSnapshot,
 	savePpicPermission,
 	savePpicRole,
 	saveLbyImportPermission,
@@ -42,14 +40,13 @@ export async function GET(request: Request) {
 		const userId = (await getAppSession())?.user_id;
 		if (!userId) return accessError(401);
 		if (!(await isPpicSuperAdmin(userId))) return accessError(403);
-		let members = await getPanelMembersSnapshot();
-		if (new URL(request.url).searchParams.get("refresh") === "1" || members === null) {
+		if (new URL(request.url).searchParams.get("refresh") === "1") {
 			revalidateTag(PANEL_MEMBERS_CACHE_TAG, { expire: 0 });
-			const result = await panelChannelMembers();
-			if (!result.ok) return accessError(result.status);
-			members = result.members;
-			await Promise.all([savePanelMembersSnapshot(members), savePpicMemberNames(members)]);
 		}
+		const result = await panelChannelMembers();
+		if (!result.ok) return accessError(result.status);
+		const members = result.members;
+		await savePpicMemberNames(members);
 		const [access, lbyImporters] = await Promise.all([
 			getPpicMemberAccess(members.map((member) => member.id)),
 			getLbyImportPermissions(members.map((member) => member.id)),

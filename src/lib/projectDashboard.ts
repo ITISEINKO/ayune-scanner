@@ -16,6 +16,7 @@ import { clickUpHeaders } from "@/lib/clickup";
 import { getScanStatus, serialNumberOf } from "@/lib/projectSerialCache";
 import { applyProjectStatusChanges } from "@/lib/projectStatus";
 import { withCompletedProjectInsights } from "@/lib/completedProjectInsights";
+import { asDate } from "@/lib/projectTimeline";
 import { CLICKUP_TEAM_ID } from "@/lib/produksiPanel";
 import { clickUpUserIdForToken } from "@/lib/session";
 import type { ClickUpTask } from "@/types/clickup";
@@ -42,7 +43,7 @@ const loadTask = async (token: string, taskId: string, signal: AbortSignal) => {
 	return (await response.json()) as ClickUpTask;
 };
 
-const loadCurrentStatusDuration = async (
+export const loadCurrentStatusDuration = async (
 	token: string,
 	taskId: string,
 	signal: AbortSignal,
@@ -55,17 +56,31 @@ const loadCurrentStatusDuration = async (
 			signal,
 		},
 	);
-	if (!response.ok) return { minutes: null, since: null };
+	if (!response.ok) return { minutes: null, since: null, inProgressSince: null };
 	const body = (await response.json().catch(() => null)) as {
 		current_status?: {
 			status?: unknown;
 			total_time?: { by_minute?: unknown; since?: unknown };
 		};
+		status_history?: {
+			status?: unknown;
+			total_time?: { since?: unknown };
+		}[];
 	} | null;
-	if (body?.current_status?.status?.toString().toLowerCase() !== "in progress")
-		return { minutes: null, since: null };
-	const minutes = body?.current_status?.total_time?.by_minute;
-	const since = body.current_status.total_time?.since;
+	const currentIsInProgress = body?.current_status?.status?.toString().toLowerCase() === "in progress";
+	const minutes = currentIsInProgress ? body?.current_status?.total_time?.by_minute : null;
+	const since = currentIsInProgress ? body?.current_status?.total_time?.since : null;
+	const historicalInProgressSince = Array.isArray(body?.status_history)
+		? body.status_history.find(
+				(entry) => entry.status?.toString().toLowerCase() === "in progress",
+			)?.total_time?.since
+		: null;
+	const inProgressSince = currentIsInProgress
+		? (body?.current_status?.total_time?.since ?? historicalInProgressSince)
+		: historicalInProgressSince;
+	const inProgressTimestamp = typeof inProgressSince === "string" || typeof inProgressSince === "number"
+		? String(inProgressSince)
+		: null;
 	return {
 		minutes:
 			typeof minutes === "number" && Number.isFinite(minutes) && minutes >= 0
@@ -75,7 +90,21 @@ const loadCurrentStatusDuration = async (
 			typeof since === "string" || typeof since === "number"
 				? String(since)
 				: null,
+		inProgressSince: inProgressTimestamp && asDate(inProgressTimestamp) ? inProgressTimestamp : null,
 	};
+};
+
+const loadProjectStartDate = async (
+	token: string,
+	taskId: string,
+	startDate: string | null,
+	startDateSource?: "start-date" | "in-progress-status" | null,
+) => {
+	if (startDate) return { startDate, startDateSource: startDateSource ?? "start-date" };
+	const status = await loadCurrentStatusDuration(token, taskId, AbortSignal.timeout(15_000)).catch(() => null);
+	return status?.inProgressSince
+		? { startDate: status.inProgressSince, startDateSource: "in-progress-status" as const }
+		: { startDate: null, startDateSource: null };
 };
 
 export const loadDescendantTasks = async (
@@ -251,7 +280,8 @@ const buildProjectDashboard = async (
 			name: parent.name ?? null,
 			custom_id: parent.custom_id ?? null,
 			status: parent.status?.status ?? null,
-			startDate: parent.start_date ?? null,
+			startDate: parent.start_date ?? currentStatus.inProgressSince,
+			startDateSource: parent.start_date ? "start-date" : currentStatus.inProgressSince ? "in-progress-status" : null,
 			dueDate: parent.due_date ?? null,
 		},
 		items: dashboardItems,
@@ -276,19 +306,36 @@ export const getCompletedProjectDashboard = async (token: string, project: Selec
 	if (parent.status?.status?.toLowerCase() !== "complete") throw new Error("PROJECT_STATUS_CHANGED");
 	const scopeKey = completedSnapshotKey(token, project.task_id);
 	const saved = await getAdminProjectSnapshot(scopeKey);
-	if (saved?.project.status === "complete" && saved.completion) return withCompletedProjectInsights({ ...saved, project: { ...saved.project, startDate: parent.start_date ?? null } });
+	if (saved?.project.status === "complete" && saved.completion) {
+		const start = await loadProjectStartDate(token, project.task_id, parent.start_date ?? saved.project.startDate, parent.start_date ? "start-date" : saved.project.startDateSource);
+		return withCompletedProjectInsights({ ...saved, project: { ...saved.project, ...start } });
+	}
 	const refreshId = randomUUID();
 	if (!(await claimAdminProjectRefresh(scopeKey, refreshId))) throw new Error("PROJECT_SYNC_IN_PROGRESS");
 	try {
 		const current = await getAdminProjectSnapshot(scopeKey);
 		if (current?.project.status === "complete" && current.completion) {
 			await finishAdminProjectRefresh(scopeKey, refreshId);
-			return withCompletedProjectInsights({ ...current, project: { ...current.project, startDate: parent.start_date ?? null } });
+			const start = await loadProjectStartDate(
+				token,
+				project.task_id,
+				parent.start_date ?? current.project.startDate,
+				parent.start_date ? "start-date" : current.project.startDateSource,
+			);
+			return withCompletedProjectInsights({ ...current, project: { ...current.project, ...start } });
 		}
 		const dashboard = current?.completion ? current : await buildProjectDashboard(token, project, { parent });
+		const start = parent.start_date || dashboard.project.startDate || current?.completion
+			? await loadProjectStartDate(
+				token,
+				project.task_id,
+				parent.start_date ?? dashboard.project.startDate,
+				parent.start_date ? "start-date" : dashboard.project.startDateSource,
+			)
+			: { startDate: null, startDateSource: null };
 		const archived = withCompletedProjectInsights({
 			...dashboard,
-			project: { ...dashboard.project, status: "complete", startDate: parent.start_date ?? null },
+			project: { ...dashboard.project, status: "complete", ...start },
 			completion: {
 				completedAt: parent.date_closed ?? parent.date_done ?? null,
 				capturedAt: dashboard.completion?.capturedAt ?? new Date().toISOString(),
@@ -313,7 +360,15 @@ export const getProjectDashboard = async (
 	const archived = await getAdminProjectSnapshot(completedSnapshotKey(token, project.task_id));
 	if (archived?.project.status === "complete" && archived.completion) {
 		const current = await getPanelProject(token, project.task_id);
-		if (current.status?.status?.toLowerCase() === "complete") return withCompletedProjectInsights({ ...archived, project: { ...archived.project, startDate: current.start_date ?? null } });
+		if (current.status?.status?.toLowerCase() === "complete") {
+			const start = await loadProjectStartDate(
+				token,
+				project.task_id,
+				current.start_date ?? archived.project.startDate,
+				current.start_date ? "start-date" : archived.project.startDateSource,
+			);
+			return withCompletedProjectInsights({ ...archived, project: { ...archived.project, ...start } });
+		}
 		refresh = true;
 	}
 	const sourceToken = process.env.CLICKUP_TOKEN;

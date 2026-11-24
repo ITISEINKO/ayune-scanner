@@ -1,25 +1,46 @@
+"use client";
+
+import { useSearchParams } from "next/navigation";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function LoadingProject() {
+	const completed = useSearchParams().get("review") === "completed";
+	const headerSkeleton = completed
+		? "bg-foreground/15"
+		: "bg-primary-foreground/20";
+
 	return (
 		<main
 			aria-busy="true"
 			aria-label="Memuat detail project"
 			className="mx-auto min-h-dvh max-w-lg bg-muted **:data-[slot=skeleton]:opacity-60"
 		>
-			<header className="bg-primary px-5 pt-3 pb-16">
-				<div className="flex items-center justify-between">
-					<Skeleton className="size-10 rounded-full bg-primary-foreground/20" />
-					<div className="flex items-center gap-2">
-						<Skeleton className="h-7 w-20 rounded-full bg-primary-foreground/20" />
-						<Skeleton className="size-8 rounded-full bg-primary-foreground/20" />
-					</div>
+			<div
+				className={`sticky top-0 z-30 flex min-h-16 items-center gap-3 px-5 ${
+					completed ? "" : "bg-primary"
+				}`}
+				style={
+					completed
+						? {
+								backgroundColor:
+									"color-mix(in srgb, var(--accent) 25%, var(--background))",
+							}
+						: undefined
+				}
+			>
+				<Skeleton className={`size-10 rounded-full ${headerSkeleton}`} />
+				<div className="min-w-0 flex-1" />
+				<div className="flex items-center gap-2">
+					<Skeleton className={`h-7 w-20 rounded-full ${headerSkeleton}`} />
+					{!completed && <Skeleton className={`size-8 rounded-full ${headerSkeleton}`} />}
 				</div>
-				<Skeleton className="mt-5 h-14 w-4/5 bg-primary-foreground/20" />
-				<div className="mt-5 flex items-end gap-2">
-					<Skeleton className="h-16 w-20 bg-primary-foreground/20" />
-					<Skeleton className="mb-1 h-6 w-12 bg-primary-foreground/20" />
-				</div>
+			</div>
+
+			<header
+				className={`px-5 pt-1 pb-16 ${completed ? "bg-accent/25" : "bg-primary"}`}
+			>
+				<Skeleton className={`h-7 w-4/5 rounded-lg ${headerSkeleton}`} />
+				<Skeleton className={`mt-2 h-3 w-36 rounded-md ${headerSkeleton}`} />
 			</header>
 
 			<div className="relative -mt-8 space-y-3 rounded-t-4xl bg-background p-4 pt-6 pb-28">

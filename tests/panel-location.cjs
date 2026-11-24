@@ -193,7 +193,7 @@ async function main() {
 		await expect(page.locator('[aria-label="Kontrol tampilan"]').getByRole("button")).toHaveCount(4);
 		await expect(page.getByRole("region", { name: "Panel terpilih" })).toContainText("Panel 9");
 		await expect(page.getByRole("region", { name: "Informasi panel", exact: true })).toContainText("Serial: 15370046376");
-		await expect(page.getByRole("link", { name: "Kembali ke model", exact: true })).toHaveAttribute("href", "/drafter/old");
+		await expect(page.getByRole("link", { name: "Kembali ke model", exact: true })).toHaveAttribute("href", "/drafter");
 		assert.equal(await svg.locator('polygon[fill="#ef4444"]').count(), 6);
 		const initialPoints = await svg.locator("polygon").first().getAttribute("points");
 		await svg.focus(); await page.keyboard.press("ArrowRight");

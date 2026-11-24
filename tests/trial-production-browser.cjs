@@ -80,7 +80,7 @@ const ts = require("typescript");
 		await expect(page.getByRole("heading", { name: "Model LBY 3D Ver2" })).toBeVisible();
 		await page.getByRole("button", { name: "Menu model" }).click();
 		await expect(page.getByRole("menuitem", { name: "Buka pencarian lokasi" })).toHaveAttribute("href", "/cari-lokasi");
-		await expect(page.getByRole("menuitem", { name: "Kelola model LBY old" })).toHaveAttribute("href", "/admin/import-3d/old");
+		await expect(page.getByRole("menuitem", { name: "Kelola model LBY old" })).toHaveCount(0);
 		await page.keyboard.press("Escape");
 		await page.getByText("Sample project", { exact: true }).click();
 		page.once("dialog", (dialog) => dialog.accept());

@@ -54,7 +54,11 @@ export const completedProjectReview = (dashboard: ProjectDashboard) => {
 	})).sort((a, b) => b.scans - a.scans || a.name.localeCompare(b.name));
 	return {
 		total, scanned, counts, startAt, completedAt, timeline, members,
-		startSource: startAt ? "Start date ClickUp" : null,
+		startSource: startAt
+			? dashboard.project.startDateSource === "in-progress-status"
+				? "Status mulai In Progress di ClickUp"
+				: "Start date ClickUp"
+			: null,
 		durationDays: startAt && completedAt && startAt <= completedAt ? calendarDaysBetween(startAt, completedAt) : null,
 	};
 };

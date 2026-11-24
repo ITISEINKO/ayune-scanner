@@ -10,6 +10,7 @@ import {
 	ChevronDown,
 	ChevronUp,
 	RotateCcw,
+	Check,
 	TriangleAlert,
 	X,
 } from "lucide-react";
@@ -46,6 +47,7 @@ export function PanelViewerDetailPage({
 	trialRevision,
 	hideRoomSelector = false,
 	locationViewer = false,
+	selectionEnabled = false,
 	canvasBehindNavigation = false,
 	onReady,
 	footer,
@@ -61,12 +63,14 @@ export function PanelViewerDetailPage({
 	trialRevision: string;
 	hideRoomSelector?: boolean;
 	locationViewer?: boolean;
+	selectionEnabled?: boolean;
 	canvasBehindNavigation?: boolean;
 	onReady?: (ready: boolean) => void;
 	footer?: ReactNode;
 	footerAlwaysVisible?: boolean;
 	keepSelectedPanel?: boolean;
 }) {
+	const canSelectPanels = locationViewer || selectionEnabled;
 	const [room, setRoom] = useState(
 		rooms.some((item) => item.id === initialRoom)
 			? initialRoom!
@@ -80,6 +84,7 @@ export function PanelViewerDetailPage({
 	const [hiddenPanels, setHiddenPanels] = useState<{ room: string; id: string }[]>([]);
 	const [contextMenuPanelId, setContextMenuPanelId] = useState<string | null>(null);
 	const [detailsOpen, setDetailsOpen] = useState(false);
+	const [multiSelectMode, setMultiSelectMode] = useState(false);
 	const [dismissedHingesRoom, setDismissedHingesRoom] = useState<string | null>(
 		null,
 	);
@@ -228,6 +233,7 @@ export function PanelViewerDetailPage({
 		xray,
 		numbers,
 		explode,
+		multiSelectMode,
 	});
 	latest.current = {
 		room,
@@ -241,6 +247,7 @@ export function PanelViewerDetailPage({
 		xray,
 		numbers,
 		explode,
+		multiSelectMode,
 	};
 	onReadyRef.current = onReady;
 	function hidePanels(ids: string[]) {
@@ -281,7 +288,7 @@ export function PanelViewerDetailPage({
 			id,
 			trialRevision,
 			locationViewer,
-			locationViewer
+			canSelectPanels
 				? (id, number, multi) => {
 						setPickedPanels((current) => {
 							const previous = current ?? latest.current.selectedPanels;
@@ -291,7 +298,7 @@ export function PanelViewerDetailPage({
 							const selected = previous.filter(
 								(panel) => panel.room === latest.current.room,
 							);
-							const next = !multi
+							const next = !multi && !latest.current.multiSelectMode
 								? [{ room: latest.current.room, id, number }]
 								: selected.some((panel) => panel.id === id)
 									? selected.filter((panel) => panel.id !== id)
@@ -300,7 +307,7 @@ export function PanelViewerDetailPage({
 						});
 					}
 				: undefined,
-			locationViewer
+			canSelectPanels
 				? (id) => setContextMenuPanelId(id)
 				: undefined,
 		)
@@ -344,7 +351,7 @@ export function PanelViewerDetailPage({
 			current?.dispose();
 			if (viewer.current === current) viewer.current = null;
 		};
-	}, [parts, id, trialRevision, locationViewer, keepSelectedPanel]);
+	}, [parts, id, trialRevision, locationViewer, canSelectPanels, keepSelectedPanel]);
 	useEffect(() => {
 		viewer.current?.setSelected(
 			selectedIds,
@@ -372,12 +379,12 @@ export function PanelViewerDetailPage({
 	return (
 		<section className="absolute inset-0" aria-label="Viewer model 3D">
 			<ContextMenu
-				open={Boolean(locationViewer && contextMenuPanelId)}
+				open={Boolean(canSelectPanels && contextMenuPanelId)}
 				onOpenChange={(open) => {
 					if (!open) setContextMenuPanelId(null);
 				}}
 			>
-				{locationViewer ? (
+				{canSelectPanels ? (
 					<ContextMenuTrigger className="absolute inset-0">
 						<div
 							ref={container}
@@ -392,11 +399,11 @@ export function PanelViewerDetailPage({
 						aria-label="Model 3D interaktif"
 					/>
 				)}
-				{locationViewer && (
+				{canSelectPanels && (
 					<ContextMenuContent>
 						<ContextMenuGroup>
 							<ContextMenuLabel>
-								Ctrl/Cmd-click untuk memilih beberapa panel
+								Ctrl/Cmd-click atau mode pilih untuk multi-select
 							</ContextMenuLabel>
 							<ContextMenuSeparator />
 							{contextMenuPanelId && (
@@ -508,8 +515,19 @@ export function PanelViewerDetailPage({
 						<Icon aria-hidden="true" />
 					</Button>
 				))}
-				{locationViewer && (
+				{canSelectPanels && (
 					<>
+						<Button
+							type="button"
+							variant={multiSelectMode ? "secondary" : "ghost"}
+							size="icon"
+							aria-label="Mode pilih beberapa panel"
+							aria-pressed={multiSelectMode}
+							title="Mode pilih beberapa panel"
+							onClick={() => setMultiSelectMode((value) => !value)}
+						>
+							<Check aria-hidden="true" />
+						</Button>
 						<div className="mx-1 border-t" />
 						<Button
 							type="button"
@@ -542,6 +560,7 @@ export function PanelViewerDetailPage({
 								setHiddenPanels((current) =>
 									current.filter((panel) => panel.room !== room),
 								);
+								setMultiSelectMode(false);
 								setDetailsOpen(false);
 								setContextMenuPanelId(null);
 							}}
@@ -583,7 +602,7 @@ export function PanelViewerDetailPage({
 						dapat dipastikan.
 					</p>
 				)}
-				{locationViewer && selectedId && (
+				{canSelectPanels && selectedId && (
 					<div className="mb-1 flex min-w-0 items-center gap-2">
 						<strong className="text-sm">
 							{(pickedPanel?.room === room ? pickedPanel.number : initialNumber)
@@ -596,7 +615,7 @@ export function PanelViewerDetailPage({
 									? ""
 									: initialSerial)}
 						</span>
-						<Button
+						{locationViewer && <Button
 							type="button"
 							variant="outline"
 							size="icon"
@@ -609,7 +628,7 @@ export function PanelViewerDetailPage({
 							onClick={() => setDetailsOpen((open) => !open)}
 						>
 							{detailsOpen ? <ChevronDown /> : <ChevronUp />}
-						</Button>
+						</Button>}
 					</div>
 				)}
 				<div className="flex items-center gap-3">

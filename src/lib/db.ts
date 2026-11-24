@@ -42,21 +42,6 @@ export const getPpicProfile = async (clickupUserId: string) => {
 let scanHistorySchema: Promise<void> | undefined;
 let projectStatusSchema: Promise<void> | undefined;
 let dashboardSnapshotSchema: Promise<void> | undefined;
-let panelMembersSnapshotSchema: Promise<void> | undefined;
-
-const ensurePanelMembersSnapshotSchema = () =>
-	(panelMembersSnapshotSchema ??= db.execute("CREATE TABLE IF NOT EXISTS ppic_panel_members_snapshot (id INTEGER PRIMARY KEY CHECK (id = 1), members TEXT NOT NULL)").then(() => {}));
-
-export const getPanelMembersSnapshot = async (): Promise<PanelMember[] | null> => {
-	await ensurePanelMembersSnapshotSchema();
-	const result = await db.execute("SELECT members FROM ppic_panel_members_snapshot WHERE id = 1");
-	return result.rows.length ? JSON.parse(String(result.rows[0].members)) : null;
-};
-
-export const savePanelMembersSnapshot = async (members: PanelMember[]) => {
-	await ensurePanelMembersSnapshotSchema();
-	await db.execute({ sql: "INSERT INTO ppic_panel_members_snapshot (id, members) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET members = excluded.members", args: [JSON.stringify(members)] });
-};
 
 export const getLbyImportPermissions = async (userIds: string[]) => {
 	const permissions = Object.fromEntries(userIds.map((id) => [id, false]));
@@ -344,11 +329,13 @@ export const getPpicMemberAccess = async (userIds: string[]) => {
 	const permissions = Object.fromEntries(
 		userIds.map((userId) => [userId, null as PpicStatuses | null]),
 	) as Record<string, PpicStatuses | null>;
-	if (!userIds.length) return { roles, permissions };
+	const provisioned = Object.fromEntries(userIds.map((userId) => [userId, false]));
+	if (!userIds.length) return { roles, permissions, provisioned };
 
 	const result = await db.execute({
 		sql: `
-			SELECT a."accountId" AS clickup_user_id, u.role, u.allowed_status, u.active
+			SELECT a."accountId" AS clickup_user_id, u.role, u.allowed_status, u.active,
+				(SELECT COUNT(*) FROM account a2 WHERE a2."providerId" = 'clickup' AND a2."accountId" = a."accountId") AS account_count
 			FROM "user" u JOIN account a ON a."userId" = u.id AND a."providerId" = 'clickup'
 			WHERE a."accountId" IN (${userIds.map(() => "?").join(", ")})
 		`,
@@ -356,11 +343,12 @@ export const getPpicMemberAccess = async (userIds: string[]) => {
 	});
 	for (const row of result.rows) {
 		const userId = String(row.clickup_user_id);
+		provisioned[userId] = Number(row.account_count) === 1;
 		if (isPpicRole(row.role)) roles[userId] = row.role;
 		if (row.role === "MEMBER" && Number(row.active) === 1)
 			permissions[userId] = ppicStatuses(row.allowed_status);
 	}
-	return { roles, permissions };
+	return { roles, permissions, provisioned };
 };
 
 export const savePpicPermission = async (

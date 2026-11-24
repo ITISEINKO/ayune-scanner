@@ -286,6 +286,34 @@ const fetchPanelChannelMembers = async (token: string): Promise<PanelMember[]> =
 	});
 };
 
+const fetchPanelWorkspaceMembers = async (token: string): Promise<PanelMember[]> => {
+	const response = await fetch("https://api.clickup.com/api/v2/team", {
+		headers: clickUpHeaders(token),
+		cache: "no-store",
+	});
+	if (!response.ok) throw new Error(`WORKSPACE_MEMBERS_UNAVAILABLE:${response.status}`);
+	const body = (await response.json()) as {
+		teams?: { id?: string | number; members?: unknown }[];
+	};
+	const workspace = body.teams?.find(
+		(team) => String(team.id) === (process.env.CLICKUP_TEAM_ID || CLICKUP_TEAM_ID),
+	);
+	const members = workspace?.members;
+	if (!Array.isArray(members))
+		throw new Error("INVALID_WORKSPACE_MEMBERS_RESPONSE");
+	return members.flatMap((member) => {
+		if (typeof member !== "object" || member === null) return [];
+		const user = (member as { user?: unknown }).user;
+		if (typeof user !== "object" || user === null) return [];
+		const value = user as Record<string, unknown>;
+		const id = value.id;
+		const name = value.username ?? value.name;
+		return id !== undefined && typeof name === "string"
+			? [{ id: String(id), name }]
+			: [];
+	});
+};
+
 export const isPpicChannelMember = async (token: string, userId: string) =>
 	(await fetchPanelChannelMembers(token)).some((member) => member.id === userId);
 
@@ -311,6 +339,30 @@ const cachedPanelChannelMembers = unstable_cache(
 export const panelChannelMembers = async (token?: string): Promise<PanelMembersResult> => {
 	token ??= (await clickUpToken()) ?? undefined;
 	return token ? cachedPanelChannelMembers(token) : { ok: false, status: 401 };
+};
+
+const cachedPanelWorkspaceMembers = unstable_cache(
+	async (token: string): Promise<PanelMembersResult> => {
+		try {
+			const [userId, members] = await Promise.all([
+				clickUpUserIdForToken(token),
+				fetchPanelWorkspaceMembers(token),
+			]);
+			if (!userId) return { ok: false, status: 401 };
+			return (await isPpicSuperAdmin(userId))
+				? { ok: true, members }
+				: { ok: false, status: 403 };
+		} catch {
+			return { ok: false, status: 502 };
+		}
+	},
+	["panel-workspace-members"],
+	{ revalidate: 60, tags: [PANEL_MEMBERS_CACHE_TAG] },
+);
+
+export const panelWorkspaceMembers = async (token?: string): Promise<PanelMembersResult> => {
+	token ??= (await clickUpToken()) ?? undefined;
+	return token ? cachedPanelWorkspaceMembers(token) : { ok: false, status: 401 };
 };
 
 export const requireClickUpToken = async () => {

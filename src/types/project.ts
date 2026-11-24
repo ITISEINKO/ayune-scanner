@@ -79,7 +79,12 @@ export type ProjectDashboard = {
 		source: "completion" | "first-view";
 		insights?: CompletedProjectInsights;
 	};
-	project: SelectedProject & { startDate: string | null; dueDate: string | null; status?: string | null };
+	project: SelectedProject & {
+		startDate: string | null;
+		startDateSource?: "start-date" | "in-progress-status" | null;
+		dueDate: string | null;
+		status?: string | null;
+	};
 	items: ProjectDashboardItem[];
 	recentHistory: PpicProjectScanHistory[];
 	memberContribution: { userId: string; name: string; scans: number }[];
