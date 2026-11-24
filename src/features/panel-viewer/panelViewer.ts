@@ -5,7 +5,8 @@ export async function createPanelViewer(
 	modelId: string,
 	trialRevision: string,
 	locationViewer = false,
-	onSelect?: (id: string, number: string) => void,
+	onSelect?: (id: string, number: string, multi: boolean) => void,
+	onContextMenu?: (id: string, number: string) => void,
 ) {
 	const [THREE, { OrbitControls }] = await Promise.all([
 		import("three"),
@@ -14,7 +15,6 @@ export async function createPanelViewer(
 	let disposed = false,
 		doorProgress = 0,
 		frame = 0;
-	let hasSelection = false;
 	let settings = { hideDoors: false, xray: false, numbers: false, explode: 0 };
 	const box = new THREE.Box3();
 	for (const part of parts)
@@ -35,7 +35,6 @@ export async function createPanelViewer(
 		string,
 		InstanceType<typeof THREE.MeshLambertMaterial>
 	>();
-	const selectedMaterials = new Map<InstanceType<typeof THREE.MeshLambertMaterial>, InstanceType<typeof THREE.MeshLambertMaterial>>();
 	const textures = new Map<string, InstanceType<typeof THREE.Texture>>();
 	const hingeMaterial = new THREE.MeshLambertMaterial({
 		color: 0x737b85,
@@ -47,12 +46,9 @@ export async function createPanelViewer(
 		opacity: 0.55,
 	});
 	const selectedOutlineMaterial = new THREE.LineBasicMaterial({
-		color: 0xef4444,
-		transparent: true,
-		opacity: 0.65,
+		color: 0xb6ff00,
 		depthTest: false,
 	});
-	const inspectedOutlineMaterial = new THREE.LineBasicMaterial({ color: 0x2563eb, transparent: true, opacity: 0.85, depthTest: false });
 	scene.add(new THREE.AmbientLight(0xffffff, 1.7));
 	const geometries: InstanceType<typeof THREE.BufferGeometry>[] = [];
 	const sprites: InstanceType<typeof THREE.Sprite>[] = [];
@@ -147,7 +143,6 @@ export async function createPanelViewer(
 			group,
 			mesh,
 			selectedOutline,
-			baseMaterial: material,
 			pivot: pivot.sub(center),
 			middle: middle.sub(center),
 			axis,
@@ -167,22 +162,33 @@ export async function createPanelViewer(
 	renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
 	target.appendChild(renderer.domElement);
 	const controls = new OrbitControls(camera, renderer.domElement);
+	const initialCameraPosition = camera.position.clone();
+	const initialCameraTarget = controls.target.clone();
 	const raycaster = new THREE.Raycaster();
+	const hiddenPanelIds = new Set<string>();
 	let pointerStart: { x: number; y: number; id: number } | null = null;
 	const pointerDown = (event: PointerEvent) => {
 		if (event.isPrimary && event.button === 0) pointerStart = { x: event.clientX, y: event.clientY, id: event.pointerId };
+	};
+	const panelAt = (x: number, y: number) => {
+		const rect = renderer.domElement.getBoundingClientRect();
+		if (!rect.width || !rect.height) return;
+		scene.updateMatrixWorld(true);
+		raycaster.setFromCamera(new THREE.Vector2((x - rect.left) / rect.width * 2 - 1, 1 - (y - rect.top) / rect.height * 2), camera);
+		const hit = raycaster.intersectObjects(panels.filter((panel) => panel.group.visible).map((panel) => panel.mesh))[0];
+		return panels.find((item) => item.mesh === hit?.object);
 	};
 	const pointerUp = (event: PointerEvent) => {
 		const start = pointerStart;
 		pointerStart = null;
 		if (!onSelect || !start || start.id !== event.pointerId || Math.hypot(event.clientX - start.x, event.clientY - start.y) > 6) return;
-		const rect = renderer.domElement.getBoundingClientRect();
-		if (!rect.width || !rect.height) return;
-		scene.updateMatrixWorld(true);
-		raycaster.setFromCamera(new THREE.Vector2((event.clientX - rect.left) / rect.width * 2 - 1, 1 - (event.clientY - rect.top) / rect.height * 2), camera);
-		const hit = raycaster.intersectObjects(panels.filter((panel) => panel.group.visible).map((panel) => panel.mesh))[0];
-		const panel = panels.find((item) => item.mesh === hit?.object);
-		if (panel?.part.id) onSelect(panel.part.id, panel.part.number);
+		const panel = panelAt(event.clientX, event.clientY);
+		if (panel?.part.id) onSelect(panel.part.id, panel.part.number, event.ctrlKey || event.metaKey);
+	};
+	const contextMenu = (event: MouseEvent) => {
+		if (!onContextMenu) return;
+		const panel = panelAt(event.clientX, event.clientY);
+		if (panel?.part.id) onContextMenu(panel.part.id, panel.part.number);
 	};
 	const pointerCancel = () => { pointerStart = null; };
 	if (onSelect) {
@@ -190,6 +196,7 @@ export async function createPanelViewer(
 		renderer.domElement.addEventListener("pointerup", pointerUp);
 		renderer.domElement.addEventListener("pointercancel", pointerCancel);
 	}
+	if (onContextMenu) renderer.domElement.addEventListener("contextmenu", contextMenu);
 	const render = () => {
 		if (settings.numbers) {
 			scene.updateMatrixWorld(true);
@@ -232,12 +239,6 @@ export async function createPanelViewer(
 									material.map = loaded;
 									material.color.set(0xffffff);
 									material.needsUpdate = true;
-									const selected = selectedMaterials.get(material);
-									if (selected) {
-										selected.map = loaded;
-										selected.color.set(0xffffff);
-										selected.needsUpdate = true;
-									}
 								}
 						} else loaded.dispose();
 						resolve();
@@ -254,24 +255,25 @@ export async function createPanelViewer(
 			Math.round(doorProgress * 100),
 		);
 		for (const material of materials.values()) {
-			const transparent = s.xray || hasSelection;
+			const transparent = s.xray;
 			if (material.transparent !== transparent) {
 				material.transparent = transparent;
 				material.needsUpdate = true;
 			}
-			material.opacity = hasSelection ? 0.1 : transparent ? 0.28 : 1;
+			material.opacity = transparent ? 0.28 : 1;
 			material.depthWrite = !transparent;
 		}
-		const fadeHardware = s.xray || hasSelection;
-		outlineMaterial.opacity = hasSelection && !s.xray ? 0.15 : 0.55;
+		const fadeHardware = s.xray;
 		if (hingeMaterial.transparent !== fadeHardware) {
 			hingeMaterial.transparent = fadeHardware;
 			hingeMaterial.needsUpdate = true;
 		}
-		hingeMaterial.opacity = hasSelection ? 0.1 : fadeHardware ? 0.28 : 1;
+		hingeMaterial.opacity = fadeHardware ? 0.28 : 1;
 		hingeMaterial.depthWrite = !fadeHardware;
 		for (const panel of panels) {
-			panel.group.visible = !(s.hideDoors && panel.part.isDoor);
+			panel.group.visible =
+				!(s.hideDoors && panel.part.isDoor) &&
+				!(panel.part.id && hiddenPanelIds.has(panel.part.id));
 			panel.group.position
 				.copy(panel.pivot)
 				.addScaledVector(panel.middle, (s.explode / 100) * 0.6);
@@ -285,7 +287,7 @@ export async function createPanelViewer(
 					doorProgress;
 				panel.group.quaternion.setFromAxisAngle(panel.axis, angle);
 			}
-			if (panel.label) panel.label.visible = s.numbers;
+			if (panel.label) panel.label.visible = s.numbers && panel.group.visible;
 		}
 		renderer.render(scene, camera);
 	};
@@ -319,6 +321,7 @@ export async function createPanelViewer(
 		renderer.domElement.removeEventListener("pointerdown", pointerDown);
 		renderer.domElement.removeEventListener("pointerup", pointerUp);
 		renderer.domElement.removeEventListener("pointercancel", pointerCancel);
+		renderer.domElement.removeEventListener("contextmenu", contextMenu);
 		cancelAnimationFrame(frame);
 		resize.disconnect();
 		controls.dispose();
@@ -328,12 +331,10 @@ export async function createPanelViewer(
 			sprite.material.dispose();
 		});
 		materials.forEach((material) => material.dispose());
-		selectedMaterials.forEach((material) => material.dispose());
 		textures.forEach((texture) => texture.dispose());
 		hingeMaterial.dispose();
 		outlineMaterial.dispose();
 		selectedOutlineMaterial.dispose();
-		inspectedOutlineMaterial.dispose();
 		renderer.dispose();
 		renderer.domElement.remove();
 	};
@@ -344,31 +345,25 @@ export async function createPanelViewer(
 			update();
 			render();
 		},
-		setSelected(id?: string, pinnedId?: string) {
-			hasSelection = panels.some((panel) => panel.part.id && (panel.part.id === id || panel.part.id === pinnedId));
+		resetView() {
+			camera.position.copy(initialCameraPosition);
+			controls.target.copy(initialCameraTarget);
+			controls.update();
+			render();
+		},
+		setHidden(ids: string[]) {
+			hiddenPanelIds.clear();
+			ids.forEach((id) => hiddenPanelIds.add(id));
+			update();
+		},
+		setSelected(ids: string[] = [], pinnedId?: string) {
+			const selectedIds = new Set(ids);
 			for (const panel of panels) {
-				const pinned = Boolean(pinnedId && panel.part.id === pinnedId);
-				const inspected = Boolean(id && panel.part.id === id && !pinned);
-				panel.selectedOutline.visible = pinned || inspected;
-				panel.selectedOutline.material = pinned || !pinnedId ? selectedOutlineMaterial : inspectedOutlineMaterial;
-				if (pinned || inspected) {
-					let selected = selectedMaterials.get(panel.baseMaterial);
-					if (!selected) {
-						selected = panel.baseMaterial.clone();
-						selected.transparent = false;
-						selected.opacity = 1;
-						selected.depthWrite = true;
-						selected.polygonOffset = true;
-						selected.polygonOffsetFactor = -2;
-						selected.polygonOffsetUnits = -2;
-						selectedMaterials.set(panel.baseMaterial, selected);
-					}
-					panel.mesh.material = selected;
-					panel.mesh.renderOrder = 1;
-				} else {
-					panel.mesh.material = panel.baseMaterial;
-					panel.mesh.renderOrder = 0;
-				}
+				panel.selectedOutline.visible = Boolean(
+					panel.part.id &&
+					(selectedIds.has(panel.part.id) || panel.part.id === pinnedId),
+				);
+				panel.selectedOutline.material = selectedOutlineMaterial;
 			}
 			update();
 		},

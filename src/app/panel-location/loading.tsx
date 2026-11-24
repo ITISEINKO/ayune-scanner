@@ -1,4 +1,4 @@
-import { PanelLocationLoader } from "@/features/panel-location/PanelLocationLoader";
+import { PanelLocationLoader } from "@/features/panel-location-old/PanelLocationLoader";
 
 export default function LoadingPanelLocation() {
 	return (
