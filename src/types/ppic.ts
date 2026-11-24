@@ -32,6 +32,8 @@ export type PpicScanHistory = {
 	scannedAt: string;
 };
 
+export const MEMBER_ACTIVITY_PAGE_SIZE = 20;
+
 export type PpicProjectScanHistory = PpicScanHistory & {
 	userId: string;
 	projectTaskId: string;

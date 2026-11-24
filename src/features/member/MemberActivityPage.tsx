@@ -1,6 +1,5 @@
 "use client";
 
-import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { CSSProperties } from "react";
 import { useState } from "react";
 import dynamic from "next/dynamic";
@@ -28,7 +27,6 @@ const MemberScanOverview = dynamic(
 	},
 );
 
-const ITEMS_PER_PAGE = 15;
 const JAKARTA_TIME_ZONE = "Asia/Jakarta";
 const dateKeyFormatter = new Intl.DateTimeFormat("en-CA", {
 	year: "numeric",
@@ -62,17 +60,17 @@ const formatScanTime = (scannedAt: string) =>
 
 export const MemberActivityPage = ({
 	history,
+	initialHasMore,
 	activeTab,
 }: {
 	history: PpicScanHistory[];
+	initialHasMore: boolean;
 	activeTab: "summary" | "activity";
 }) => {
-	const [page, setPage] = useState(1);
-	const totalPages = Math.ceil(history.length / ITEMS_PER_PAGE);
-	const visibleHistory = history.slice(
-		(page - 1) * ITEMS_PER_PAGE,
-		page * ITEMS_PER_PAGE,
-	);
+	const [visibleHistory, setVisibleHistory] = useState(history);
+	const [hasMore, setHasMore] = useState(initialHasMore);
+	const [loadingMore, setLoadingMore] = useState(false);
+	const [loadError, setLoadError] = useState(false);
 	const today = getDateKey(new Date());
 	const yesterday = getDateKey(new Date(Date.now() - 86_400_000));
 	const groups = visibleHistory.reduce<
@@ -115,7 +113,7 @@ export const MemberActivityPage = ({
 					className="mx-4 mt-5 space-y-4"
 					aria-label="Riwayat scan berdasarkan tanggal"
 				>
-					{history.length ? (
+					{visibleHistory.length ? (
 						groups.map((group) => (
 							<div key={group.date} className="space-y-2">
 								<h2 className="px-1 text-xs font-semibold text-muted-foreground">
@@ -164,29 +162,41 @@ export const MemberActivityPage = ({
 							Belum ada riwayat scan.
 						</p>
 					)}
-					{totalPages > 1 && (
-						<div className="flex items-center justify-between px-1 py-2">
+					{hasMore && (
+						<div className="space-y-2 px-1 py-2">
+							{loadError && (
+								<p role="alert" className="text-sm text-destructive">
+									Gagal memuat aktivitas. Coba lagi.
+								</p>
+							)}
 							<Button
-								aria-label="Halaman sebelumnya"
-								disabled={page === 1}
-								onClick={() => setPage((current) => current - 1)}
-								size="icon-sm"
 								variant="outline"
-							>
-								<ChevronLeft aria-hidden="true" />
-							</Button>
-							<span className="text-xs font-semibold text-muted-foreground">
-								Halaman {page} dari {totalPages}
-							</span>
-							<Button
-								aria-label="Halaman berikutnya"
-								disabled={page === totalPages}
-								onClick={() => setPage((current) => current + 1)}
-								size="icon-sm"
-								variant="outline"
-							>
-								<ChevronRight aria-hidden="true" />
-							</Button>
+								className="rounded-full"
+								disabled={loadingMore}
+								onClick={async () => {
+									setLoadingMore(true);
+									setLoadError(false);
+									try {
+										const response = await fetch(
+											`/api/profile/scan-history?offset=${visibleHistory.length}`,
+											{ cache: "no-store" },
+										);
+										if (!response.ok) throw new Error("HISTORY_LOAD_FAILED");
+										const page = (await response.json()) as {
+											history: PpicScanHistory[];
+											hasMore: boolean;
+										};
+										setVisibleHistory((current) => [...current, ...page.history]);
+										setHasMore(page.hasMore);
+									} catch {
+										setLoadError(true);
+									} finally {
+										setLoadingMore(false);
+									}
+								}}
+			>
+					{loadingMore ? "Memuat..." : "Muat lagi"}
+			</Button>
 						</div>
 					)}
 				</section>

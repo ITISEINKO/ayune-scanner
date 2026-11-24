@@ -16,13 +16,18 @@ import type { CSSProperties } from "react";
 
 const roleLabels: Record<PpicRole, string> = { MEMBER: "Member", ADMIN: "Admin", SUPER_ADMIN: "Super Admin" };
 
-export function UserDetailPage({ memberId, canManageAdmin, history }: {
+export function UserDetailPage({ memberId, canManageAdmin, history, hasMoreHistory }: {
 	memberId: string;
 	canManageAdmin: boolean;
 	history: PpicScanHistory[] | null;
+	hasMoreHistory: boolean;
 }) {
 	const { members, roles, permissions, lbyImporters, loading, error, refreshError, updateRole, updatePermission, updateLbyPermission, savingMemberId } = usePanelMembers();
 	const [activeTab, setActiveTab] = useState<string | null>("summary");
+	const [activity, setActivity] = useState(history);
+	const [hasMoreActivity, setHasMoreActivity] = useState(hasMoreHistory);
+	const [loadingActivity, setLoadingActivity] = useState(false);
+	const [activityLoadError, setActivityLoadError] = useState(false);
 	const member = members?.find((item) => item.id === memberId);
 	const role = roles[memberId] ?? "MEMBER";
 	const statuses = permissions[memberId] ?? [];
@@ -42,9 +47,31 @@ export function UserDetailPage({ memberId, canManageAdmin, history }: {
 					{refreshError && <p role="alert" className="px-4 pt-3 text-sm text-destructive">Daftar ClickUp gagal diperbarui. Data lama ditampilkan.</p>}
 					<TabsContent value="summary"><MemberScanOverview memberId={memberId} />
 						<div className="flex items-center justify-between px-4"><h2 className="font-bold">Aktivitas terbaru</h2><Button type="button" variant="outline" size="sm" className="rounded-full" onClick={() => setActiveTab("activity")}>Lihat semua</Button></div>
-						<div className="mx-4 mt-3"><ActivityList history={history?.slice(0, 4) ?? null} /></div>
+						<div className="mx-4 mt-3"><ActivityList history={activity?.slice(0, 4) ?? null} /></div>
 					</TabsContent>
-					<TabsContent value="activity" className="mt-4 px-4"><ActivityList history={history} /></TabsContent>
+					<TabsContent value="activity" className="mt-4 px-4">
+						<ActivityList history={activity} />
+						{hasMoreActivity && (
+							<div className="mt-4 space-y-2">
+								{activityLoadError && <p role="alert" className="text-sm text-destructive">Gagal memuat aktivitas. Coba lagi.</p>}
+								<Button type="button" variant="outline" className="rounded-full" disabled={loadingActivity} onClick={async () => {
+									setLoadingActivity(true);
+									setActivityLoadError(false);
+									try {
+										const response = await fetch(`/api/admin/users/scan-history?user_id=${encodeURIComponent(memberId)}&offset=${activity?.length ?? 0}`, { cache: "no-store" });
+										if (!response.ok) throw new Error("HISTORY_LOAD_FAILED");
+										const page = await response.json() as { history: PpicScanHistory[]; hasMore: boolean };
+										setActivity((current) => current ? [...current, ...page.history] : page.history);
+										setHasMoreActivity(page.hasMore);
+									} catch {
+										setActivityLoadError(true);
+									} finally {
+										setLoadingActivity(false);
+									}
+								}}>{loadingActivity ? "Memuat..." : "Muat lagi"}</Button>
+							</div>
+						)}
+					</TabsContent>
 					<TabsContent value="access" className="mt-4 px-4">
 						<AccessEditor key={memberId} memberId={memberId} role={role} statuses={statuses} drafter={drafter} canManageAdmin={canManageAdmin} saving={Boolean(savingMemberId)} updateRole={updateRole} updatePermission={updatePermission} updateLbyPermission={updateLbyPermission} />
 					</TabsContent>

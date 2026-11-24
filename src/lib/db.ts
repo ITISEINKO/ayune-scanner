@@ -452,6 +452,8 @@ export const savePpicScanHistory = async (
 
 export const getPpicScanHistory = async (
 	userId: string,
+	limit?: number,
+	offset = 0,
 ): Promise<PpicScanHistory[]> => {
 	const result = await db.execute({
 		sql: `
@@ -459,8 +461,9 @@ export const getPpicScanHistory = async (
 			FROM ppic_scan_history
 			WHERE clickup_user_id = ?
 			ORDER BY scanned_at DESC, id DESC
+			${limit === undefined ? "" : "LIMIT ? OFFSET ?"}
 		`,
-		args: [userId],
+		args: limit === undefined ? [userId] : [userId, limit, offset],
 	});
 
 	return result.rows.map((row) => ({

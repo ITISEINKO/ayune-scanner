@@ -3,10 +3,13 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
-import { ArrowLeft, LoaderCircle } from "lucide-react";
+import { ArrowLeft, LoaderCircle, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Scanner } from "@/components/scanner";
+import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { PageHeader } from "@/components/pageHeader";
 import { PanelLocationViewer } from "@/features/panel-location-old/PanelLocationViewer";
 import { PanelViewerDetailPage } from "@/features/panel-viewer/PanelViewerDetailPage";
 import type { PanelLocationView } from "@/types/panelLocation";
@@ -40,10 +43,14 @@ export const SearchPanelLocationPage = ({
 	const router = useRouter();
 	const finding = useRef(false);
 	const [searching, startSearch] = useTransition();
+	const [modelSearch, setModelSearch] = useState("");
 	const [selectedMatch, setSelectedMatch] = useState(
 		trialMatches.length === 1 ? 0 : -1,
 	);
 	const trial = trialMatches[selectedMatch];
+	const visibleModels = models.filter((item) =>
+		item.name.toLocaleLowerCase().includes(modelSearch.trim().toLocaleLowerCase()),
+	);
 	const findPanel = (value: string) => {
 		const code = value.trim();
 		if (!code || finding.current) return;
@@ -68,7 +75,7 @@ export const SearchPanelLocationPage = ({
 			className={
 				serialNumber || selectedModel
 					? `relative mx-auto flex h-dvh max-w-lg flex-col overflow-hidden bg-neutral-50 md:max-w-none dark:bg-background ${hasNavigation ? "pb-(--bottom-navigation-height)" : ""}`
-					: "mx-auto min-h-dvh max-w-lg p-4 pb-28"
+					: "mx-auto min-h-dvh max-w-lg bg-background pb-28"
 			}
 		>
 			{serialNumber || selectedModel ? (
@@ -94,20 +101,11 @@ export const SearchPanelLocationPage = ({
 				</header>
 			) : (
 				<>
-					<header className="mb-7">
-						<div className="flex items-center gap-3">
-							<div className="size-19 shrink-0 overflow-hidden">
-								<img src="/icon.svg" alt="" className="size-full" />
-							</div>
-							<div className="min-w-0 flex-1">
-								<p className="text-xs font-bold tracking-widest text-muted-foreground uppercase">
-									Produksi Panel
-								</p>
-								<h1 className="text-xl font-black tracking-tight">
-									Cari lokasi panel
-								</h1>
-							</div>
-							{!hasNavigation && (
+					<PageHeader
+						eyebrow="Produksi Panel"
+						title="Cari lokasi panel"
+						action={
+							!hasNavigation && (
 								<Link
 									href="/login"
 									className={buttonVariants({
@@ -118,18 +116,39 @@ export const SearchPanelLocationPage = ({
 								>
 									Login
 								</Link>
-							)}
-						</div>
+							)
+						}
+					>
 						<p className="mt-2 text-sm text-muted-foreground">
 							Scan atau masukkan serial panel untuk melihat lokasinya.
 						</p>
-					</header>
-					<Scanner onDetected={findPanel} disabled={searching} />
-					<section className="mt-7" aria-label="Semua model">
-						<h2 className="font-bold">Semua model</h2>
-						{models.length ? (
-							<ul className="mt-3 grid gap-3">
-								{models.map((item) => (
+					</PageHeader>
+					<div className="space-y-7 px-4 pt-5">
+						<Scanner onDetected={findPanel} disabled={searching} />
+						<div className="relative">
+							<Search
+								aria-hidden="true"
+								className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+							/>
+							<Input
+								type="search"
+								aria-label="Cari nama model"
+								placeholder="Cari nama model..."
+								className="min-h-10 rounded-xl border-border bg-card pl-9 text-base shadow-sm"
+								value={modelSearch}
+								onChange={(event) => setModelSearch(event.target.value)}
+							/>
+						</div>
+						<section aria-label="Semua model">
+							<div className="mb-3 flex items-center justify-between">
+								<h2 className="font-bold">Semua model</h2>
+								<Badge variant="muted" className="h-6 rounded-full px-2 text-xs">
+									{models.length} model
+								</Badge>
+							</div>
+							{visibleModels.length ? (
+							<ul className="grid gap-3">
+								{visibleModels.map((item) => (
 									<li key={item.id}>
 										<Link
 											className="block rounded-xl border bg-card p-4 font-semibold hover:bg-muted"
@@ -140,12 +159,15 @@ export const SearchPanelLocationPage = ({
 									</li>
 								))}
 							</ul>
-						) : (
+							) : (
 							<p className="mt-3 text-sm text-muted-foreground">
-								Belum ada model aktif yang diimpor.
+								{models.length
+									? "Tidak ada model yang cocok dengan pencarian."
+									: "Belum ada model aktif yang diimpor."}
 							</p>
 						)}
 					</section>
+					</div>
 					{searching && (
 						<p
 							role="status"
