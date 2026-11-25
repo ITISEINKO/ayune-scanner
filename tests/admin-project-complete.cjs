@@ -134,7 +134,7 @@ const { chromium, expect } = require("@playwright/test");
 		await expect(page.locator('[aria-labelledby="review-returns"]').getByRole("definition").filter({ hasText: /^25%/ })).toBeVisible();
 		await expect(page.getByRole("button", { name: "Tandai selesai", exact: true })).toHaveCount(0);
 		assert.equal(writes, 3);
-		await page.locator("main").getByRole("link", { name: "Projects", exact: true }).click();
+		await page.locator("main").getByRole("link", { name: "Kembali ke project" }).click();
 		await page.getByRole("group", { name: "Status project" }).getByRole("button", { name: "Selesai" }).click();
 		await expect(page.getByRole("link", { name: /Rak Buku/ })).toHaveAttribute("href", "/admin/project?task_id=complete-project&review=completed");
 		assert.equal(completedReads, 2, "completion clears the previously loaded Completed list");
