@@ -7,7 +7,7 @@ const { QueryClient, QueryObserver } = require("@tanstack/react-query");
 
 const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: Infinity } } });
 const key = ["panel-members"];
-let serverData = { members: [{ id: "member", name: "Member" }], roles: {}, permissions: {} };
+let serverData = { members: [{ id: "member", name: "Member" }], roles: {}, permissions: {}, lbyImporters: {}, provisioned: { member: true } };
 let reads = 0, refreshes = 0;
 let attach;
 let cleanup;
@@ -68,7 +68,7 @@ const unmount = () => { cleanup(); unobserve(); };
 	attach();
 	await settle();
 	assert.equal(reads, 2, "attachment refreshes the cached permission snapshot");
-	assert.deepEqual(JSON.parse(JSON.stringify(client.getQueryData(key))), { ...serverData, lbyImporters: serverData.lbyImporters ?? {} });
+	assert.deepEqual(JSON.parse(JSON.stringify(client.getQueryData(key))), serverData);
 	listener({ data: { userId: "member", allowedStatus: ["SEDANG_DIPACKING"] } });
 	assert.equal(client.getQueryData(key).permissions.member[0], "SEDANG_DIPACKING");
 	assert.equal(reads, 2, "live events still patch the cache without a fetch");

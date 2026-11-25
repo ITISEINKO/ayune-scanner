@@ -5,6 +5,7 @@ const { transpileModule, ModuleKind } = require("typescript");
 
 (async () => {
 	let teamId = "team";
+	const db = {};
 	const module = { exports: {} };
 	runInNewContext(
 		transpileModule(readFileSync("src/lib/auth.ts", "utf8"), {
@@ -35,8 +36,9 @@ const { transpileModule, ModuleKind } = require("typescript");
 					return { drizzleAdapter: () => ({}) };
 				if (id === "better-auth/plugins")
 					return { genericOAuth: (config) => config };
-				if (id === "drizzle-orm/libsql") return { drizzle: () => ({}) };
+				if (id === "drizzle-orm/libsql") return { drizzle: (client) => { assert.equal(client, db); return {}; } };
 				if (id === "@/db/schema") return {};
+				if (id === "@/lib/db") return { db };
 				if (id === "@/lib/clickup")
 					return { clickUpHeaders: (token) => ({ Authorization: token }) };
 				if (id === "@/lib/produksiPanel")
