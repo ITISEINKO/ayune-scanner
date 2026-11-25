@@ -116,12 +116,14 @@ async function main() {
 				}));
 				return route.fulfill({
 					json: {
+						lifetimeTotal: 0,
 						total: 0,
 						today: 0,
 						previousTotal: 0,
 						lastScannedAt: null,
 						days,
 						statuses: [],
+						lifetimeStatuses: [],
 					},
 				});
 			}
